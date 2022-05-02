@@ -1,6 +1,6 @@
 mod haplotype;
 
-use haplotype::Wildtype;
+use haplotype::*;
 
 fn main() {
     let bytes = vec![0x00, 0x00, 0x00, 0x00];
@@ -17,4 +17,6 @@ fn main() {
     }
     let seq = ht2.borrow().get_sequence();
     println!("{:?}", seq);
+    let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2);
+    println!("{:?}", ht4.borrow().get_sequence())
 }
