@@ -1,10 +1,12 @@
+use super::fitness::FitnessTable;
 use derivative::Derivative;
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::fmt;
 use std::ops::Range;
 use std::rc::Rc;
 
-type Symbol = Option<u8>;
+pub type Symbol = Option<u8>;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -243,37 +245,37 @@ impl Haplotype {
                 Haplotype::Descendant(ht) => {
                     if let Some(symbol) = ht.change && range.contains(&ht.position) {
                         match changes[ht.position] {
-                            Some(_) => {}
+                            Some(_) => {},
                             None => changes[ht.position] = Some(symbol),
                         }
                     }
                     ranges.push((Rc::clone(&ht.ancestor), range));
                 }
-                Haplotype::Recombinant(rc) => {
-                    if range.end < rc.left_position || range.start > rc.right_position {
-                        ranges.push((Rc::clone(&rc.right_ancestor), range))
-                    } else if range.contains(&rc.left_position)
-                        && range.contains(&rc.right_position)
-                    {
-                        ranges.push((Rc::clone(&rc.right_ancestor), range.start..rc.left_position));
-                        ranges.push((
-                            Rc::clone(&rc.left_ancestor),
-                            rc.left_position..rc.right_position,
-                        ));
-                        ranges.push((Rc::clone(&rc.right_ancestor), rc.right_position..range.end));
-                    } else if range.contains(&rc.left_position) {
-                        ranges.push((Rc::clone(&rc.right_ancestor), range.start..rc.left_position));
-                        ranges.push((Rc::clone(&rc.left_ancestor), rc.left_position..range.end));
-                    } else if range.contains(&rc.right_position) {
-                        ranges.push((Rc::clone(&rc.left_ancestor), range.start..rc.right_position));
-                        ranges.push((Rc::clone(&rc.right_ancestor), rc.right_position..range.end));
-                    } else {
-                        ranges.push((Rc::clone(&rc.left_ancestor), range))
-                    }
-                }
+                Haplotype::Recombinant(rc) => rc.push_to_ranges(&mut ranges, range),
             }
         }
         changes
+    }
+
+    pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
+        let mut ranges: Vec<(Rc<RefCell<Haplotype>>, Range<usize>)> = Vec::new();
+        let mut checked: HashSet<usize> = HashSet::new();
+        ranges.push((Rc::clone(self.get_reference()), 0..self.get_length()));
+        let mut fitness = 1.;
+        while let Some((current, range)) = ranges.pop() {
+            match &*(Rc::clone(&current)).borrow() {
+                Haplotype::Wildtype(_wt) => {}
+                Haplotype::Descendant(ht) => {
+                    if range.contains(&ht.position) && !checked.contains(&ht.position) {
+                        fitness *= fitness_table.get_fitness(&ht.position, &ht.change);
+                        checked.insert(ht.position);
+                    }
+                    ranges.push((Rc::clone(&ht.ancestor), range));
+                }
+                Haplotype::Recombinant(rc) => rc.push_to_ranges(&mut ranges, range),
+            }
+        }
+        fitness
     }
 
     pub fn get_length(&self) -> usize {
@@ -383,6 +385,49 @@ impl Recombinant {
 
     pub fn get_length(&self) -> usize {
         self.wildtype.borrow().get_length()
+    }
+
+    fn push_to_ranges(
+        &self,
+        ranges: &mut Vec<(Rc<RefCell<Haplotype>>, Range<usize>)>,
+        range: Range<usize>,
+    ) {
+        if range.end < self.left_position || range.start > self.right_position {
+            ranges.push((Rc::clone(&self.right_ancestor), range))
+        } else if range.contains(&self.left_position) && range.contains(&self.right_position) {
+            ranges.push((
+                Rc::clone(&self.right_ancestor),
+                range.start..self.left_position,
+            ));
+            ranges.push((
+                Rc::clone(&self.left_ancestor),
+                self.left_position..self.right_position,
+            ));
+            ranges.push((
+                Rc::clone(&self.right_ancestor),
+                self.right_position..range.end,
+            ));
+        } else if range.contains(&self.left_position) {
+            ranges.push((
+                Rc::clone(&self.right_ancestor),
+                range.start..self.left_position,
+            ));
+            ranges.push((
+                Rc::clone(&self.left_ancestor),
+                self.left_position..range.end,
+            ));
+        } else if range.contains(&self.right_position) {
+            ranges.push((
+                Rc::clone(&self.left_ancestor),
+                range.start..self.right_position,
+            ));
+            ranges.push((
+                Rc::clone(&self.right_ancestor),
+                self.right_position..range.end,
+            ));
+        } else {
+            ranges.push((Rc::clone(&self.left_ancestor), range))
+        }
     }
 }
 
