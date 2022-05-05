@@ -2,6 +2,7 @@
 
 mod fitness;
 mod haplotype;
+mod simulation;
 
 use fitness::*;
 use haplotype::*;
@@ -77,7 +78,7 @@ fn _simulation_experiments() {
             neutral: 0.,
         },
         lambda_beneficial: 0.03,
-        lambda_deleterious: 0.13,
+        lambda_deleterious: 0.21,
     });
 
     let fitness_table = &FitnessTable::new(&sequence, &4, distribution);
