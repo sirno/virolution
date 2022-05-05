@@ -39,6 +39,7 @@ pub struct Descendant {
     descendants: Vec<Rc<RefCell<Haplotype>>>,
     position: usize,
     change: Symbol,
+    fitness: Option<f64>,
 }
 
 #[derive(Derivative)]
@@ -56,6 +57,7 @@ pub struct Recombinant {
     descendants: Vec<Rc<RefCell<Haplotype>>>,
     left_position: usize,
     right_position: usize,
+    fitness: Option<f64>,
 }
 
 fn print_reference(
@@ -331,6 +333,7 @@ impl Descendant {
             descendants: Vec::new(),
             position: position,
             change: change,
+            fitness: None,
         }
     }
 
@@ -372,6 +375,7 @@ impl Recombinant {
             left_position: left_position,
             right_position: right_position,
             descendants: Vec::new(),
+            fitness: None,
         }
     }
 
