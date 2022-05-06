@@ -7,6 +7,8 @@ mod simulation;
 use fitness::*;
 use haplotype::*;
 use rand::seq::SliceRandom;
+use simulation::*;
+use std::rc::Rc;
 
 fn _haplotype_experiments() {
     let bytes = vec![Some(0x00); 4];
@@ -81,7 +83,7 @@ fn _simulation_experiments() {
         lambda_deleterious: 0.21,
     });
 
-    let fitness_table = &FitnessTable::new(&sequence, &4, distribution);
+    let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
     let wt = Wildtype::create_wildtype(sequence);
     let ht = wt.borrow_mut().create_descendant(2, 0x01);
@@ -90,11 +92,19 @@ fn _simulation_experiments() {
     let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2);
 
     println!("---fitnesses---");
-    println!("wt: {}", wt.borrow().get_fitness(fitness_table));
-    println!("ht: {}", ht.borrow().get_fitness(fitness_table));
-    println!("ht2: {}", ht2.borrow().get_fitness(fitness_table));
-    println!("ht3: {}", ht3.borrow().get_fitness(fitness_table));
-    println!("ht4: {}", ht4.borrow().get_fitness(fitness_table));
+    println!("wt: {}", wt.borrow().get_fitness(&fitness_table));
+    println!("ht: {}", ht.borrow().get_fitness(&fitness_table));
+    println!("ht2: {}", ht2.borrow().get_fitness(&fitness_table));
+    println!("ht3: {}", ht3.borrow().get_fitness(&fitness_table));
+    println!("ht4: {}", ht4.borrow().get_fitness(&fitness_table));
+
+    let population = (0..10).map(|_| Rc::clone(&wt)).collect();
+    let simulation = Simulation::new(population, fitness_table, 5, 0.7);
+    let infectant_map = simulation.get_infectant_map();
+    let host_map = simulation.get_host_map(&infectant_map);
+    println!("---infection-mapping---");
+    println!("infectant_map: {:?}", infectant_map);
+    println!("host_map: {:?}", host_map);
 }
 
 fn main() {
