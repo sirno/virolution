@@ -2,6 +2,7 @@ use super::haplotype::Symbol;
 use rand::prelude::*;
 use rand_distr::{Exp, WeightedIndex};
 
+#[derive(Clone)]
 pub struct FitnessTable {
     n_sites: usize,
     n_symbols: usize,

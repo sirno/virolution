@@ -7,12 +7,17 @@ mod fitness;
 mod haplotype;
 mod simulation;
 mod simulation_settings;
+mod transfers;
 
 use fitness::*;
 use haplotype::*;
 use simulation::*;
 use simulation_settings::*;
 use std::rc::Rc;
+use transfers::*;
+
+const migration_fwd: [[f64; 3]; 3] = [[1., 0., 0.], [0.2, 0.8, 0.], [0., 0.2, 0.8]];
+const migration_rev: [[f64; 3]; 3] = [[0.8, 0.2, 0.], [0., 1., 0.], [0., 0., 1.]];
 
 fn _haplotype_experiments() {
     let bytes = vec![Some(0x00); 4];
@@ -124,7 +129,7 @@ fn _simulation_experiments() {
     let host_map = simulation.get_host_map(&infectant_map);
     simulation.mutate_infectants(&host_map);
     let offspring = simulation.replicate_infectants(&host_map);
-    let population2 = simulation.subsample_population(&offspring);
+    let population2 = simulation.subsample_population(&offspring, 1.);
 
     println!("---simulation_settings---");
     println!("{:#?}", settings);
@@ -149,7 +154,7 @@ fn _simulation_experiments() {
     );
 }
 
-fn _loop_simulation_experiments() {
+fn _simulation_loop_experiments() {
     let sequence = vec![Some(0x00); 100];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
@@ -187,9 +192,72 @@ fn _loop_simulation_experiments() {
         let host_map = simulation.get_host_map(&infectant_map);
         simulation.mutate_infectants(&host_map);
         let offspring = simulation.replicate_infectants(&host_map);
-        let population = simulation.subsample_population(&offspring);
+        let population = simulation.subsample_population(&offspring, 1.);
         simulation.set_population(population);
         // println!("{:?}", simulation.print_population());
+    }
+}
+
+fn _simulation_compartment_experiments() {
+    let sequence = vec![Some(0x00); 100];
+    let distribution = FitnessDistribution::Exponential(ExponentialParameters {
+        weights: MutationCategoryWeights {
+            beneficial: 0.29,
+            deleterious: 0.51,
+            lethal: 0.2,
+            neutral: 0.,
+        },
+        lambda_beneficial: 0.03,
+        lambda_deleterious: 0.21,
+    });
+
+    let fitness_table = FitnessTable::new(&sequence, &4, distribution);
+
+    let wt = Wildtype::create_wildtype(sequence);
+    let settings = SimulationSettings {
+        mutation_rate: 1e-3,
+        substitution_matrix: [
+            [0., 1., 1., 1.],
+            [1., 0., 1., 1.],
+            [1., 1., 0., 1.],
+            [1., 1., 1., 0.],
+        ],
+        host_population_size: 5,
+        infection_fraction: 0.7,
+        basic_reproductive_number: 100.,
+        max_population: 100000000,
+        dilution: 0.17,
+    };
+
+    let n_compartments = 3;
+    let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
+        .map(|_| {
+            let init_population = (0..10).map(|_| Rc::clone(&wt)).collect();
+            Simulation::new(init_population, fitness_table.clone(), settings.clone())
+        })
+        .collect();
+
+    for gen in 1..=1000 {
+        println!("generation={}", gen);
+        let mut offsprings: Vec<Vec<usize>> = Vec::new();
+        for simulation in compartment_simulations.iter_mut() {
+            let infectant_map = simulation.get_infectant_map();
+            let host_map = simulation.get_host_map(&infectant_map);
+            simulation.mutate_infectants(&host_map);
+            let offspring = simulation.replicate_infectants(&host_map);
+            offsprings.push(offspring);
+        }
+        let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
+        for origin in 0..n_compartments {
+            for target in 0..n_compartments {
+                let mut population = compartment_simulations[origin]
+                    .subsample_population(&offsprings[origin], migration_fwd[origin][target]);
+                populations[target].append(&mut population);
+            }
+        }
+        for (idx, simulation) in compartment_simulations.iter_mut().enumerate() {
+            simulation.set_population(populations[idx].clone());
+        }
     }
 }
 
@@ -197,7 +265,8 @@ fn main() {
     _haplotype_experiments();
     _population_experiments();
     _simulation_experiments();
-    _loop_simulation_experiments();
+    // _simulation_loop_experiments();
+    _simulation_compartment_experiments();
 }
 
 #[cfg(test)]

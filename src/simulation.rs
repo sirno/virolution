@@ -133,13 +133,14 @@ impl Simulation {
         offspring
     }
 
-    pub fn subsample_population(&mut self, offspring_map: &Vec<usize>) -> Population {
+    pub fn subsample_population(&mut self, offspring_map: &Vec<usize>, factor: f64) -> Population {
         let mut rng = rand::thread_rng();
         let offspring_size: usize = offspring_map.iter().sum();
-        let sample_size = min(
-            (offspring_size as f64 * self.simulation_settings.dilution) as usize,
-            self.simulation_settings.max_population,
-        );
+        let sample_size = (factor
+            * min(
+                (offspring_size as f64 * self.simulation_settings.dilution) as usize,
+                self.simulation_settings.max_population,
+            ) as f64) as usize;
         let sampler = match WeightedIndex::new(offspring_map) {
             Ok(s) => s,
             Err(_) => {
@@ -157,7 +158,7 @@ impl Simulation {
         let host_map = self.get_host_map(&infectant_map);
         self.mutate_infectants(&host_map);
         let offspring = self.replicate_infectants(&host_map);
-        let population = self.subsample_population(&offspring);
+        let population = self.subsample_population(&offspring, 1.);
         self.set_population(population);
     }
 

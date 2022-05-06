@@ -4,10 +4,12 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt;
 use std::ops::Range;
-use std::rc::Rc;
+use std::process;
+use std::rc::{Rc, Weak};
 
 pub type Symbol = Option<u8>;
 pub type HaplotypeRef = Rc<RefCell<Haplotype>>;
+type HaplotypeWeak = Weak<RefCell<Haplotype>>;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -21,24 +23,24 @@ pub enum Haplotype {
 #[derivative(Debug)]
 pub struct Wildtype {
     #[derivative(Debug(format_with = "print_reference_option"))]
-    reference: Option<HaplotypeRef>,
+    reference: Option<HaplotypeWeak>,
     #[derivative(Debug = "ignore")]
     sequence: Vec<Symbol>,
     #[derivative(Debug(format_with = "print_descendants"))]
-    descendants: Vec<HaplotypeRef>,
+    descendants: Vec<HaplotypeWeak>,
 }
 
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Descendant {
     #[derivative(Debug(format_with = "print_reference_option"))]
-    reference: Option<HaplotypeRef>,
+    reference: Option<HaplotypeWeak>,
     #[derivative(Debug(format_with = "print_reference"))]
     wildtype: HaplotypeRef,
     #[derivative(Debug(format_with = "print_reference"))]
     ancestor: HaplotypeRef,
     #[derivative(Debug(format_with = "print_descendants"))]
-    descendants: Vec<HaplotypeRef>,
+    descendants: Vec<HaplotypeWeak>,
     position: usize,
     change: Symbol,
     fitness: Option<f64>,
@@ -48,7 +50,7 @@ pub struct Descendant {
 #[derivative(Debug)]
 pub struct Recombinant {
     #[derivative(Debug(format_with = "print_reference_option"))]
-    reference: Option<HaplotypeRef>,
+    reference: Option<HaplotypeWeak>,
     #[derivative(Debug(format_with = "print_reference"))]
     wildtype: HaplotypeRef,
     #[derivative(Debug(format_with = "print_reference"))]
@@ -56,7 +58,7 @@ pub struct Recombinant {
     #[derivative(Debug(format_with = "print_reference"))]
     right_ancestor: HaplotypeRef,
     #[derivative(Debug(format_with = "print_descendants"))]
-    descendants: Vec<HaplotypeRef>,
+    descendants: Vec<HaplotypeWeak>,
     left_position: usize,
     right_position: usize,
     fitness: Option<f64>,
@@ -70,22 +72,28 @@ fn print_reference(
 }
 
 fn print_reference_option(
-    reference_option: &Option<HaplotypeRef>,
+    reference_option: &Option<HaplotypeWeak>,
     formatter: &mut std::fmt::Formatter,
 ) -> Result<(), std::fmt::Error> {
     match reference_option {
-        Some(reference) => write!(formatter, "{}", reference.borrow().get_string()),
+        Some(reference_weak) => match reference_weak.upgrade() {
+            Some(reference) => write!(formatter, "{}", reference.borrow().get_string()),
+            None => write!(formatter, "None"),
+        },
         None => write!(formatter, "None"),
     }
 }
 
 fn print_descendants(
-    descendants: &Vec<HaplotypeRef>,
+    descendants: &Vec<HaplotypeWeak>,
     formatter: &mut std::fmt::Formatter,
 ) -> Result<(), std::fmt::Error> {
     let out: Vec<String> = descendants
         .into_iter()
-        .map(|descendant| descendant.borrow().get_string())
+        .map(|descendant_weak| match descendant_weak.upgrade() {
+            Some(descendant) => descendant.borrow().to_string(),
+            None => "None".to_string(),
+        })
         .collect();
     write!(formatter, "{:?}", out)
 }
@@ -98,7 +106,7 @@ impl fmt::Display for Haplotype {
 
 impl Haplotype {
     pub fn create_descendant(&mut self, position: usize, change: u8) -> HaplotypeRef {
-        let ancestor = Rc::clone(self.get_reference());
+        let ancestor = self.get_reference();
         let wildtype = self.get_wildtype();
 
         let descendant = Rc::new(RefCell::new(Haplotype::Descendant(Descendant::new(
@@ -109,9 +117,9 @@ impl Haplotype {
         ))));
         descendant
             .borrow_mut()
-            .add_reference(Rc::clone(&descendant));
+            .add_reference(Rc::downgrade(&Rc::clone(&descendant)));
 
-        self.add_descendant(&descendant);
+        self.add_descendant(Rc::downgrade(&descendant));
         descendant
     }
 
@@ -132,14 +140,18 @@ impl Haplotype {
         ))));
         recombinant
             .borrow_mut()
-            .add_reference(Rc::clone(&recombinant));
+            .add_reference(Rc::downgrade(&recombinant));
 
-        left_ancestor.borrow_mut().add_descendant(&recombinant);
-        right_ancestor.borrow_mut().add_descendant(&recombinant);
+        left_ancestor
+            .borrow_mut()
+            .add_descendant(Rc::downgrade(&recombinant));
+        right_ancestor
+            .borrow_mut()
+            .add_descendant(Rc::downgrade(&recombinant));
         recombinant
     }
 
-    pub fn add_reference(&mut self, reference: HaplotypeRef) {
+    pub fn add_reference(&mut self, reference: HaplotypeWeak) {
         match self {
             Haplotype::Wildtype(wt) => wt.reference = Some(reference),
             Haplotype::Descendant(ht) => ht.reference = Some(reference),
@@ -147,14 +159,20 @@ impl Haplotype {
         };
     }
 
-    pub fn get_reference(&self) -> &HaplotypeRef {
+    pub fn get_reference(&self) -> HaplotypeRef {
         let option = match self {
             Haplotype::Wildtype(wt) => &wt.reference,
             Haplotype::Descendant(ht) => &ht.reference,
             Haplotype::Recombinant(rc) => &rc.reference,
         };
         match option {
-            Some(reference) => &reference,
+            Some(reference_weak) => match reference_weak.upgrade() {
+                Some(reference) => reference,
+                None => {
+                    eprintln!("Haplotype incorrectly initialized.");
+                    std::process::exit(-1);
+                }
+            },
             None => {
                 eprintln!("Haplotype incorrectly initialized.");
                 std::process::exit(-1);
@@ -170,7 +188,7 @@ impl Haplotype {
         }
     }
 
-    pub fn get_descendants(&self) -> &Vec<HaplotypeRef> {
+    pub fn get_descendants(&self) -> &Vec<HaplotypeWeak> {
         match self {
             Haplotype::Wildtype(wt) => &wt.descendants,
             Haplotype::Descendant(ht) => &ht.descendants,
@@ -178,11 +196,11 @@ impl Haplotype {
         }
     }
 
-    pub fn add_descendant(&mut self, descendant: &HaplotypeRef) {
+    pub fn add_descendant(&mut self, descendant: HaplotypeWeak) {
         match self {
-            Haplotype::Wildtype(wt) => wt.descendants.push(Rc::clone(descendant)),
-            Haplotype::Descendant(ht) => ht.descendants.push(Rc::clone(descendant)),
-            Haplotype::Recombinant(rc) => rc.descendants.push(Rc::clone(descendant)),
+            Haplotype::Wildtype(wt) => wt.descendants.push(descendant),
+            Haplotype::Descendant(ht) => ht.descendants.push(descendant),
+            Haplotype::Recombinant(rc) => rc.descendants.push(descendant),
         };
     }
 
@@ -241,7 +259,7 @@ impl Haplotype {
 
     pub fn get_changes(&self) -> Vec<Symbol> {
         let mut ranges: Vec<(HaplotypeRef, Range<usize>)> = Vec::new();
-        ranges.push((Rc::clone(self.get_reference()), 0..self.get_length()));
+        ranges.push((Rc::clone(&self.get_reference()), 0..self.get_length()));
         let mut changes = vec![None; self.get_length()];
         while let Some((current, range)) = ranges.pop() {
             match &*(Rc::clone(&current)).borrow() {
@@ -275,7 +293,7 @@ impl Haplotype {
 
         let mut ranges: Vec<(HaplotypeRef, Range<usize>)> = Vec::new();
         let mut checked: HashSet<usize> = HashSet::new();
-        ranges.push((Rc::clone(self.get_reference()), 0..self.get_length()));
+        ranges.push((Rc::clone(&self.get_reference()), 0..self.get_length()));
         let mut fitness = 1.;
         while let Some((current, range)) = ranges.pop() {
             match &*(Rc::clone(&current)).borrow() {
@@ -309,13 +327,21 @@ impl Wildtype {
             sequence: sequence,
             descendants: Vec::new(),
         })));
-        reference.borrow_mut().add_reference(Rc::clone(&reference));
+        reference
+            .borrow_mut()
+            .add_reference(Rc::downgrade(&reference));
         reference
     }
 
-    pub fn get_reference(&self) -> &HaplotypeRef {
+    pub fn get_reference(&self) -> HaplotypeRef {
         match &self.reference {
-            Some(reference) => &reference,
+            Some(reference_weak) => match reference_weak.upgrade() {
+                Some(reference) => reference,
+                None => {
+                    eprintln!("Haplotype incorrectly initialized.");
+                    std::process::exit(-1);
+                }
+            },
             None => {
                 eprintln!("Haplotype incorrectly initialized.");
                 std::process::exit(-1);
@@ -350,16 +376,16 @@ impl Descendant {
         }
     }
 
-    pub fn get_reference(&self) -> &HaplotypeRef {
-        match &self.reference {
-            Some(reference) => &reference,
-            None => {
-                eprintln!("Haplotype incorrectly initialized.");
-                std::process::exit(-1);
-            }
-        }
-    }
-
+    // pub fn get_reference(&self) -> &HaplotypeRef {
+    //     match &self.reference {
+    //         Some(reference) => &reference,
+    //         None => {
+    //             eprintln!("Haplotype incorrectly initialized.");
+    //             std::process::exit(-1);
+    //         }
+    //     }
+    // }
+    //
     pub fn get_base(&self, position: usize) -> Symbol {
         if self.position == position {
             return self.change;
@@ -472,11 +498,15 @@ mod tests {
     fn create_wide_geneaology() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let wt = Wildtype::create_wildtype(bytes);
-        for i in 0..100 {
-            let _ht = wt.borrow_mut().create_descendant(0, i);
-        }
+        let _hts: Vec<HaplotypeRef> = (0..100)
+            .map(|i| wt.borrow_mut().create_descendant(0, i))
+            .collect();
         for (position, descendant) in wt.borrow().get_descendants().iter().enumerate() {
-            assert_eq!(descendant.borrow().get_base(0), Some(position as u8));
+            if let Some(d) = descendant.upgrade() {
+                assert_eq!(d.borrow().get_base(0), Some(position as u8));
+            } else {
+                panic!();
+            }
         }
     }
 
