@@ -6,10 +6,11 @@ use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
 use std::cmp::min;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::process;
 use std::rc::Rc;
 
-type Population = Vec<HaplotypeRef>;
-type HostMap = HashMap<usize, Vec<usize>>;
+pub type Population = Vec<HaplotypeRef>;
+pub type HostMap = HashMap<usize, Vec<usize>>;
 
 pub struct Simulation {
     population: Population,
@@ -39,6 +40,10 @@ impl Simulation {
 
     pub fn get_population(&self) -> Population {
         self.population.clone()
+    }
+
+    pub fn set_population(&mut self, population: Population) {
+        self.population = population;
     }
 
     pub fn get_infectant_map(&self) -> Vec<Option<usize>> {
@@ -131,14 +136,35 @@ impl Simulation {
     pub fn subsample_population(&mut self, offspring_map: &Vec<usize>) -> Population {
         let mut rng = rand::thread_rng();
         let offspring_size: usize = offspring_map.iter().sum();
-        println!("offspring_size: {:?}", offspring_size);
         let sample_size = min(
             (offspring_size as f64 * self.simulation_settings.dilution) as usize,
             self.simulation_settings.max_population,
         );
-        let sampler = WeightedIndex::new(offspring_map).unwrap();
+        let sampler = match WeightedIndex::new(offspring_map) {
+            Ok(s) => s,
+            Err(_) => {
+                println!("Population went extinct.");
+                process::exit(1);
+            }
+        };
         (0..sample_size)
             .map(|_| Rc::clone(&self.population[sampler.sample(&mut rng)]))
             .collect()
+    }
+
+    pub fn next_generation(&mut self) {
+        let infectant_map = self.get_infectant_map();
+        let host_map = self.get_host_map(&infectant_map);
+        self.mutate_infectants(&host_map);
+        let offspring = self.replicate_infectants(&host_map);
+        let population = self.subsample_population(&offspring);
+        self.set_population(population);
+    }
+
+    pub fn print_population(&self) -> Vec<String> {
+        self.population
+            .iter()
+            .map(|hap| hap.borrow().get_string())
+            .collect::<Vec<String>>()
     }
 }
