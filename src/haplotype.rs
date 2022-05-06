@@ -7,6 +7,7 @@ use std::ops::Range;
 use std::rc::Rc;
 
 pub type Symbol = Option<u8>;
+pub type HaplotypeRef = Rc<RefCell<Haplotype>>;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -20,23 +21,23 @@ pub enum Haplotype {
 #[derivative(Debug)]
 pub struct Wildtype {
     #[derivative(Debug(format_with = "print_reference_option"))]
-    reference: Option<Rc<RefCell<Haplotype>>>,
+    reference: Option<HaplotypeRef>,
     sequence: Vec<Symbol>,
     #[derivative(Debug(format_with = "print_descendants"))]
-    descendants: Vec<Rc<RefCell<Haplotype>>>,
+    descendants: Vec<HaplotypeRef>,
 }
 
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Descendant {
     #[derivative(Debug(format_with = "print_reference_option"))]
-    reference: Option<Rc<RefCell<Haplotype>>>,
+    reference: Option<HaplotypeRef>,
     #[derivative(Debug(format_with = "print_reference"))]
-    wildtype: Rc<RefCell<Haplotype>>,
+    wildtype: HaplotypeRef,
     #[derivative(Debug(format_with = "print_reference"))]
-    ancestor: Rc<RefCell<Haplotype>>,
+    ancestor: HaplotypeRef,
     #[derivative(Debug(format_with = "print_descendants"))]
-    descendants: Vec<Rc<RefCell<Haplotype>>>,
+    descendants: Vec<HaplotypeRef>,
     position: usize,
     change: Symbol,
     fitness: Option<f64>,
@@ -46,29 +47,29 @@ pub struct Descendant {
 #[derivative(Debug)]
 pub struct Recombinant {
     #[derivative(Debug(format_with = "print_reference_option"))]
-    reference: Option<Rc<RefCell<Haplotype>>>,
+    reference: Option<HaplotypeRef>,
     #[derivative(Debug(format_with = "print_reference"))]
-    wildtype: Rc<RefCell<Haplotype>>,
+    wildtype: HaplotypeRef,
     #[derivative(Debug(format_with = "print_reference"))]
-    left_ancestor: Rc<RefCell<Haplotype>>,
+    left_ancestor: HaplotypeRef,
     #[derivative(Debug(format_with = "print_reference"))]
-    right_ancestor: Rc<RefCell<Haplotype>>,
+    right_ancestor: HaplotypeRef,
     #[derivative(Debug(format_with = "print_descendants"))]
-    descendants: Vec<Rc<RefCell<Haplotype>>>,
+    descendants: Vec<HaplotypeRef>,
     left_position: usize,
     right_position: usize,
     fitness: Option<f64>,
 }
 
 fn print_reference(
-    reference: &Rc<RefCell<Haplotype>>,
+    reference: &HaplotypeRef,
     formatter: &mut std::fmt::Formatter,
 ) -> Result<(), std::fmt::Error> {
     write!(formatter, "{}", reference.borrow().get_string())
 }
 
 fn print_reference_option(
-    reference_option: &Option<Rc<RefCell<Haplotype>>>,
+    reference_option: &Option<HaplotypeRef>,
     formatter: &mut std::fmt::Formatter,
 ) -> Result<(), std::fmt::Error> {
     match reference_option {
@@ -78,7 +79,7 @@ fn print_reference_option(
 }
 
 fn print_descendants(
-    descendants: &Vec<Rc<RefCell<Haplotype>>>,
+    descendants: &Vec<HaplotypeRef>,
     formatter: &mut std::fmt::Formatter,
 ) -> Result<(), std::fmt::Error> {
     let out: Vec<String> = descendants
@@ -95,7 +96,7 @@ impl fmt::Display for Haplotype {
 }
 
 impl Haplotype {
-    pub fn create_descendant(&mut self, position: usize, change: u8) -> Rc<RefCell<Haplotype>> {
+    pub fn create_descendant(&mut self, position: usize, change: u8) -> HaplotypeRef {
         let ancestor = Rc::clone(self.get_reference());
         let wildtype = self.get_wildtype();
 
@@ -114,11 +115,11 @@ impl Haplotype {
     }
 
     pub fn create_recombinant(
-        left_ancestor: &Rc<RefCell<Haplotype>>,
-        right_ancestor: &Rc<RefCell<Haplotype>>,
+        left_ancestor: &HaplotypeRef,
+        right_ancestor: &HaplotypeRef,
         left_position: usize,
         right_position: usize,
-    ) -> Rc<RefCell<Haplotype>> {
+    ) -> HaplotypeRef {
         let wildtype = left_ancestor.borrow().get_wildtype();
 
         let recombinant = Rc::new(RefCell::new(Haplotype::Recombinant(Recombinant::new(
@@ -137,7 +138,7 @@ impl Haplotype {
         recombinant
     }
 
-    pub fn add_reference(&mut self, reference: Rc<RefCell<Haplotype>>) {
+    pub fn add_reference(&mut self, reference: HaplotypeRef) {
         match self {
             Haplotype::Wildtype(wt) => wt.reference = Some(reference),
             Haplotype::Descendant(ht) => ht.reference = Some(reference),
@@ -145,7 +146,7 @@ impl Haplotype {
         };
     }
 
-    pub fn get_reference(&self) -> &Rc<RefCell<Haplotype>> {
+    pub fn get_reference(&self) -> &HaplotypeRef {
         let option = match self {
             Haplotype::Wildtype(wt) => &wt.reference,
             Haplotype::Descendant(ht) => &ht.reference,
@@ -160,7 +161,7 @@ impl Haplotype {
         }
     }
 
-    pub fn get_wildtype(&self) -> Rc<RefCell<Haplotype>> {
+    pub fn get_wildtype(&self) -> HaplotypeRef {
         match self {
             Haplotype::Wildtype(wt) => Rc::clone(&wt.get_reference()),
             Haplotype::Descendant(ht) => Rc::clone(&ht.wildtype),
@@ -168,7 +169,7 @@ impl Haplotype {
         }
     }
 
-    pub fn get_descendants(&self) -> &Vec<Rc<RefCell<Haplotype>>> {
+    pub fn get_descendants(&self) -> &Vec<HaplotypeRef> {
         match self {
             Haplotype::Wildtype(wt) => &wt.descendants,
             Haplotype::Descendant(ht) => &ht.descendants,
@@ -176,7 +177,7 @@ impl Haplotype {
         }
     }
 
-    pub fn add_descendant(&mut self, descendant: &Rc<RefCell<Haplotype>>) {
+    pub fn add_descendant(&mut self, descendant: &HaplotypeRef) {
         match self {
             Haplotype::Wildtype(wt) => wt.descendants.push(Rc::clone(descendant)),
             Haplotype::Descendant(ht) => ht.descendants.push(Rc::clone(descendant)),
@@ -238,7 +239,7 @@ impl Haplotype {
     }
 
     pub fn get_changes(&self) -> Vec<Symbol> {
-        let mut ranges: Vec<(Rc<RefCell<Haplotype>>, Range<usize>)> = Vec::new();
+        let mut ranges: Vec<(HaplotypeRef, Range<usize>)> = Vec::new();
         ranges.push((Rc::clone(self.get_reference()), 0..self.get_length()));
         let mut changes = vec![None; self.get_length()];
         while let Some((current, range)) = ranges.pop() {
@@ -260,7 +261,18 @@ impl Haplotype {
     }
 
     pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
-        let mut ranges: Vec<(Rc<RefCell<Haplotype>>, Range<usize>)> = Vec::new();
+        match self {
+            Haplotype::Wildtype(_wt) => return 1.,
+            Haplotype::Descendant(Descendant {
+                fitness: Some(val), ..
+            }) => return *val,
+            Haplotype::Recombinant(Recombinant {
+                fitness: Some(val), ..
+            }) => return *val,
+            _ => {}
+        }
+
+        let mut ranges: Vec<(HaplotypeRef, Range<usize>)> = Vec::new();
         let mut checked: HashSet<usize> = HashSet::new();
         ranges.push((Rc::clone(self.get_reference()), 0..self.get_length()));
         let mut fitness = 1.;
@@ -290,7 +302,7 @@ impl Haplotype {
 }
 
 impl Wildtype {
-    pub fn create_wildtype(sequence: Vec<Symbol>) -> Rc<RefCell<Haplotype>> {
+    pub fn create_wildtype(sequence: Vec<Symbol>) -> HaplotypeRef {
         let reference = Rc::new(RefCell::new(Haplotype::Wildtype(Self {
             reference: None,
             sequence: sequence,
@@ -300,7 +312,7 @@ impl Wildtype {
         reference
     }
 
-    pub fn get_reference(&self) -> &Rc<RefCell<Haplotype>> {
+    pub fn get_reference(&self) -> &HaplotypeRef {
         match &self.reference {
             Some(reference) => &reference,
             None => {
@@ -321,8 +333,8 @@ impl Wildtype {
 
 impl Descendant {
     pub fn new(
-        ancestor: Rc<RefCell<Haplotype>>,
-        wildtype: Rc<RefCell<Haplotype>>,
+        ancestor: HaplotypeRef,
+        wildtype: HaplotypeRef,
         position: usize,
         change: Symbol,
     ) -> Self {
@@ -337,7 +349,7 @@ impl Descendant {
         }
     }
 
-    pub fn get_reference(&self) -> &Rc<RefCell<Haplotype>> {
+    pub fn get_reference(&self) -> &HaplotypeRef {
         match &self.reference {
             Some(reference) => &reference,
             None => {
@@ -361,9 +373,9 @@ impl Descendant {
 
 impl Recombinant {
     pub fn new(
-        wildtype: Rc<RefCell<Haplotype>>,
-        left_ancestor: Rc<RefCell<Haplotype>>,
-        right_ancestor: Rc<RefCell<Haplotype>>,
+        wildtype: HaplotypeRef,
+        left_ancestor: HaplotypeRef,
+        right_ancestor: HaplotypeRef,
         left_position: usize,
         right_position: usize,
     ) -> Self {
@@ -391,11 +403,7 @@ impl Recombinant {
         self.wildtype.borrow().get_length()
     }
 
-    fn push_to_ranges(
-        &self,
-        ranges: &mut Vec<(Rc<RefCell<Haplotype>>, Range<usize>)>,
-        range: Range<usize>,
-    ) {
+    fn push_to_ranges(&self, ranges: &mut Vec<(HaplotypeRef, Range<usize>)>, range: Range<usize>) {
         if range.end < self.left_position || range.start > self.right_position {
             ranges.push((Rc::clone(&self.right_ancestor), range))
         } else if range.contains(&self.left_position) && range.contains(&self.right_position) {
