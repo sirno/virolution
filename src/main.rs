@@ -6,7 +6,6 @@ mod simulation;
 
 use fitness::*;
 use haplotype::*;
-use rand::seq::SliceRandom;
 use simulation::*;
 use std::rc::Rc;
 
@@ -99,12 +98,32 @@ fn _simulation_experiments() {
     println!("ht4: {}", ht4.borrow().get_fitness(&fitness_table));
 
     let population = (0..10).map(|_| Rc::clone(&wt)).collect();
-    let simulation = Simulation::new(population, fitness_table, 5, 0.7);
+    let mut simulation = Simulation::new(population, fitness_table, 5, 0.7, 100., 1e-2);
     let infectant_map = simulation.get_infectant_map();
     let host_map = simulation.get_host_map(&infectant_map);
+    simulation.mutate_infectants(&host_map);
+    let offspring = simulation.replicate_infectants(&host_map);
+    let population2 = simulation.subsample_population(&offspring);
+
     println!("---infection-mapping---");
     println!("infectant_map: {:?}", infectant_map);
     println!("host_map: {:?}", host_map);
+    println!(
+        "population: {:?}",
+        simulation
+            .get_population()
+            .iter()
+            .map(|hap| hap.borrow().get_string())
+            .collect::<Vec<String>>()
+    );
+    println!("offspring: {:?}", offspring);
+    println!(
+        "subsample: {:?}",
+        population2
+            .iter()
+            .map(|hap| hap.borrow().get_string())
+            .collect::<Vec<String>>()
+    )
 }
 
 fn main() {

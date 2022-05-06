@@ -22,6 +22,7 @@ pub enum Haplotype {
 pub struct Wildtype {
     #[derivative(Debug(format_with = "print_reference_option"))]
     reference: Option<HaplotypeRef>,
+    #[derivative(Debug = "ignore")]
     sequence: Vec<Symbol>,
     #[derivative(Debug(format_with = "print_descendants"))]
     descendants: Vec<HaplotypeRef>,
