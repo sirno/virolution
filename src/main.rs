@@ -98,7 +98,21 @@ fn _simulation_experiments() {
     println!("ht4: {}", ht4.borrow().get_fitness(&fitness_table));
 
     let population = (0..10).map(|_| Rc::clone(&wt)).collect();
-    let mut simulation = Simulation::new(population, fitness_table, 5, 0.7, 100., 1e-2);
+    let simulation_settings = SimulationSettings {
+        mutation_rate: 1e-2,
+        substitution_matrix: [
+            [0., 1., 1., 1.],
+            [1., 0., 1., 1.],
+            [1., 1., 0., 1.],
+            [1., 1., 1., 0.],
+        ],
+        host_population_size: 5,
+        infection_fraction: 0.7,
+        basic_reproductive_number: 100.,
+        max_population: 100,
+        dilution: 0.17,
+    };
+    let mut simulation = Simulation::new(population, fitness_table, simulation_settings);
     let infectant_map = simulation.get_infectant_map();
     let host_map = simulation.get_host_map(&infectant_map);
     simulation.mutate_infectants(&host_map);
