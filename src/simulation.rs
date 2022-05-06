@@ -1,5 +1,6 @@
 use super::fitness::FitnessTable;
-use super::haplotype::{Haplotype, HaplotypeRef};
+use super::haplotype::HaplotypeRef;
+use super::simulation_settings::SimulationSettings;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
 use std::cmp::min;
@@ -15,16 +16,6 @@ pub struct Simulation {
     fitness_table: FitnessTable,
     simulation_settings: SimulationSettings,
     mutation_sampler: Binomial,
-}
-
-pub struct SimulationSettings {
-    pub mutation_rate: f64,
-    pub substitution_matrix: [[f64; 4]; 4],
-    pub host_population_size: usize,
-    pub infection_fraction: f64,
-    pub basic_reproductive_number: f64,
-    pub max_population: usize,
-    pub dilution: f64,
 }
 
 impl Simulation {

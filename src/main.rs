@@ -3,10 +3,12 @@
 mod fitness;
 mod haplotype;
 mod simulation;
+mod simulation_settings;
 
 use fitness::*;
 use haplotype::*;
 use simulation::*;
+use simulation_settings::*;
 use std::rc::Rc;
 
 fn _haplotype_experiments() {
