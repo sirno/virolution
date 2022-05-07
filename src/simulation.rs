@@ -3,6 +3,7 @@ use super::haplotype::HaplotypeRef;
 use super::simulation_settings::SimulationSettings;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
+use rayon::prelude::*;
 use std::cmp::min;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -13,6 +14,7 @@ pub type Population = Vec<HaplotypeRef>;
 pub type HostMap = HashMap<usize, Vec<usize>>;
 
 pub struct Simulation {
+    wildtype: HaplotypeRef,
     population: Population,
     fitness_table: FitnessTable,
     simulation_settings: SimulationSettings,
@@ -21,6 +23,7 @@ pub struct Simulation {
 
 impl Simulation {
     pub fn new(
+        wildtype: HaplotypeRef,
         population: Population,
         fitness_table: FitnessTable,
         simulation_settings: SimulationSettings,
@@ -31,6 +34,7 @@ impl Simulation {
         )
         .unwrap();
         Self {
+            wildtype: wildtype,
             population: population,
             fitness_table: fitness_table,
             simulation_settings: simulation_settings,
@@ -78,6 +82,9 @@ impl Simulation {
     pub fn mutate_infectants(&mut self, host_map: &HostMap) {
         // mutate infectants based on host cell assignment
         let mut rng = rand::thread_rng();
+        let sequence_length = self.wildtype.borrow().get_length();
+        let site_vector: Vec<usize> = (0..sequence_length).collect();
+        let site_options: &[usize] = site_vector.as_slice();
         for (_host, infectants) in host_map {
             for infectant in infectants {
                 let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
@@ -87,10 +94,9 @@ impl Simulation {
                 }
 
                 let mut infectant_ref = Rc::clone(&self.population[*infectant]);
-                let sequence_length = infectant_ref.borrow().get_length();
-                let sites = (0..sequence_length).choose_multiple(&mut rng, n_mutations);
+                let sites = site_options.choose_multiple(&mut rng, n_mutations);
                 for site in sites {
-                    let base = infectant_ref.borrow().get_base(site);
+                    let base = infectant_ref.borrow().get_base(*site);
                     match base {
                         Some(val) => {
                             let dist = WeightedIndex::new(
@@ -100,7 +106,11 @@ impl Simulation {
                             let new_base = dist.sample(&mut rng);
                             infectant_ref = Rc::clone(&infectant_ref)
                                 .borrow_mut()
-                                .create_descendant(site, new_base as u8);
+                                .create_descendant(*site, new_base as u8);
+
+                            if infectant_ref.borrow().get_fitness(&self.fitness_table) <= 0. {
+                                continue;
+                            }
                         }
                         None => {}
                     }

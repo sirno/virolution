@@ -11,3 +11,4 @@ rand = { version = "0.8.5", features = ["alloc"] }
 rand_distr = "0.4.3"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_yaml = "0.8.24"
+rayon = "1.5"

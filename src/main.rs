@@ -124,7 +124,7 @@ fn _simulation_experiments() {
     };
     simulation_settings.write("settings.yaml");
     let settings = SimulationSettings::read("settings.yaml");
-    let mut simulation = Simulation::new(population, fitness_table, settings.clone());
+    let mut simulation = Simulation::new(wt, population, fitness_table, settings.clone());
     let infectant_map = simulation.get_infectant_map();
     let host_map = simulation.get_host_map(&infectant_map);
     simulation.mutate_infectants(&host_map);
@@ -155,7 +155,7 @@ fn _simulation_experiments() {
 }
 
 fn _simulation_loop_experiments() {
-    let sequence = vec![Some(0x00); 100];
+    let sequence = vec![Some(0x00); 5386];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,
@@ -170,36 +170,38 @@ fn _simulation_loop_experiments() {
     let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
     let wt = Wildtype::create_wildtype(sequence);
-    let init_population = (0..10).map(|_| Rc::clone(&wt)).collect();
+    let init_population = (0..10_000).map(|_| Rc::clone(&wt)).collect();
     let settings = SimulationSettings {
-        mutation_rate: 1e-3,
+        mutation_rate: 1e-6,
         substitution_matrix: [
             [0., 1., 1., 1.],
             [1., 0., 1., 1.],
             [1., 1., 0., 1.],
             [1., 1., 1., 0.],
         ],
-        host_population_size: 5,
+        host_population_size: 100_000_00,
         infection_fraction: 0.7,
         basic_reproductive_number: 100.,
-        max_population: 100000000,
-        dilution: 0.17,
+        max_population: 10_000_000,
+        dilution: 0.016,
     };
-    let mut simulation = Simulation::new(init_population, fitness_table, settings);
-    for gen in 1..=1000 {
+
+    let mut simulation = Simulation::new(wt, init_population, fitness_table, settings);
+    for gen in 1..=20 {
         println!("generation={}", gen);
         let infectant_map = simulation.get_infectant_map();
         let host_map = simulation.get_host_map(&infectant_map);
         simulation.mutate_infectants(&host_map);
         let offspring = simulation.replicate_infectants(&host_map);
         let population = simulation.subsample_population(&offspring, 1.);
+        println!("pop_size: {}", population.len());
         simulation.set_population(population);
         // println!("{:?}", simulation.print_population());
     }
 }
 
 fn _simulation_compartment_experiments() {
-    let sequence = vec![Some(0x00); 100];
+    let sequence = vec![Some(0x00); 5386];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,
@@ -215,29 +217,34 @@ fn _simulation_compartment_experiments() {
 
     let wt = Wildtype::create_wildtype(sequence);
     let settings = SimulationSettings {
-        mutation_rate: 1e-3,
+        mutation_rate: 1e-6,
         substitution_matrix: [
             [0., 1., 1., 1.],
             [1., 0., 1., 1.],
             [1., 1., 0., 1.],
             [1., 1., 1., 0.],
         ],
-        host_population_size: 5,
+        host_population_size: 100_000_00,
         infection_fraction: 0.7,
         basic_reproductive_number: 100.,
-        max_population: 100000000,
-        dilution: 0.17,
+        max_population: 10_000_000,
+        dilution: 0.01,
     };
 
     let n_compartments = 3;
     let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
         .map(|_| {
-            let init_population = (0..10).map(|_| Rc::clone(&wt)).collect();
-            Simulation::new(init_population, fitness_table.clone(), settings.clone())
+            let init_population = (0..10_000).map(|_| Rc::clone(&wt)).collect();
+            Simulation::new(
+                Rc::clone(&wt),
+                init_population,
+                fitness_table.clone(),
+                settings.clone(),
+            )
         })
         .collect();
 
-    for gen in 1..=1000 {
+    for gen in 1..=5 {
         println!("generation={}", gen);
         let mut offsprings: Vec<Vec<usize>> = Vec::new();
         for simulation in compartment_simulations.iter_mut() {
@@ -265,8 +272,8 @@ fn main() {
     _haplotype_experiments();
     _population_experiments();
     _simulation_experiments();
-    // _simulation_loop_experiments();
-    _simulation_compartment_experiments();
+    _simulation_loop_experiments();
+    // _simulation_compartment_experiments();
 }
 
 #[cfg(test)]
@@ -306,7 +313,7 @@ mod tests {
             max_population: 100000000,
             dilution: 0.17,
         };
-        let mut simulation = Simulation::new(init_population, fitness_table, settings);
+        let mut simulation = Simulation::new(wt, init_population, fitness_table, settings);
         b.iter(|| {
             simulation.next_generation();
         })
