@@ -16,9 +16,6 @@ use simulation_settings::*;
 use std::rc::Rc;
 use transfers::*;
 
-const migration_fwd: [[f64; 3]; 3] = [[1., 0., 0.], [0.2, 0.8, 0.], [0., 0.2, 0.8]];
-const migration_rev: [[f64; 3]; 3] = [[0.8, 0.2, 0.], [0., 1., 0.], [0., 0., 1.]];
-
 fn _haplotype_experiments() {
     let bytes = vec![Some(0x00); 4];
     let wt = Wildtype::create_wildtype(bytes);
@@ -170,7 +167,7 @@ fn _simulation_loop_experiments() {
     let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
     let wt = Wildtype::create_wildtype(sequence);
-    let init_population = (0..10_000).map(|_| Rc::clone(&wt)).collect();
+    let init_population = (0..1_000_000).map(|_| Rc::clone(&wt)).collect();
     let settings = SimulationSettings {
         mutation_rate: 1e-6,
         substitution_matrix: [
@@ -179,15 +176,15 @@ fn _simulation_loop_experiments() {
             [1., 1., 0., 1.],
             [1., 1., 1., 0.],
         ],
-        host_population_size: 100_000_00,
+        host_population_size: 1_000_000,
         infection_fraction: 0.7,
         basic_reproductive_number: 100.,
-        max_population: 10_000_000,
-        dilution: 0.016,
+        max_population: 1_000_000,
+        dilution: 0.02,
     };
 
     let mut simulation = Simulation::new(wt, init_population, fitness_table, settings);
-    for gen in 1..=20 {
+    for gen in 1..=5 {
         println!("generation={}", gen);
         let infectant_map = simulation.get_infectant_map();
         let host_map = simulation.get_host_map(&infectant_map);
@@ -227,14 +224,14 @@ fn _simulation_compartment_experiments() {
         host_population_size: 100_000_00,
         infection_fraction: 0.7,
         basic_reproductive_number: 100.,
-        max_population: 10_000_000,
-        dilution: 0.01,
+        max_population: 100_000,
+        dilution: 0.02,
     };
 
     let n_compartments = 3;
     let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
         .map(|_| {
-            let init_population = (0..10_000).map(|_| Rc::clone(&wt)).collect();
+            let init_population = (0..100_000).map(|_| Rc::clone(&wt)).collect();
             Simulation::new(
                 Rc::clone(&wt),
                 init_population,
@@ -244,7 +241,7 @@ fn _simulation_compartment_experiments() {
         })
         .collect();
 
-    for gen in 1..=5 {
+    for gen in 1..=20 {
         println!("generation={}", gen);
         let mut offsprings: Vec<Vec<usize>> = Vec::new();
         for simulation in compartment_simulations.iter_mut() {
@@ -255,10 +252,11 @@ fn _simulation_compartment_experiments() {
             offsprings.push(offspring);
         }
         let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
+        let transfers = TRANSFERS.get("migration_fwd").unwrap();
         for origin in 0..n_compartments {
             for target in 0..n_compartments {
                 let mut population = compartment_simulations[origin]
-                    .subsample_population(&offsprings[origin], migration_fwd[origin][target]);
+                    .subsample_population(&offsprings[origin], transfers[origin][target]);
                 populations[target].append(&mut population);
             }
         }
@@ -272,8 +270,8 @@ fn main() {
     _haplotype_experiments();
     _population_experiments();
     _simulation_experiments();
-    _simulation_loop_experiments();
-    // _simulation_compartment_experiments();
+    // _simulation_loop_experiments();
+    _simulation_compartment_experiments();
 }
 
 #[cfg(test)]

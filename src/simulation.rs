@@ -123,6 +123,7 @@ impl Simulation {
 
     pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         // replicate infectants within each host
+        let mut rng = rand::thread_rng();
         let mut offspring = vec![0; self.population.len()];
         for (_host, infectants) in host_map {
             let n_infectants = infectants.len();
@@ -133,7 +134,7 @@ impl Simulation {
                 let offspring_sample = match Poisson::new(
                     fitness * self.simulation_settings.basic_reproductive_number,
                 ) {
-                    Ok(dist) => dist.sample(&mut rand::thread_rng()),
+                    Ok(dist) => dist.sample(&mut rng),
                     // if fitness is 0 => no offspring
                     Err(_) => 0.,
                 };
