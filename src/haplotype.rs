@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt;
 use std::ops::Range;
-use std::process;
 use std::rc::{Rc, Weak};
 
 pub type Symbol = Option<u8>;

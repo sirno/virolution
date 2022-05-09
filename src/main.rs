@@ -198,6 +198,7 @@ fn _simulation_loop_experiments() {
 }
 
 fn _simulation_compartment_experiments() {
+    let plan = Plan::read("plan.csv");
     let sequence = vec![Some(0x00); 5386];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
@@ -252,7 +253,7 @@ fn _simulation_compartment_experiments() {
             offsprings.push(offspring);
         }
         let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
-        let transfers = TRANSFERS.get("migration_fwd").unwrap();
+        let transfers = plan.get_transfer_matrix(gen);
         for origin in 0..n_compartments {
             for target in 0..n_compartments {
                 let mut population = compartment_simulations[origin]
@@ -296,7 +297,7 @@ mod tests {
         let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
         let wt = Wildtype::create_wildtype(sequence);
-        let init_population = (0..10).map(|_| Rc::clone(&wt)).collect();
+        let init_population: Population = (0..10).map(|_| Rc::clone(&wt)).collect();
         let settings = SimulationSettings {
             mutation_rate: 1e-3,
             substitution_matrix: [
