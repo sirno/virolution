@@ -5,6 +5,8 @@ extern crate test;
 
 mod fitness;
 mod haplotype;
+// mod haplotype_ref;
+// mod haplotype_synced;
 mod simulation;
 mod simulation_settings;
 mod transfers;
@@ -104,7 +106,7 @@ fn _simulation_experiments() {
     println!("ht3: {}", ht3.borrow().get_fitness(&fitness_table));
     println!("ht4: {}", ht4.borrow().get_fitness(&fitness_table));
 
-    let population = (0..10).map(|_| Rc::clone(&wt)).collect();
+    let population = (0..10).map(|_| HaplotypeRef(Rc::clone(&wt))).collect();
     let simulation_settings = SimulationSettings {
         mutation_rate: 1e-2,
         substitution_matrix: [
@@ -167,7 +169,9 @@ fn _simulation_loop_experiments() {
     let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
     let wt = Wildtype::create_wildtype(sequence);
-    let init_population = (0..1_000_000).map(|_| Rc::clone(&wt)).collect();
+    let init_population = (0..1_000_000)
+        .map(|_| HaplotypeRef(Rc::clone(&wt)))
+        .collect();
     let settings = SimulationSettings {
         mutation_rate: 1e-6,
         substitution_matrix: [
@@ -232,9 +236,9 @@ fn _simulation_compartment_experiments() {
     let n_compartments = 3;
     let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
         .map(|_| {
-            let init_population = (0..100_000).map(|_| Rc::clone(&wt)).collect();
+            let init_population = (0..100_000).map(|_| HaplotypeRef(Rc::clone(&wt))).collect();
             Simulation::new(
-                Rc::clone(&wt),
+                HaplotypeRef(Rc::clone(&wt)),
                 init_population,
                 fitness_table.clone(),
                 settings.clone(),
@@ -297,7 +301,7 @@ mod tests {
         let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
         let wt = Wildtype::create_wildtype(sequence);
-        let init_population: Population = (0..10).map(|_| Rc::clone(&wt)).collect();
+        let init_population: Population = (0..10).map(|_| HaplotypeRef(Rc::clone(&wt))).collect();
         let settings = SimulationSettings {
             mutation_rate: 1e-3,
             substitution_matrix: [

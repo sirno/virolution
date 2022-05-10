@@ -7,8 +7,26 @@ use std::ops::Range;
 use std::rc::{Rc, Weak};
 
 pub type Symbol = Option<u8>;
-pub type HaplotypeRef = Rc<RefCell<Haplotype>>;
-type HaplotypeWeak = Weak<RefCell<Haplotype>>;
+#[derive(Clone)]
+pub struct HaplotypeRef(pub Rc<RefCell<Haplotype>>);
+#[derive(Clone)]
+struct HaplotypeWeak(Weak<RefCell<Haplotype>>);
+
+impl std::ops::Deref for HaplotypeRef {
+    type Target = Rc<RefCell<Haplotype>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for HaplotypeWeak {
+    type Target = Weak<RefCell<Haplotype>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -67,7 +85,7 @@ fn print_reference(
     reference: &HaplotypeRef,
     formatter: &mut std::fmt::Formatter,
 ) -> Result<(), std::fmt::Error> {
-    write!(formatter, "{}", reference.borrow().get_string())
+    write!(formatter, "{}", reference.0.borrow().get_string())
 }
 
 fn print_reference_option(
@@ -116,10 +134,10 @@ impl Haplotype {
         ))));
         descendant
             .borrow_mut()
-            .add_reference(Rc::downgrade(&Rc::clone(&descendant)));
+            .add_reference(HaplotypeWeak(Rc::downgrade(&Rc::clone(&descendant))));
 
-        self.add_descendant(Rc::downgrade(&descendant));
-        descendant
+        self.add_descendant(HaplotypeWeak(Rc::downgrade(&descendant)));
+        HaplotypeRef(descendant)
     }
 
     pub fn create_recombinant(
@@ -132,22 +150,22 @@ impl Haplotype {
 
         let recombinant = Rc::new(RefCell::new(Haplotype::Recombinant(Recombinant::new(
             wildtype,
-            Rc::clone(left_ancestor),
-            Rc::clone(right_ancestor),
+            HaplotypeRef(Rc::clone(left_ancestor)),
+            HaplotypeRef(Rc::clone(right_ancestor)),
             left_position,
             right_position,
         ))));
         recombinant
             .borrow_mut()
-            .add_reference(Rc::downgrade(&recombinant));
+            .add_reference(HaplotypeWeak(Rc::downgrade(&recombinant)));
 
         left_ancestor
             .borrow_mut()
-            .add_descendant(Rc::downgrade(&recombinant));
+            .add_descendant(HaplotypeWeak(Rc::downgrade(&recombinant)));
         right_ancestor
             .borrow_mut()
-            .add_descendant(Rc::downgrade(&recombinant));
-        recombinant
+            .add_descendant(HaplotypeWeak(Rc::downgrade(&recombinant)));
+        HaplotypeRef(recombinant)
     }
 
     pub fn add_reference(&mut self, reference: HaplotypeWeak) {
@@ -166,7 +184,7 @@ impl Haplotype {
         };
         match option {
             Some(reference_weak) => match reference_weak.upgrade() {
-                Some(reference) => reference,
+                Some(reference) => HaplotypeRef(reference),
                 None => {
                     eprintln!("Haplotype incorrectly initialized.");
                     std::process::exit(-1);
@@ -181,9 +199,9 @@ impl Haplotype {
 
     pub fn get_wildtype(&self) -> HaplotypeRef {
         match self {
-            Haplotype::Wildtype(wt) => Rc::clone(&wt.get_reference()),
-            Haplotype::Descendant(ht) => Rc::clone(&ht.wildtype),
-            Haplotype::Recombinant(rc) => Rc::clone(&rc.wildtype),
+            Haplotype::Wildtype(wt) => HaplotypeRef(Rc::clone(&wt.get_reference())),
+            Haplotype::Descendant(ht) => HaplotypeRef(Rc::clone(&ht.wildtype)),
+            Haplotype::Recombinant(rc) => HaplotypeRef(Rc::clone(&rc.wildtype)),
         }
     }
 
@@ -258,7 +276,10 @@ impl Haplotype {
 
     pub fn get_changes(&self) -> Vec<Symbol> {
         let mut ranges: Vec<(HaplotypeRef, Range<usize>)> = Vec::new();
-        ranges.push((Rc::clone(&self.get_reference()), 0..self.get_length()));
+        ranges.push((
+            HaplotypeRef(Rc::clone(&self.get_reference())),
+            0..self.get_length(),
+        ));
         let mut changes = vec![None; self.get_length()];
         while let Some((current, range)) = ranges.pop() {
             match &*(Rc::clone(&current)).borrow() {
@@ -270,7 +291,7 @@ impl Haplotype {
                             None => changes[ht.position] = Some(symbol),
                         }
                     }
-                    ranges.push((Rc::clone(&ht.ancestor), range));
+                    ranges.push((HaplotypeRef(Rc::clone(&ht.ancestor)), range));
                 }
                 Haplotype::Recombinant(rc) => rc.push_to_ranges(&mut ranges, range),
             }
@@ -292,7 +313,10 @@ impl Haplotype {
 
         let mut ranges: Vec<(HaplotypeRef, Range<usize>)> = Vec::new();
         let mut checked: HashSet<usize> = HashSet::new();
-        ranges.push((Rc::clone(&self.get_reference()), 0..self.get_length()));
+        ranges.push((
+            HaplotypeRef(Rc::clone(&self.get_reference())),
+            0..self.get_length(),
+        ));
         let mut fitness = 1.;
         while let Some((current, range)) = ranges.pop() {
             match &*(Rc::clone(&current)).borrow() {
@@ -302,7 +326,7 @@ impl Haplotype {
                         fitness *= fitness_table.get_fitness(&ht.position, &ht.change);
                         checked.insert(ht.position);
                     }
-                    ranges.push((Rc::clone(&ht.ancestor), range));
+                    ranges.push((HaplotypeRef(Rc::clone(&ht.ancestor)), range));
                 }
                 Haplotype::Recombinant(rc) => rc.push_to_ranges(&mut ranges, range),
             }
@@ -328,14 +352,14 @@ impl Wildtype {
         })));
         reference
             .borrow_mut()
-            .add_reference(Rc::downgrade(&reference));
-        reference
+            .add_reference(HaplotypeWeak(Rc::downgrade(&reference)));
+        HaplotypeRef(reference)
     }
 
     pub fn get_reference(&self) -> HaplotypeRef {
         match &self.reference {
             Some(reference_weak) => match reference_weak.upgrade() {
-                Some(reference) => reference,
+                Some(reference) => HaplotypeRef(reference),
                 None => {
                     eprintln!("Haplotype incorrectly initialized.");
                     std::process::exit(-1);
@@ -431,40 +455,40 @@ impl Recombinant {
 
     fn push_to_ranges(&self, ranges: &mut Vec<(HaplotypeRef, Range<usize>)>, range: Range<usize>) {
         if range.end < self.left_position || range.start > self.right_position {
-            ranges.push((Rc::clone(&self.right_ancestor), range))
+            ranges.push((HaplotypeRef(Rc::clone(&self.right_ancestor)), range))
         } else if range.contains(&self.left_position) && range.contains(&self.right_position) {
             ranges.push((
-                Rc::clone(&self.right_ancestor),
+                HaplotypeRef(Rc::clone(&self.right_ancestor)),
                 range.start..self.left_position,
             ));
             ranges.push((
-                Rc::clone(&self.left_ancestor),
+                HaplotypeRef(Rc::clone(&self.left_ancestor)),
                 self.left_position..self.right_position,
             ));
             ranges.push((
-                Rc::clone(&self.right_ancestor),
+                HaplotypeRef(Rc::clone(&self.right_ancestor)),
                 self.right_position..range.end,
             ));
         } else if range.contains(&self.left_position) {
             ranges.push((
-                Rc::clone(&self.right_ancestor),
+                HaplotypeRef(Rc::clone(&self.right_ancestor)),
                 range.start..self.left_position,
             ));
             ranges.push((
-                Rc::clone(&self.left_ancestor),
+                HaplotypeRef(Rc::clone(&self.left_ancestor)),
                 self.left_position..range.end,
             ));
         } else if range.contains(&self.right_position) {
             ranges.push((
-                Rc::clone(&self.left_ancestor),
+                HaplotypeRef(Rc::clone(&self.left_ancestor)),
                 range.start..self.right_position,
             ));
             ranges.push((
-                Rc::clone(&self.right_ancestor),
+                HaplotypeRef(Rc::clone(&self.right_ancestor)),
                 self.right_position..range.end,
             ));
         } else {
-            ranges.push((Rc::clone(&self.left_ancestor), range))
+            ranges.push((HaplotypeRef(Rc::clone(&self.left_ancestor)), range))
         }
     }
 }
@@ -511,18 +535,24 @@ mod tests {
 
     #[test]
     fn single_recombination() {
-        let mut haplotypes = Vec::new();
+        let mut haplotypes: Vec<HaplotypeRef> = Vec::new();
         let bytes = vec![Some(0x01); 100];
         let wildtype = Wildtype::create_wildtype(bytes);
-        haplotypes.push(Rc::clone(&wildtype));
+        haplotypes.push(HaplotypeRef(Rc::clone(&wildtype)));
         for i in 0..100 {
             let ht = Rc::clone(haplotypes.last().unwrap());
-            haplotypes.push(Rc::clone(&ht.borrow_mut().create_descendant(i, 0x02)));
+            haplotypes.push(HaplotypeRef(Rc::clone(
+                &ht.borrow_mut().create_descendant(i, 0x02),
+            )));
         }
-        haplotypes.push(Rc::clone(&wildtype.borrow_mut().create_descendant(0, 0x03)));
+        haplotypes.push(HaplotypeRef(Rc::clone(
+            &wildtype.borrow_mut().create_descendant(0, 0x03),
+        )));
         for i in 1..100 {
             let ht = Rc::clone(haplotypes.last().unwrap());
-            haplotypes.push(Rc::clone(&ht.borrow_mut().create_descendant(i, 0x03)));
+            haplotypes.push(HaplotypeRef(Rc::clone(
+                &ht.borrow_mut().create_descendant(i, 0x03),
+            )));
         }
         let left_ancestor = &haplotypes[100];
         let right_ancestor = &haplotypes[200];

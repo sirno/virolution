@@ -3,7 +3,6 @@ use super::haplotype::HaplotypeRef;
 use super::simulation_settings::SimulationSettings;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
-use rayon::prelude::*;
 use std::cmp::min;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -93,7 +92,7 @@ impl Simulation {
                     continue;
                 }
 
-                let mut infectant_ref = Rc::clone(&self.population[*infectant]);
+                let mut infectant_ref = HaplotypeRef(Rc::clone(&self.population[*infectant]));
                 let sites = site_options.choose_multiple(&mut rng, n_mutations);
                 for site in sites {
                     let base = infectant_ref.borrow().get_base(*site);
@@ -160,7 +159,7 @@ impl Simulation {
             }
         };
         (0..sample_size)
-            .map(|_| Rc::clone(&self.population[sampler.sample(&mut rng)]))
+            .map(|_| HaplotypeRef(Rc::clone(&self.population[sampler.sample(&mut rng)])))
             .collect()
     }
 
