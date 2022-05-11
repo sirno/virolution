@@ -20,17 +20,17 @@ use transfers::*;
 
 fn _haplotype_experiments() {
     let bytes = vec![Some(0x00); 4];
-    let wt = Wildtype::create_wildtype(bytes);
-    let ht = wt.borrow_mut().create_descendant(2, 0x01);
-    let ht2 = ht.borrow_mut().create_descendant(1, 0x02);
-    let ht3 = ht2.borrow_mut().create_descendant(2, 0x03);
-    let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2);
+    let mut wt = Wildtype::create_wildtype(bytes);
+    let mut ht = wt.borrow_mut().create_descendant(2, 0x01);
+    let mut ht2 = ht.borrow_mut().create_descendant(1, 0x02);
+    let mut ht3 = ht2.borrow_mut().create_descendant(2, 0x03);
+    let ht4 = Haplotype::create_recombinant(&mut ht, &mut ht3, 0, 2);
     println!("---debug---");
-    println!("wt: {:?}", *wt.borrow());
-    println!("ht: {:?}", *ht.borrow());
-    println!("ht2: {:?}", *ht2.borrow());
-    println!("ht3: {:?}", *ht3.borrow());
-    println!("ht4: {:?}", *ht4.borrow());
+    println!("wt: {:?}", *wt);
+    println!("ht: {:?}", *ht);
+    println!("ht2: {:?}", *ht2);
+    println!("ht3: {:?}", *ht3);
+    println!("ht4: {:?}", *ht4);
     println!("---get_base---");
     println!(
         "{:?}",
@@ -93,11 +93,11 @@ fn _simulation_experiments() {
 
     let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
-    let wt = Wildtype::create_wildtype(sequence);
-    let ht = wt.borrow_mut().create_descendant(2, 0x01);
-    let ht2 = ht.borrow_mut().create_descendant(1, 0x02);
-    let ht3 = ht2.borrow_mut().create_descendant(2, 0x03);
-    let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2);
+    let mut wt = Wildtype::create_wildtype(sequence);
+    let mut ht = wt.borrow_mut().create_descendant(2, 0x01);
+    let mut ht2 = ht.borrow_mut().create_descendant(1, 0x02);
+    let mut ht3 = ht2.borrow_mut().create_descendant(2, 0x03);
+    let ht4 = Haplotype::create_recombinant(&mut ht, &mut ht3, 0, 2);
 
     println!("---fitnesses---");
     println!("wt: {}", wt.borrow().get_fitness(&fitness_table));
@@ -106,7 +106,7 @@ fn _simulation_experiments() {
     println!("ht3: {}", ht3.borrow().get_fitness(&fitness_table));
     println!("ht4: {}", ht4.borrow().get_fitness(&fitness_table));
 
-    let population = (0..10).map(|_| HaplotypeRef(Rc::clone(&wt))).collect();
+    let population = (0..10).map(|_| wt.get_clone()).collect();
     let simulation_settings = SimulationSettings {
         mutation_rate: 1e-2,
         substitution_matrix: [
@@ -169,9 +169,7 @@ fn _simulation_loop_experiments() {
     let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
     let wt = Wildtype::create_wildtype(sequence);
-    let init_population = (0..1_000_000)
-        .map(|_| HaplotypeRef(Rc::clone(&wt)))
-        .collect();
+    let init_population = (0..1_000_000).map(|_| wt.get_clone()).collect();
     let settings = SimulationSettings {
         mutation_rate: 1e-6,
         substitution_matrix: [
@@ -236,9 +234,9 @@ fn _simulation_compartment_experiments() {
     let n_compartments = 3;
     let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
         .map(|_| {
-            let init_population = (0..100_000).map(|_| HaplotypeRef(Rc::clone(&wt))).collect();
+            let init_population = (0..100_000).map(|_| wt.get_clone()).collect();
             Simulation::new(
-                HaplotypeRef(Rc::clone(&wt)),
+                wt.get_clone(),
                 init_population,
                 fitness_table.clone(),
                 settings.clone(),
@@ -301,7 +299,7 @@ mod tests {
         let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
         let wt = Wildtype::create_wildtype(sequence);
-        let init_population: Population = (0..10).map(|_| HaplotypeRef(Rc::clone(&wt))).collect();
+        let init_population: Population = (0..10).map(|_| wt.get_clone()).collect();
         let settings = SimulationSettings {
             mutation_rate: 1e-3,
             substitution_matrix: [

@@ -92,7 +92,7 @@ impl Simulation {
                     continue;
                 }
 
-                let mut infectant_ref = HaplotypeRef(Rc::clone(&self.population[*infectant]));
+                let mut infectant_ref = self.population[*infectant].get_clone();
                 let sites = site_options.choose_multiple(&mut rng, n_mutations);
                 for site in sites {
                     let base = infectant_ref.borrow().get_base(*site);
@@ -103,7 +103,8 @@ impl Simulation {
                             )
                             .unwrap();
                             let new_base = dist.sample(&mut rng);
-                            infectant_ref = Rc::clone(&infectant_ref)
+                            infectant_ref = infectant_ref
+                                .get_clone()
                                 .borrow_mut()
                                 .create_descendant(*site, new_base as u8);
 
@@ -159,7 +160,7 @@ impl Simulation {
             }
         };
         (0..sample_size)
-            .map(|_| HaplotypeRef(Rc::clone(&self.population[sampler.sample(&mut rng)])))
+            .map(|_| self.population[sampler.sample(&mut rng)].get_clone())
             .collect()
     }
 

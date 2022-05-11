@@ -3,14 +3,13 @@ use derivative::Derivative;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt;
+use std::ops::Deref;
 use std::ops::Range;
 use std::rc::{Rc, Weak};
 
 pub type Symbol = Option<u8>;
 #[derive(Clone)]
 pub struct HaplotypeRef(pub Rc<RefCell<Haplotype>>);
-#[derive(Clone)]
-struct HaplotypeWeak(Weak<RefCell<Haplotype>>);
 
 impl std::ops::Deref for HaplotypeRef {
     type Target = Rc<RefCell<Haplotype>>;
@@ -19,6 +18,25 @@ impl std::ops::Deref for HaplotypeRef {
         &self.0
     }
 }
+
+impl std::ops::DerefMut for HaplotypeRef {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl HaplotypeRef {
+    pub fn get_clone(&self) -> HaplotypeRef {
+        HaplotypeRef(Rc::clone(&self.0))
+    }
+
+    pub fn get_weak(&self) -> HaplotypeWeak {
+        HaplotypeWeak(Rc::downgrade(&self.0))
+    }
+}
+
+#[derive(Clone)]
+struct HaplotypeWeak(Weak<RefCell<Haplotype>>);
 
 impl std::ops::Deref for HaplotypeWeak {
     type Target = Weak<RefCell<Haplotype>>;
@@ -85,7 +103,7 @@ fn print_reference(
     reference: &HaplotypeRef,
     formatter: &mut std::fmt::Formatter,
 ) -> Result<(), std::fmt::Error> {
-    write!(formatter, "{}", reference.0.borrow().get_string())
+    write!(formatter, "{}", reference.borrow().get_string())
 }
 
 fn print_reference_option(
@@ -126,46 +144,42 @@ impl Haplotype {
         let ancestor = self.get_reference();
         let wildtype = self.get_wildtype();
 
-        let descendant = Rc::new(RefCell::new(Haplotype::Descendant(Descendant::new(
-            ancestor,
-            wildtype,
-            position,
-            Some(change),
+        let descendant = HaplotypeRef(Rc::new(RefCell::new(Haplotype::Descendant(
+            Descendant::new(ancestor, wildtype, position, Some(change)),
         ))));
         descendant
             .borrow_mut()
-            .add_reference(HaplotypeWeak(Rc::downgrade(&Rc::clone(&descendant))));
+            .add_reference(HaplotypeWeak(Rc::downgrade(&Rc::clone(&descendant.0))));
 
-        self.add_descendant(HaplotypeWeak(Rc::downgrade(&descendant)));
-        HaplotypeRef(descendant)
+        self.add_descendant(descendant.get_weak());
+        descendant
     }
 
     pub fn create_recombinant(
-        left_ancestor: &HaplotypeRef,
-        right_ancestor: &HaplotypeRef,
+        left_ancestor: &mut HaplotypeRef,
+        right_ancestor: &mut HaplotypeRef,
         left_position: usize,
         right_position: usize,
     ) -> HaplotypeRef {
         let wildtype = left_ancestor.borrow().get_wildtype();
 
-        let recombinant = Rc::new(RefCell::new(Haplotype::Recombinant(Recombinant::new(
-            wildtype,
-            HaplotypeRef(Rc::clone(left_ancestor)),
-            HaplotypeRef(Rc::clone(right_ancestor)),
-            left_position,
-            right_position,
+        let mut recombinant = HaplotypeRef(Rc::new(RefCell::new(Haplotype::Recombinant(
+            Recombinant::new(
+                wildtype,
+                left_ancestor.get_clone(),
+                right_ancestor.get_clone(),
+                left_position,
+                right_position,
+            ),
         ))));
-        recombinant
-            .borrow_mut()
-            .add_reference(HaplotypeWeak(Rc::downgrade(&recombinant)));
+        let reference = recombinant.get_weak();
+        recombinant.borrow_mut().add_reference(reference);
 
-        left_ancestor
-            .borrow_mut()
-            .add_descendant(HaplotypeWeak(Rc::downgrade(&recombinant)));
-        right_ancestor
-            .borrow_mut()
-            .add_descendant(HaplotypeWeak(Rc::downgrade(&recombinant)));
-        HaplotypeRef(recombinant)
+        let reference = recombinant.get_weak();
+        left_ancestor.borrow_mut().add_descendant(reference);
+        let reference = recombinant.get_weak();
+        right_ancestor.borrow_mut().add_descendant(reference);
+        recombinant
     }
 
     pub fn add_reference(&mut self, reference: HaplotypeWeak) {
@@ -199,9 +213,9 @@ impl Haplotype {
 
     pub fn get_wildtype(&self) -> HaplotypeRef {
         match self {
-            Haplotype::Wildtype(wt) => HaplotypeRef(Rc::clone(&wt.get_reference())),
-            Haplotype::Descendant(ht) => HaplotypeRef(Rc::clone(&ht.wildtype)),
-            Haplotype::Recombinant(rc) => HaplotypeRef(Rc::clone(&rc.wildtype)),
+            Haplotype::Wildtype(wt) => wt.get_reference().get_clone(),
+            Haplotype::Descendant(ht) => ht.wildtype.get_clone(),
+            Haplotype::Recombinant(rc) => rc.wildtype.get_clone(),
         }
     }
 
@@ -231,7 +245,7 @@ impl Haplotype {
 
     pub fn get_sequence(&self) -> Vec<Symbol> {
         let mut sequence = self.get_changes();
-        if let Haplotype::Wildtype(wildtype) = &*Rc::clone(&self.get_wildtype()).borrow() {
+        if let Haplotype::Wildtype(wildtype) = &*self.get_wildtype().get_clone().borrow() {
             for (position, symbol) in wildtype.sequence.iter().enumerate() {
                 match sequence[position] {
                     None => sequence[position] = *symbol,
@@ -276,13 +290,10 @@ impl Haplotype {
 
     pub fn get_changes(&self) -> Vec<Symbol> {
         let mut ranges: Vec<(HaplotypeRef, Range<usize>)> = Vec::new();
-        ranges.push((
-            HaplotypeRef(Rc::clone(&self.get_reference())),
-            0..self.get_length(),
-        ));
+        ranges.push((self.get_reference().get_clone(), 0..self.get_length()));
         let mut changes = vec![None; self.get_length()];
         while let Some((current, range)) = ranges.pop() {
-            match &*(Rc::clone(&current)).borrow() {
+            match &*current.get_clone().borrow() {
                 Haplotype::Wildtype(_wt) => {}
                 Haplotype::Descendant(ht) => {
                     if let Some(symbol) = ht.change && range.contains(&ht.position) {
@@ -291,7 +302,7 @@ impl Haplotype {
                             None => changes[ht.position] = Some(symbol),
                         }
                     }
-                    ranges.push((HaplotypeRef(Rc::clone(&ht.ancestor)), range));
+                    ranges.push((ht.ancestor.get_clone(), range));
                 }
                 Haplotype::Recombinant(rc) => rc.push_to_ranges(&mut ranges, range),
             }
@@ -313,20 +324,17 @@ impl Haplotype {
 
         let mut ranges: Vec<(HaplotypeRef, Range<usize>)> = Vec::new();
         let mut checked: HashSet<usize> = HashSet::new();
-        ranges.push((
-            HaplotypeRef(Rc::clone(&self.get_reference())),
-            0..self.get_length(),
-        ));
+        ranges.push((self.get_reference().get_clone(), 0..self.get_length()));
         let mut fitness = 1.;
         while let Some((current, range)) = ranges.pop() {
-            match &*(Rc::clone(&current)).borrow() {
+            match &*current.get_clone().borrow() {
                 Haplotype::Wildtype(_wt) => {}
                 Haplotype::Descendant(ht) => {
                     if range.contains(&ht.position) && !checked.contains(&ht.position) {
                         fitness *= fitness_table.get_fitness(&ht.position, &ht.change);
                         checked.insert(ht.position);
                     }
-                    ranges.push((HaplotypeRef(Rc::clone(&ht.ancestor)), range));
+                    ranges.push((ht.ancestor.get_clone(), range));
                 }
                 Haplotype::Recombinant(rc) => rc.push_to_ranges(&mut ranges, range),
             }
@@ -345,15 +353,14 @@ impl Haplotype {
 
 impl Wildtype {
     pub fn create_wildtype(sequence: Vec<Symbol>) -> HaplotypeRef {
-        let reference = Rc::new(RefCell::new(Haplotype::Wildtype(Self {
+        let mut wildtype = HaplotypeRef(Rc::new(RefCell::new(Haplotype::Wildtype(Self {
             reference: None,
             sequence: sequence,
             descendants: Vec::new(),
-        })));
-        reference
-            .borrow_mut()
-            .add_reference(HaplotypeWeak(Rc::downgrade(&reference)));
-        HaplotypeRef(reference)
+        }))));
+        let reference = wildtype.get_weak();
+        wildtype.borrow_mut().add_reference(reference);
+        wildtype
     }
 
     pub fn get_reference(&self) -> HaplotypeRef {
@@ -413,7 +420,7 @@ impl Descendant {
         if self.position == position {
             return self.change;
         }
-        self.ancestor.as_ref().borrow().get_base(position)
+        self.ancestor.borrow().get_base(position)
     }
 
     pub fn get_length(&self) -> usize {
@@ -455,40 +462,40 @@ impl Recombinant {
 
     fn push_to_ranges(&self, ranges: &mut Vec<(HaplotypeRef, Range<usize>)>, range: Range<usize>) {
         if range.end < self.left_position || range.start > self.right_position {
-            ranges.push((HaplotypeRef(Rc::clone(&self.right_ancestor)), range))
+            ranges.push((self.right_ancestor.get_clone(), range))
         } else if range.contains(&self.left_position) && range.contains(&self.right_position) {
             ranges.push((
-                HaplotypeRef(Rc::clone(&self.right_ancestor)),
+                self.right_ancestor.get_clone(),
                 range.start..self.left_position,
             ));
             ranges.push((
-                HaplotypeRef(Rc::clone(&self.left_ancestor)),
+                self.left_ancestor.get_clone(),
                 self.left_position..self.right_position,
             ));
             ranges.push((
-                HaplotypeRef(Rc::clone(&self.right_ancestor)),
+                self.right_ancestor.get_clone(),
                 self.right_position..range.end,
             ));
         } else if range.contains(&self.left_position) {
             ranges.push((
-                HaplotypeRef(Rc::clone(&self.right_ancestor)),
+                self.right_ancestor.get_clone(),
                 range.start..self.left_position,
             ));
             ranges.push((
-                HaplotypeRef(Rc::clone(&self.left_ancestor)),
+                self.left_ancestor.get_clone(),
                 self.left_position..range.end,
             ));
         } else if range.contains(&self.right_position) {
             ranges.push((
-                HaplotypeRef(Rc::clone(&self.left_ancestor)),
+                self.left_ancestor.get_clone(),
                 range.start..self.right_position,
             ));
             ranges.push((
-                HaplotypeRef(Rc::clone(&self.right_ancestor)),
+                self.right_ancestor.get_clone(),
                 self.right_position..range.end,
             ));
         } else {
-            ranges.push((HaplotypeRef(Rc::clone(&self.left_ancestor)), range))
+            ranges.push((self.left_ancestor.get_clone(), range))
         }
     }
 }
@@ -509,7 +516,7 @@ mod tests {
     #[test]
     fn create_descendant() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
-        let wt = Wildtype::create_wildtype(bytes);
+        let mut wt = Wildtype::create_wildtype(bytes);
         let ht = wt.borrow_mut().create_descendant(0, 0x03);
         assert_eq!(ht.borrow().get_base(0), Some(0x03));
         assert_eq!(ht.borrow().get_base(1), Some(0x01));
@@ -520,7 +527,7 @@ mod tests {
     #[test]
     fn create_wide_geneaology() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
-        let wt = Wildtype::create_wildtype(bytes);
+        let mut wt = Wildtype::create_wildtype(bytes);
         let _hts: Vec<HaplotypeRef> = (0..100)
             .map(|i| wt.borrow_mut().create_descendant(0, i))
             .collect();
@@ -537,26 +544,21 @@ mod tests {
     fn single_recombination() {
         let mut haplotypes: Vec<HaplotypeRef> = Vec::new();
         let bytes = vec![Some(0x01); 100];
-        let wildtype = Wildtype::create_wildtype(bytes);
-        haplotypes.push(HaplotypeRef(Rc::clone(&wildtype)));
+        let mut wildtype = Wildtype::create_wildtype(bytes);
+        haplotypes.push(wildtype.get_clone());
         for i in 0..100 {
-            let ht = Rc::clone(haplotypes.last().unwrap());
-            haplotypes.push(HaplotypeRef(Rc::clone(
-                &ht.borrow_mut().create_descendant(i, 0x02),
-            )));
+            let mut ht = haplotypes.last().unwrap().get_clone();
+            haplotypes.push(ht.borrow_mut().create_descendant(i, 0x02));
         }
-        haplotypes.push(HaplotypeRef(Rc::clone(
-            &wildtype.borrow_mut().create_descendant(0, 0x03),
-        )));
+        haplotypes.push(wildtype.borrow_mut().create_descendant(0, 0x03));
         for i in 1..100 {
-            let ht = Rc::clone(haplotypes.last().unwrap());
-            haplotypes.push(HaplotypeRef(Rc::clone(
-                &ht.borrow_mut().create_descendant(i, 0x03),
-            )));
+            let mut ht = haplotypes.last().unwrap().get_clone();
+            haplotypes.push(ht.borrow_mut().create_descendant(i, 0x03));
         }
-        let left_ancestor = &haplotypes[100];
-        let right_ancestor = &haplotypes[200];
-        let recombinant = Haplotype::create_recombinant(left_ancestor, right_ancestor, 10, 90);
+        let mut left_ancestor = haplotypes[100].get_clone();
+        let mut right_ancestor = haplotypes[200].get_clone();
+        let recombinant =
+            Haplotype::create_recombinant(&mut left_ancestor, &mut right_ancestor, 10, 90);
 
         let mut expected = vec![Some(0x03); 10];
         expected.append(&mut vec![Some(0x02); 80]);
@@ -567,9 +569,9 @@ mod tests {
 
     #[test]
     fn get_length() {
-        let wildtype = Wildtype::create_wildtype(vec![Some(0x00); 100]);
-        let haplotype = wildtype.borrow_mut().create_descendant(0, 0x01);
-        let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75);
+        let mut wildtype = Wildtype::create_wildtype(vec![Some(0x00); 100]);
+        let mut haplotype = wildtype.borrow_mut().create_descendant(0, 0x01);
+        let recombinant = Haplotype::create_recombinant(&mut wildtype, &mut haplotype, 25, 75);
         assert_eq!(wildtype.borrow().get_length(), 100);
         assert_eq!(haplotype.borrow().get_length(), 100);
         assert_eq!(recombinant.borrow().get_length(), 100);
@@ -577,9 +579,9 @@ mod tests {
 
     #[test]
     fn get_sequence() {
-        let wildtype = Wildtype::create_wildtype(vec![Some(0x00); 100]);
-        let haplotype = wildtype.borrow_mut().create_descendant(0, 0x01);
-        let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75);
+        let mut wildtype = Wildtype::create_wildtype(vec![Some(0x00); 100]);
+        let mut haplotype = wildtype.borrow_mut().create_descendant(0, 0x01);
+        let recombinant = Haplotype::create_recombinant(&mut wildtype, &mut haplotype, 25, 75);
 
         let mut expected = vec![Some(0x01)];
         expected.append(&mut vec![Some(0x00); 99]);
