@@ -7,7 +7,6 @@ use std::cmp::min;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::process;
-use std::rc::Rc;
 
 pub type Population = Vec<HaplotypeRef>;
 pub type HostMap = HashMap<usize, Vec<usize>>;

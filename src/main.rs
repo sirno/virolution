@@ -15,16 +15,15 @@ use fitness::*;
 use haplotype::*;
 use simulation::*;
 use simulation_settings::*;
-use std::rc::Rc;
 use transfers::*;
 
 fn _haplotype_experiments() {
     let bytes = vec![Some(0x00); 4];
-    let mut wt = Wildtype::create_wildtype(bytes);
-    let mut ht = wt.borrow_mut().create_descendant(2, 0x01);
-    let mut ht2 = ht.borrow_mut().create_descendant(1, 0x02);
-    let mut ht3 = ht2.borrow_mut().create_descendant(2, 0x03);
-    let ht4 = Haplotype::create_recombinant(&mut ht, &mut ht3, 0, 2);
+    let wt = Wildtype::create_wildtype(bytes);
+    let ht = wt.borrow_mut().create_descendant(2, 0x01);
+    let ht2 = ht.borrow_mut().create_descendant(1, 0x02);
+    let ht3 = ht2.borrow_mut().create_descendant(2, 0x03);
+    let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2);
     println!("---debug---");
     println!("wt: {:?}", *wt);
     println!("ht: {:?}", *ht);
@@ -93,11 +92,11 @@ fn _simulation_experiments() {
 
     let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
-    let mut wt = Wildtype::create_wildtype(sequence);
-    let mut ht = wt.borrow_mut().create_descendant(2, 0x01);
-    let mut ht2 = ht.borrow_mut().create_descendant(1, 0x02);
-    let mut ht3 = ht2.borrow_mut().create_descendant(2, 0x03);
-    let ht4 = Haplotype::create_recombinant(&mut ht, &mut ht3, 0, 2);
+    let wt = Wildtype::create_wildtype(sequence);
+    let ht = wt.borrow_mut().create_descendant(2, 0x01);
+    let ht2 = ht.borrow_mut().create_descendant(1, 0x02);
+    let ht3 = ht2.borrow_mut().create_descendant(2, 0x03);
+    let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2);
 
     println!("---fitnesses---");
     println!("wt: {}", wt.borrow().get_fitness(&fitness_table));
