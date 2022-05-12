@@ -1,57 +1,11 @@
 use super::fitness::FitnessTable;
+use super::references::sync::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
-use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashSet;
 use std::fmt;
 use std::ops::Range;
-use std::rc::{Rc, Weak};
 
 pub type Symbol = Option<u8>;
-#[derive(Clone)]
-pub struct HaplotypeRef(pub Rc<RefCell<Haplotype>>);
-
-impl std::ops::Deref for HaplotypeRef {
-    type Target = Rc<RefCell<Haplotype>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for HaplotypeRef {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl HaplotypeRef {
-    pub fn get_clone(&self) -> HaplotypeRef {
-        HaplotypeRef(Rc::clone(&self.0))
-    }
-
-    fn get_weak(&self) -> HaplotypeWeak {
-        HaplotypeWeak(Rc::downgrade(&self.0))
-    }
-
-    fn read(&self) -> Ref<'_, Haplotype> {
-        self.borrow()
-    }
-
-    fn write(&self) -> RefMut<'_, Haplotype> {
-        self.borrow_mut()
-    }
-}
-
-#[derive(Clone)]
-struct HaplotypeWeak(Weak<RefCell<Haplotype>>);
-
-impl std::ops::Deref for HaplotypeWeak {
-    type Target = Weak<RefCell<Haplotype>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -151,12 +105,13 @@ impl Haplotype {
         let ancestor = self.get_reference();
         let wildtype = self.get_wildtype();
 
-        let descendant = HaplotypeRef(Rc::new(RefCell::new(Haplotype::Descendant(
-            Descendant::new(ancestor, wildtype, position, Some(change)),
-        ))));
-        descendant
-            .borrow_mut()
-            .add_reference(HaplotypeWeak(Rc::downgrade(&Rc::clone(&descendant.0))));
+        let descendant = HaplotypeRef::new(Haplotype::Descendant(Descendant::new(
+            ancestor,
+            wildtype,
+            position,
+            Some(change),
+        )));
+        descendant.borrow_mut().add_reference(descendant.get_weak());
 
         self.add_descendant(descendant.get_weak());
         descendant
@@ -170,15 +125,13 @@ impl Haplotype {
     ) -> HaplotypeRef {
         let wildtype = left_ancestor.borrow().get_wildtype();
 
-        let recombinant = HaplotypeRef(Rc::new(RefCell::new(Haplotype::Recombinant(
-            Recombinant::new(
-                wildtype,
-                left_ancestor.get_clone(),
-                right_ancestor.get_clone(),
-                left_position,
-                right_position,
-            ),
-        ))));
+        let recombinant = HaplotypeRef::new(Haplotype::Recombinant(Recombinant::new(
+            wildtype,
+            left_ancestor.get_clone(),
+            right_ancestor.get_clone(),
+            left_position,
+            right_position,
+        )));
         recombinant
             .borrow_mut()
             .add_reference(recombinant.get_weak());
@@ -206,19 +159,11 @@ impl Haplotype {
             Haplotype::Descendant(ht) => &ht.reference,
             Haplotype::Recombinant(rc) => &rc.reference,
         };
-        match option {
-            Some(reference_weak) => match reference_weak.upgrade() {
-                Some(reference) => HaplotypeRef(reference),
-                None => {
-                    eprintln!("Haplotype incorrectly initialized.");
-                    std::process::exit(-1);
-                }
-            },
-            None => {
-                eprintln!("Haplotype incorrectly initialized.");
-                std::process::exit(-1);
-            }
-        }
+        option
+            .as_ref()
+            .expect("Haplotype incorrectly initialized.")
+            .upgrade()
+            .expect("Self-reference has been dropped.")
     }
 
     pub fn get_wildtype(&self) -> HaplotypeRef {
@@ -363,30 +308,22 @@ impl Haplotype {
 
 impl Wildtype {
     pub fn create_wildtype(sequence: Vec<Symbol>) -> HaplotypeRef {
-        let wildtype = HaplotypeRef(Rc::new(RefCell::new(Haplotype::Wildtype(Self {
+        let wildtype = HaplotypeRef::new(Haplotype::Wildtype(Self {
             reference: None,
             sequence: sequence,
             descendants: Vec::new(),
-        }))));
+        }));
         let reference = wildtype.get_weak();
         wildtype.borrow_mut().add_reference(reference);
         wildtype
     }
 
     pub fn get_reference(&self) -> HaplotypeRef {
-        match &self.reference {
-            Some(reference_weak) => match reference_weak.upgrade() {
-                Some(reference) => HaplotypeRef(reference),
-                None => {
-                    eprintln!("Haplotype incorrectly initialized.");
-                    std::process::exit(-1);
-                }
-            },
-            None => {
-                eprintln!("Haplotype incorrectly initialized.");
-                std::process::exit(-1);
-            }
-        }
+        self.reference
+            .as_ref()
+            .expect("Haplotype incorrectly initialized.")
+            .upgrade()
+            .expect("Self-reference has been dropped.")
     }
 
     pub fn get_base(&self, position: usize) -> Symbol {
@@ -416,16 +353,6 @@ impl Descendant {
         }
     }
 
-    // pub fn get_reference(&self) -> &HaplotypeRef {
-    //     match &self.reference {
-    //         Some(reference) => &reference,
-    //         None => {
-    //             eprintln!("Haplotype incorrectly initialized.");
-    //             std::process::exit(-1);
-    //         }
-    //     }
-    // }
-    //
     pub fn get_base(&self, position: usize) -> Symbol {
         if self.position == position {
             return self.change;

@@ -1,0 +1,13 @@
+generation,event,value
+0,transmission,migration_fwd
+4,transmission,migration_rev
+6,transmission,migration_fwd
+8,transmission,migration_rev
+10,transmission,migration_fwd
+12,transmission,migration_rev
+14,transmission,migration_fwd
+16,transmission,migration_rev
+18,transmission,migration_fwd
+20,transmission,migration_rev
+22,transmission,migration_fwd
+24,transmission,migration_rev

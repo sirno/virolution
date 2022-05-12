@@ -1,6 +1,6 @@
-use super::fitness::FitnessTable;
-use super::haplotype::HaplotypeRef;
-use super::simulation_settings::SimulationSettings;
+use crate::fitness::FitnessTable;
+use crate::references::sync::HaplotypeRef;
+use crate::simulation_settings::SimulationSettings;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
 use std::cmp::min;
