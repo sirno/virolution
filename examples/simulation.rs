@@ -1,5 +1,6 @@
 extern crate virolution;
 
+use std::fs;
 use virolution::fitness::*;
 use virolution::haplotype::*;
 use virolution::simulation::*;
@@ -35,21 +36,22 @@ fn main() {
 
     let population = (0..10).map(|_| wt.get_clone()).collect();
     let simulation_settings = SimulationSettings {
-        mutation_rate: 1e-2,
+        mutation_rate: 1e-6,
         substitution_matrix: [
             [0., 1., 1., 1.],
             [1., 0., 1., 1.],
             [1., 1., 0., 1.],
             [1., 1., 1., 0.],
         ],
-        host_population_size: 5,
+        host_population_size: 10_000_000,
         infection_fraction: 0.7,
         basic_reproductive_number: 100.,
-        max_population: 100,
-        dilution: 0.17,
+        max_population: 1_000_000,
+        dilution: 0.02,
     };
-    simulation_settings.write("settings.yaml");
-    let settings = SimulationSettings::read("settings.yaml");
+    simulation_settings.write("settings_example.yaml");
+    let settings = SimulationSettings::read("settings_example.yaml");
+    fs::remove_file("settings_example.yaml").expect("Unable to remove file.");
     let mut simulation = Simulation::new(wt, population, fitness_table, settings.clone());
     let infectant_map = simulation.get_infectant_map();
     let host_map = simulation.get_host_map(&infectant_map);

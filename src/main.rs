@@ -3,6 +3,7 @@
 
 extern crate test;
 
+use clap::Parser;
 use rayon::prelude::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
@@ -10,7 +11,25 @@ use virolution::simulation::*;
 use virolution::simulation_settings::*;
 use virolution::transfers::*;
 
-fn _simulation_loop_experiments() {
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    /// Number of generations to simulate.
+    #[clap(short, long, default_value_t = 200)]
+    generations: usize,
+
+    /// Path to settings.
+    #[clap(long)]
+    settings: String,
+
+    /// Path to transfer plan.
+    #[clap(long)]
+    transfer_plan: String,
+}
+
+fn main() {
+    let args = Args::parse();
+    let plan = Plan::read(args.transfer_plan.as_str());
     let sequence = vec![Some(0x00); 5386];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
@@ -26,37 +45,47 @@ fn _simulation_loop_experiments() {
     let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
     let wt = Wildtype::create_wildtype(sequence);
-    let init_population = (0..1_000_000).map(|_| wt.get_clone()).collect();
-    let settings = SimulationSettings {
-        mutation_rate: 1e-6,
-        substitution_matrix: [
-            [0., 1., 1., 1.],
-            [1., 0., 1., 1.],
-            [1., 1., 0., 1.],
-            [1., 1., 1., 0.],
-        ],
-        host_population_size: 1_000_000,
-        infection_fraction: 0.7,
-        basic_reproductive_number: 100.,
-        max_population: 1_000_000,
-        dilution: 0.02,
-    };
+    let settings = SimulationSettings::read(args.settings.as_str());
 
-    let mut simulation = Simulation::new(wt, init_population, fitness_table, settings);
-    for gen in 1..=5 {
+    let n_compartments = 3;
+    let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
+        .map(|_| {
+            let init_population = (0..1_000_000).map(|_| wt.get_clone()).collect();
+            Simulation::new(
+                wt.get_clone(),
+                init_population,
+                fitness_table.clone(),
+                settings.clone(),
+            )
+        })
+        .collect();
+
+    for gen in 1..=args.generations {
         println!("generation={}", gen);
-        let infectant_map = simulation.get_infectant_map();
-        let host_map = simulation.get_host_map(&infectant_map);
-        simulation.mutate_infectants(&host_map);
-        let offspring = simulation.replicate_infectants(&host_map);
-        let population = simulation.subsample_population(&offspring, 1.);
-        println!("pop_size: {}", population.len());
-        simulation.set_population(population);
-        // println!("{:?}", simulation.print_population());
+        let mut offsprings: Vec<Vec<usize>> = Vec::new();
+        compartment_simulations
+            .par_iter_mut()
+            .map(|simulation| {
+                let infectant_map = simulation.get_infectant_map();
+                let host_map = simulation.get_host_map(&infectant_map);
+                simulation.mutate_infectants(&host_map);
+                simulation.replicate_infectants(&host_map)
+            })
+            .collect_into_vec(&mut offsprings);
+        let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
+        let transfers = plan.get_transfer_matrix(gen);
+        for origin in 0..n_compartments {
+            for target in 0..n_compartments {
+                let mut population = compartment_simulations[origin]
+                    .subsample_population(&offsprings[origin], transfers[origin][target]);
+                populations[target].append(&mut population);
+            }
+        }
+        for (idx, simulation) in compartment_simulations.iter_mut().enumerate() {
+            simulation.set_population(populations[idx].clone());
+        }
     }
 }
-
-fn main() {}
 
 #[cfg(test)]
 mod tests {
