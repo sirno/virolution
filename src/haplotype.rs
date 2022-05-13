@@ -1,11 +1,14 @@
 use super::fitness::FitnessTable;
 use super::references::sync::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
+use seq_io::fasta::OwnedRecord;
 use std::collections::HashSet;
 use std::fmt;
 use std::ops::Range;
 
 pub type Symbol = Option<u8>;
+
+const FASTA_ENCODING: [u8; 4] = [0x41, 0x43, 0x47, 0x54];
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -92,12 +95,6 @@ fn print_descendants(
         })
         .collect();
     write!(formatter, "{:?}", out)
-}
-
-impl fmt::Display for Haplotype {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.get_string())
-    }
 }
 
 impl Haplotype {
@@ -297,6 +294,20 @@ impl Haplotype {
         fitness
     }
 
+    pub fn get_record(&self) -> OwnedRecord {
+        OwnedRecord {
+            head: self.get_string().as_bytes().to_vec(),
+            seq: self
+                .get_sequence()
+                .into_iter()
+                .map(|symbol| match symbol {
+                    Some(s) => FASTA_ENCODING[s as usize],
+                    None => 0x2d,
+                })
+                .collect(),
+        }
+    }
+
     pub fn get_length(&self) -> usize {
         match self {
             Haplotype::Wildtype(wt) => wt.get_length(),
@@ -434,6 +445,12 @@ impl Recombinant {
         } else {
             ranges.push((self.left_ancestor.get_clone(), range))
         }
+    }
+}
+
+impl fmt::Display for Haplotype {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.get_string())
     }
 }
 
