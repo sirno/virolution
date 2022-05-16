@@ -1,6 +1,7 @@
 extern crate virolution;
 
 use rayon::prelude::*;
+use std::path::PathBuf;
 use virolution::fitness::*;
 use virolution::haplotype::*;
 use virolution::simulation::*;
@@ -8,7 +9,8 @@ use virolution::simulation_settings::*;
 use virolution::transfers::*;
 
 fn main() {
-    let plan = Plan::read("examples/plan.csv");
+    let plan_path = PathBuf::from_iter([env!("CARGO_MANIFEST_DIR"), "data/plan.csv"]);
+    let plan = Plan::read(plan_path.to_str().unwrap());
     let sequence = vec![Some(0x00); 5386];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {

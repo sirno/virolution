@@ -5,6 +5,8 @@ extern crate test;
 
 use clap::Parser;
 use rayon::prelude::*;
+use seq_io::fasta;
+use seq_io::fasta::{Reader, Record};
 use virolution::fitness::*;
 use virolution::haplotype::*;
 use virolution::simulation::*;
@@ -25,12 +27,25 @@ struct Args {
     /// Path to transfer plan.
     #[clap(long)]
     transfer_plan: String,
+
+    /// Path to sequence (fasta file)
+    #[clap(long)]
+    sequence: String,
 }
 
 fn main() {
     let args = Args::parse();
     let plan = Plan::read(args.transfer_plan.as_str());
-    let sequence = vec![Some(0x00); 5386];
+    let mut reader =
+        fasta::Reader::from_path(args.sequence).expect("Unable to open sequence file.");
+    let sequence: Vec<Option<u8>> = reader
+        .next()
+        .unwrap()
+        .expect("Unable to read sequence.")
+        .seq()
+        .iter()
+        .map(|enc| Some(FASTA_DECODE[enc]))
+        .collect();
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,

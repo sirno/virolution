@@ -1,6 +1,7 @@
 use super::fitness::FitnessTable;
 use super::references::sync::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
+use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
 use std::collections::HashSet;
 use std::fmt;
@@ -8,7 +9,18 @@ use std::ops::Range;
 
 pub type Symbol = Option<u8>;
 
-const FASTA_ENCODING: [u8; 4] = [0x41, 0x43, 0x47, 0x54];
+pub static FASTA_ENCODE: phf::Map<u8, u8> = phf_map! {
+    0x00u8 => 0x41,
+    0x01u8 => 0x43,
+    0x02u8 => 0x47,
+    0x03u8 => 0x54,
+};
+pub static FASTA_DECODE: phf::Map<u8, u8> = phf_map! {
+    0x41u8 => 0x00,
+    0x43u8 => 0x01,
+    0x47u8 => 0x02,
+    0x54u8 => 0x03,
+};
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -301,7 +313,7 @@ impl Haplotype {
                 .get_sequence()
                 .into_iter()
                 .map(|symbol| match symbol {
-                    Some(s) => FASTA_ENCODING[s as usize],
+                    Some(s) => FASTA_ENCODE[&s],
                     None => 0x2d,
                 })
                 .collect(),
