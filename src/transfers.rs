@@ -52,6 +52,17 @@ impl Plan {
         Self { table: table }
     }
 
+    pub fn get_sample_size(&self, generation: usize) -> usize {
+        match self
+            .table
+            .iter()
+            .find(|record| record.generation == generation && record.event == "sample")
+        {
+            Some(record) => record.value.parse().expect("Invalid value for sample"),
+            None => 0,
+        }
+    }
+
     pub fn get_transfer_matrix(&self, generation: usize) -> &[[f64; 4]; 4] {
         match self.get_transfer_name(generation) {
             Some(transfer_name) => TRANSFERS[transfer_name],

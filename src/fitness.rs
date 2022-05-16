@@ -4,7 +4,7 @@ use rand_distr::{Exp, WeightedIndex};
 
 #[derive(Clone)]
 pub struct FitnessTable {
-    n_sites: usize,
+    // n_sites: usize,
     n_symbols: usize,
     table: Vec<f64>,
 }
@@ -99,7 +99,7 @@ impl FitnessTable {
             FitnessDistribution::Neutral => vec![1.; n_sites * n_symbols],
         };
         Self {
-            n_sites: n_sites,
+            // n_sites: n_sites,
             n_symbols: *n_symbols,
             table: table,
         }

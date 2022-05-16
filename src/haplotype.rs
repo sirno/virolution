@@ -306,9 +306,11 @@ impl Haplotype {
         fitness
     }
 
-    pub fn get_record(&self) -> OwnedRecord {
+    pub fn get_record(&self, head: &str) -> OwnedRecord {
+        let signature = self.to_string();
+        let header = format!("{head};haplotype={signature}");
         OwnedRecord {
-            head: self.get_string().as_bytes().to_vec(),
+            head: header.as_bytes().to_vec(),
             seq: self
                 .get_sequence()
                 .into_iter()

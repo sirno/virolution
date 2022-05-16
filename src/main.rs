@@ -4,9 +4,12 @@
 extern crate test;
 
 use clap::Parser;
+use rand::prelude::*;
 use rayon::prelude::*;
 use seq_io::fasta;
-use seq_io::fasta::{Reader, Record};
+use seq_io::fasta::Record;
+use std::fs;
+use std::io;
 use virolution::fitness::*;
 use virolution::haplotype::*;
 use virolution::simulation::*;
@@ -31,6 +34,10 @@ struct Args {
     /// Path to sequence (fasta file)
     #[clap(long)]
     sequence: String,
+
+    /// Path to output (fasta file)
+    #[clap(long, short)]
+    output: String,
 }
 
 fn main() {
@@ -75,8 +82,11 @@ fn main() {
         })
         .collect();
 
-    for gen in 1..=args.generations {
-        println!("generation={}", gen);
+    let mut writer = io::BufWriter::new(fs::File::create(args.output).unwrap());
+
+    for generation in 1..=args.generations {
+        println!("generation={}", generation);
+
         let mut offsprings: Vec<Vec<usize>> = Vec::new();
         compartment_simulations
             .par_iter_mut()
@@ -87,8 +97,9 @@ fn main() {
                 simulation.replicate_infectants(&host_map)
             })
             .collect_into_vec(&mut offsprings);
+
         let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
-        let transfers = plan.get_transfer_matrix(gen);
+        let transfers = plan.get_transfer_matrix(generation);
         for origin in 0..n_compartments {
             for target in 0..n_compartments {
                 let mut population = compartment_simulations[origin]
@@ -96,8 +107,32 @@ fn main() {
                 populations[target].append(&mut population);
             }
         }
+
         for (idx, simulation) in compartment_simulations.iter_mut().enumerate() {
             simulation.set_population(populations[idx].clone());
+        }
+
+        let sample_size = plan.get_sample_size(generation);
+        if sample_size > 0 {
+            for (compartment_id, compartment) in compartment_simulations.iter().enumerate() {
+                for (sequence_id, sequence) in compartment
+                    .get_population()
+                    .choose_multiple(&mut rand::thread_rng(), sample_size)
+                    .enumerate()
+                {
+                    let record = sequence.borrow().get_record(
+                        format!(
+                            "compartment_id={};sequence_id={};generation={}",
+                            compartment_id, sequence_id, generation
+                        )
+                        .as_str(),
+                    );
+                    record.write(&mut writer).expect("Unable to write to file.");
+                    if sequence_id > 10 {
+                        break;
+                    }
+                }
+            }
         }
     }
 }
