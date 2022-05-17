@@ -1,6 +1,8 @@
 use crate::fitness::FitnessTable;
+use crate::haplotype::Haplotype;
 use crate::references::sync::HaplotypeRef;
 use crate::simulation_settings::SimulationSettings;
+use itertools::Itertools;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
 use std::cmp::min;
@@ -17,6 +19,8 @@ pub struct Simulation {
     fitness_table: FitnessTable,
     simulation_settings: SimulationSettings,
     mutation_sampler: Binomial,
+    recombination_sampler: Bernoulli,
+    infection_sampler: Bernoulli,
 }
 
 impl Simulation {
@@ -31,12 +35,16 @@ impl Simulation {
             simulation_settings.mutation_rate,
         )
         .unwrap();
+        let recombination_sampler = Bernoulli::new(simulation_settings.recombination_rate).unwrap();
+        let infection_sampler = Bernoulli::new(simulation_settings.infection_fraction).unwrap();
         Self {
             wildtype: wildtype,
             population: population,
             fitness_table: fitness_table,
             simulation_settings: simulation_settings,
             mutation_sampler: mutation_sampler,
+            recombination_sampler: recombination_sampler,
+            infection_sampler: infection_sampler,
         }
     }
 
@@ -50,11 +58,9 @@ impl Simulation {
 
     pub fn get_infectant_map(&self) -> Vec<Option<usize>> {
         let mut rng = rand::thread_rng();
-        let infection_distribution =
-            Bernoulli::new(self.simulation_settings.infection_fraction).unwrap();
         let infectant_map: Vec<Option<usize>> = (0..self.population.len())
             .map(|_| {
-                if infection_distribution.sample(&mut rng) {
+                if self.infection_sampler.sample(&mut rng) {
                     Some(rng.gen_range(0..self.simulation_settings.host_population_size))
                 } else {
                     None
@@ -84,6 +90,31 @@ impl Simulation {
         let site_vector: Vec<usize> = (0..sequence_length).collect();
         let site_options: &[usize] = site_vector.as_slice();
         for (_host, infectants) in host_map {
+            let n_infectants = infectants.len();
+
+            // Recombine
+            if n_infectants > 1 {
+                for infectant_pair in infectants.iter().combinations(2) {
+                    if self.recombination_sampler.sample(&mut rng) {
+                        let mut pair = [infectant_pair[0], infectant_pair[1]];
+                        pair.shuffle(&mut rng);
+                        let infectant_a = pair[0];
+                        let infectant_b = pair[1];
+                        let mut positions =
+                            rand::seq::index::sample(&mut rng, sequence_length, 2).into_vec();
+                        positions.sort();
+                        let recombinant = Haplotype::create_recombinant(
+                            &self.population[*infectant_a],
+                            &self.population[*infectant_b],
+                            positions[0],
+                            positions[1],
+                        );
+                        self.population[*positions.choose(&mut rng).unwrap()] = recombinant;
+                    }
+                }
+            }
+
+            // Mutate
             for infectant in infectants {
                 let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
 

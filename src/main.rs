@@ -162,6 +162,7 @@ mod tests {
         let init_population: Population = (0..10).map(|_| wt.get_clone()).collect();
         let settings = SimulationSettings {
             mutation_rate: 1e-3,
+            recombination_rate: 1e-5,
             substitution_matrix: [
                 [0., 1., 1., 1.],
                 [1., 0., 1., 1.],

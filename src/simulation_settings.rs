@@ -4,6 +4,7 @@ use std::fs;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct SimulationSettings {
     pub mutation_rate: f64,
+    pub recombination_rate: f64,
     pub host_population_size: usize,
     pub infection_fraction: f64,
     pub basic_reproductive_number: f64,
@@ -33,7 +34,8 @@ mod tests {
     #[test]
     fn read_write() {
         let settings = SimulationSettings {
-            mutation_rate: 1e-2,
+            mutation_rate: 1e-6,
+            recombination_rate: 1e-8,
             substitution_matrix: [
                 [0., 1., 1., 1.],
                 [1., 0., 1., 1.],

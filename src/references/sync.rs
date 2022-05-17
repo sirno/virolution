@@ -24,6 +24,15 @@ impl HaplotypeRef {
         Self(Arc::new(RwLock::new(haplotype)))
     }
 
+    pub fn new_cyclic<F>(data_fn: F) -> Self
+    where
+        F: std::ops::Fn(&HaplotypeWeak) -> Haplotype,
+    {
+        Self(Arc::new_cyclic(|weak| {
+            RwLock::new(data_fn(&HaplotypeWeak(weak.clone())))
+        }))
+    }
+
     pub fn get_clone(&self) -> HaplotypeRef {
         HaplotypeRef(self.0.clone())
     }
