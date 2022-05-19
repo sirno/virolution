@@ -10,35 +10,12 @@ use seq_io::fasta;
 use seq_io::fasta::Record;
 use std::fs;
 use std::io;
+use virolution::args::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
 use virolution::simulation::*;
 use virolution::simulation_settings::*;
 use virolution::transfers::*;
-
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-struct Args {
-    /// Number of generations to simulate.
-    #[clap(short, long, default_value_t = 200)]
-    generations: usize,
-
-    /// Path to settings.
-    #[clap(long)]
-    settings: String,
-
-    /// Path to transfer plan.
-    #[clap(long)]
-    transfer_plan: String,
-
-    /// Path to sequence (fasta file)
-    #[clap(long)]
-    sequence: String,
-
-    /// Path to output (fasta file)
-    #[clap(long, short)]
-    output: String,
-}
 
 fn main() {
     let args = Args::parse();

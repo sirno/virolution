@@ -1,5 +1,6 @@
 #![feature(let_chains)]
 
+pub mod args;
 pub mod fitness;
 pub mod haplotype;
 pub mod references;
