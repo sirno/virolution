@@ -49,7 +49,7 @@ impl Plan {
             .deserialize()
             .map(|record| record.expect("Unable to deserialize record."))
             .collect();
-        Self { table: table }
+        Self { table }
     }
 
     pub fn get_sample_size(&self, generation: usize) -> usize {

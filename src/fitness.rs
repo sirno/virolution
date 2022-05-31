@@ -69,20 +69,19 @@ impl ExponentialParameters {
         }
 
         // sample for remaining positions
-        for idx in 0..table.len() {
-            if table[idx] >= 0. {
+        for el in &mut table {
+            if *el >= 0. {
                 continue;
             }
 
             match categories[category_distr.sample(&mut rng)] {
-                MutationCategory::Beneficial => table[idx] = 1. + beneficial_distr.sample(&mut rng),
-                MutationCategory::Deleterious => {
-                    table[idx] = 1. - deleterious_distr.sample(&mut rng)
-                }
-                MutationCategory::Lethal => table[idx] = 0.,
-                MutationCategory::Neutral => table[idx] = 1.,
+                MutationCategory::Beneficial => *el = 1. + beneficial_distr.sample(&mut rng),
+                MutationCategory::Deleterious => *el = 1. - deleterious_distr.sample(&mut rng),
+                MutationCategory::Lethal => *el = 0.,
+                MutationCategory::Neutral => *el = 1.,
             }
         }
+
         table
     }
 }
@@ -99,9 +98,8 @@ impl FitnessTable {
             FitnessDistribution::Neutral => vec![1.; n_sites * n_symbols],
         };
         Self {
-            // n_sites: n_sites,
             n_symbols: *n_symbols,
-            table: table,
+            table,
         }
     }
 

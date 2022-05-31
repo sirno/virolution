@@ -25,7 +25,7 @@ fn main() {
 
     let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
-    let wt = Wildtype::create_wildtype(sequence);
+    let wt = Wildtype::new(sequence);
     let settings = SimulationSettings {
         mutation_rate: 1e-6,
         recombination_rate: 1e-8,

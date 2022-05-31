@@ -93,11 +93,11 @@ fn print_reference_weak(
 }
 
 fn print_descendants(
-    descendants: &Vec<HaplotypeWeak>,
+    descendants: &[HaplotypeWeak],
     formatter: &mut std::fmt::Formatter,
 ) -> Result<(), std::fmt::Error> {
     let out: Vec<String> = descendants
-        .into_iter()
+        .iter()
         .map(|descendant_weak| match descendant_weak.upgrade() {
             Some(descendant) => descendant.borrow().to_string(),
             None => "None".to_string(),
@@ -221,7 +221,7 @@ impl Haplotype {
             }
         }
 
-        if out.len() == 0 {
+        if out.is_empty() {
             return "wt".to_string();
         }
 
@@ -230,8 +230,8 @@ impl Haplotype {
     }
 
     pub fn get_changes(&self) -> Vec<Symbol> {
-        let mut ranges: Vec<(HaplotypeRef, Range<usize>)> = Vec::new();
-        ranges.push((self.get_reference().get_clone(), 0..self.get_length()));
+        let mut ranges: Vec<(HaplotypeRef, Range<usize>)> =
+            vec![(self.get_reference().get_clone(), 0..self.get_length())];
         let mut changes = vec![None; self.get_length()];
         while let Some((current, range)) = ranges.pop() {
             match &*current.get_clone().borrow() {
@@ -309,7 +309,8 @@ impl Haplotype {
 }
 
 impl Wildtype {
-    pub fn create_wildtype(sequence: Vec<Symbol>) -> HaplotypeRef {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(sequence: Vec<Symbol>) -> HaplotypeRef {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Wildtype(Self {
                 reference: reference.clone(),
@@ -335,6 +336,7 @@ impl Wildtype {
 }
 
 impl Descendant {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(
         ancestor: HaplotypeRef,
         wildtype: HaplotypeRef,
@@ -347,8 +349,8 @@ impl Descendant {
                 wildtype: wildtype.get_clone(),
                 ancestor: ancestor.get_clone(),
                 descendants: Vec::new(),
-                position: position,
-                change: change,
+                position,
+                change,
                 fitness: None,
             })
         })
@@ -367,6 +369,7 @@ impl Descendant {
 }
 
 impl Recombinant {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(
         wildtype: HaplotypeRef,
         left_ancestor: HaplotypeRef,
@@ -380,8 +383,8 @@ impl Recombinant {
                 wildtype: wildtype.get_clone(),
                 left_ancestor: left_ancestor.get_clone(),
                 right_ancestor: right_ancestor.get_clone(),
-                left_position: left_position,
-                right_position: right_position,
+                left_position,
+                right_position,
                 descendants: Vec::new(),
                 fitness: None,
             })
@@ -453,7 +456,7 @@ mod tests {
     #[test]
     fn initiate_wildtype() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
-        let wt = Wildtype::create_wildtype(bytes);
+        let wt = Wildtype::new(bytes);
         for i in 0..4 {
             assert_eq!(wt.borrow().get_base(i), Some(i as u8));
         }
@@ -462,7 +465,7 @@ mod tests {
     #[test]
     fn create_descendant() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
-        let wt = Wildtype::create_wildtype(bytes);
+        let wt = Wildtype::new(bytes);
         let ht = wt.borrow_mut().create_descendant(0, 0x03);
         assert_eq!(ht.borrow().get_base(0), Some(0x03));
         assert_eq!(ht.borrow().get_base(1), Some(0x01));
@@ -473,7 +476,7 @@ mod tests {
     #[test]
     fn create_wide_geneaology() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
-        let wt = Wildtype::create_wildtype(bytes);
+        let wt = Wildtype::new(bytes);
         let _hts: Vec<HaplotypeRef> = (0..100)
             .map(|i| wt.borrow_mut().create_descendant(0, i))
             .collect();
@@ -490,7 +493,7 @@ mod tests {
     fn single_recombination() {
         let mut haplotypes: Vec<HaplotypeRef> = Vec::new();
         let bytes = vec![Some(0x01); 100];
-        let wildtype = Wildtype::create_wildtype(bytes);
+        let wildtype = Wildtype::new(bytes);
         haplotypes.push(wildtype.get_clone());
         for i in 0..100 {
             let ht = haplotypes.last().unwrap().get_clone();
@@ -515,7 +518,7 @@ mod tests {
 
     #[test]
     fn get_length() {
-        let mut wildtype = Wildtype::create_wildtype(vec![Some(0x00); 100]);
+        let mut wildtype = Wildtype::new(vec![Some(0x00); 100]);
         let mut haplotype = wildtype.borrow_mut().create_descendant(0, 0x01);
         let recombinant = Haplotype::create_recombinant(&mut wildtype, &mut haplotype, 25, 75);
         assert_eq!(wildtype.borrow().get_length(), 100);
@@ -525,7 +528,7 @@ mod tests {
 
     #[test]
     fn get_sequence() {
-        let mut wildtype = Wildtype::create_wildtype(vec![Some(0x00); 100]);
+        let mut wildtype = Wildtype::new(vec![Some(0x00); 100]);
         let mut haplotype = wildtype.borrow_mut().create_descendant(0, 0x01);
         let recombinant = Haplotype::create_recombinant(&mut wildtype, &mut haplotype, 25, 75);
 

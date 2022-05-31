@@ -57,9 +57,6 @@ impl std::ops::Deref for HaplotypeWeak {
 
 impl HaplotypeWeak {
     pub fn upgrade(&self) -> Option<HaplotypeRef> {
-        match self.0.upgrade() {
-            Some(x) => Some(HaplotypeRef(x)),
-            None => None,
-        }
+        self.0.upgrade().map(HaplotypeRef)
     }
 }

@@ -43,7 +43,7 @@ fn main() {
 
     let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
-    let wt = Wildtype::create_wildtype(sequence);
+    let wt = Wildtype::new(sequence);
     let settings = SimulationSettings::read(args.settings.as_str());
 
     let n_compartments = 3;
@@ -78,6 +78,7 @@ fn main() {
         let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
         let transfers = plan.get_transfer_matrix(generation);
         for origin in 0..n_compartments {
+            #[allow(clippy::needless_range_loop)]
             for target in 0..n_compartments {
                 let mut population = compartment_simulations[origin]
                     .subsample_population(&offsprings[origin], transfers[origin][target]);
@@ -135,7 +136,7 @@ mod tests {
 
         let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
-        let wt = Wildtype::create_wildtype(sequence);
+        let wt = Wildtype::new(sequence);
         let init_population: Population = (0..10).map(|_| wt.get_clone()).collect();
         let settings = SimulationSettings {
             mutation_rate: 1e-3,

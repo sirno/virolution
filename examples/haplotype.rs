@@ -4,7 +4,7 @@ use virolution::haplotype::*;
 
 fn main() {
     let bytes = vec![Some(0x00); 4];
-    let wt = Wildtype::create_wildtype(bytes);
+    let wt = Wildtype::new(bytes);
     let ht = wt.borrow_mut().create_descendant(2, 0x01);
     let ht2 = ht.borrow_mut().create_descendant(1, 0x02);
     let ht3 = ht2.borrow_mut().create_descendant(2, 0x03);

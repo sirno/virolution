@@ -21,7 +21,7 @@ fn main() {
 
     let fitness_table = FitnessTable::new(&sequence, &4, distribution);
 
-    let wt = Wildtype::create_wildtype(sequence);
+    let wt = Wildtype::new(sequence);
     let ht = wt.borrow_mut().create_descendant(2, 0x01);
     let ht2 = ht.borrow_mut().create_descendant(1, 0x02);
     let ht3 = ht2.borrow_mut().create_descendant(2, 0x03);

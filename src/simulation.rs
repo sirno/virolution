@@ -38,13 +38,13 @@ impl Simulation {
         let recombination_sampler = Bernoulli::new(simulation_settings.recombination_rate).unwrap();
         let infection_sampler = Bernoulli::new(simulation_settings.infection_fraction).unwrap();
         Self {
-            wildtype: wildtype,
-            population: population,
-            fitness_table: fitness_table,
-            simulation_settings: simulation_settings,
-            mutation_sampler: mutation_sampler,
-            recombination_sampler: recombination_sampler,
-            infection_sampler: infection_sampler,
+            wildtype,
+            population,
+            fitness_table,
+            simulation_settings,
+            mutation_sampler,
+            recombination_sampler,
+            infection_sampler,
         }
     }
 
@@ -70,13 +70,17 @@ impl Simulation {
         infectant_map
     }
 
-    pub fn get_host_map(&self, infectant_map: &Vec<Option<usize>>) -> HostMap {
+    pub fn get_host_map(&self, infectant_map: &[Option<usize>]) -> HostMap {
         let mut host_map: HostMap = HashMap::new();
         for (infectant, host) in infectant_map.iter().enumerate() {
             if let Some(host_id) = *host {
                 match host_map.entry(host_id) {
-                    Entry::Vacant(e) => drop(e.insert(vec![infectant])),
-                    Entry::Occupied(mut e) => drop(e.get_mut().push(infectant)),
+                    Entry::Vacant(e) => {
+                        e.insert(vec![infectant]);
+                    }
+                    Entry::Occupied(mut e) => {
+                        e.get_mut().push(infectant);
+                    }
                 }
             }
         }
@@ -89,7 +93,7 @@ impl Simulation {
         let sequence_length = self.wildtype.borrow().get_length();
         let site_vector: Vec<usize> = (0..sequence_length).collect();
         let site_options: &[usize] = site_vector.as_slice();
-        for (_host, infectants) in host_map {
+        for infectants in host_map.values() {
             let n_infectants = infectants.len();
 
             // Recombine
@@ -118,7 +122,7 @@ impl Simulation {
             for infectant in infectants {
                 let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
 
-                if n_mutations <= 0 {
+                if n_mutations == 0 {
                     continue;
                 }
 
@@ -155,7 +159,7 @@ impl Simulation {
         // replicate infectants within each host
         let mut rng = rand::thread_rng();
         let mut offspring = vec![0; self.population.len()];
-        for (_host, infectants) in host_map {
+        for infectants in host_map.values() {
             let n_infectants = infectants.len();
             for infectant in infectants {
                 let fitness = self.population[*infectant]
