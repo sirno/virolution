@@ -30,15 +30,27 @@ const MIGRATION_REV: [[f64; 4]; 4] = [
 ];
 
 #[derive(Debug)]
-pub struct Plan {
-    table: Vec<PlanRecord>,
-}
+pub struct Plan(Vec<PlanRecord>);
 
 #[derive(Debug, Deserialize)]
-struct PlanRecord {
+pub struct PlanRecord {
     generation: usize,
     event: String,
     value: String,
+}
+
+impl std::ops::Deref for Plan {
+    type Target = Vec<PlanRecord>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Plan {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 impl Plan {
@@ -49,12 +61,11 @@ impl Plan {
             .deserialize()
             .map(|record| record.expect("Unable to deserialize record."))
             .collect();
-        Self { table }
+        Self(table)
     }
 
     pub fn get_sample_size(&self, generation: usize) -> usize {
         match self
-            .table
             .iter()
             .find(|record| record.generation == generation && record.event == "sample")
         {
@@ -73,7 +84,6 @@ impl Plan {
     #[inline]
     pub fn get_transfer_name(&self, generation: usize) -> Option<&str> {
         match self
-            .table
             .iter()
             .find(|record| record.generation == generation && record.event == "transmission")
         {
