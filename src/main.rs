@@ -113,6 +113,7 @@ fn main() {
             }
         }
     }
+    fs::write("tree.tree", wt.borrow().get_tree());
 }
 
 #[cfg(test)]

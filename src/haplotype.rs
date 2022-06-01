@@ -6,6 +6,7 @@ use seq_io::fasta::OwnedRecord;
 use std::collections::HashSet;
 use std::fmt;
 use std::ops::Range;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub type Symbol = Option<u8>;
 
@@ -39,6 +40,7 @@ pub struct Wildtype {
     sequence: Vec<Symbol>,
     #[derivative(Debug(format_with = "print_descendants"))]
     descendants: Vec<HaplotypeWeak>,
+    n_recombinations: AtomicUsize,
 }
 
 #[derive(Derivative)]
@@ -72,6 +74,7 @@ pub struct Recombinant {
     descendants: Vec<HaplotypeWeak>,
     left_position: usize,
     right_position: usize,
+    recombinant_id: usize,
     fitness: Option<f64>,
 }
 
@@ -306,6 +309,22 @@ impl Haplotype {
             Haplotype::Recombinant(rc) => rc.get_length(),
         }
     }
+
+    pub fn get_tree(&self) -> String {
+        match self {
+            Haplotype::Wildtype(wt) => wt.get_subtree(),
+            Haplotype::Descendant(ht) => ht.get_subtree(),
+            Haplotype::Recombinant(rc) => rc.get_subtree(self.get_reference().get_weak()),
+        }
+    }
+
+    pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
+        match self {
+            Haplotype::Wildtype(wt) => wt.get_subtree(),
+            Haplotype::Descendant(ht) => ht.get_subtree(),
+            Haplotype::Recombinant(rc) => rc.get_subtree(ancestor),
+        }
+    }
 }
 
 impl Wildtype {
@@ -316,6 +335,7 @@ impl Wildtype {
                 reference: reference.clone(),
                 sequence: sequence.clone(),
                 descendants: Vec::new(),
+                n_recombinations: AtomicUsize::new(0),
             })
         })
     }
@@ -332,6 +352,27 @@ impl Wildtype {
 
     pub fn get_length(&self) -> usize {
         self.sequence.len()
+    }
+
+    pub fn get_recombinant_id(&self) -> usize {
+        self.n_recombinations.fetch_add(1, Ordering::Relaxed)
+    }
+
+    #[inline]
+    pub fn get_subtree(&self) -> String {
+        let inner = self
+            .descendants
+            .iter()
+            .filter(|x| x.exists())
+            .map(|x| {
+                x.upgrade()
+                    .unwrap()
+                    .borrow()
+                    .get_subtree(self.reference.clone())
+            })
+            .collect::<Vec<String>>()
+            .join(",");
+        format!("({inner})wt")
     }
 }
 
@@ -366,6 +407,26 @@ impl Descendant {
     pub fn get_length(&self) -> usize {
         self.wildtype.borrow().get_length()
     }
+
+    #[inline]
+    pub fn get_subtree(&self) -> String {
+        let inner = self
+            .descendants
+            .iter()
+            .filter(|x| x.exists())
+            .map(|x| {
+                x.upgrade()
+                    .unwrap()
+                    .borrow()
+                    .get_subtree(self.reference.clone())
+            })
+            .collect::<Vec<String>>()
+            .join(",");
+        if inner.is_empty() {
+            return format!("\"{}:{}\"", self.position, self.change.unwrap());
+        }
+        format!("({})\"{}:{}\"", inner, self.position, self.change.unwrap())
+    }
 }
 
 impl Recombinant {
@@ -377,6 +438,11 @@ impl Recombinant {
         left_position: usize,
         right_position: usize,
     ) -> HaplotypeRef {
+        let recombinant_id = if let Haplotype::Wildtype(wt) = &*wildtype.borrow() {
+            wt.get_recombinant_id()
+        } else {
+            0
+        };
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Recombinant(Self {
                 reference: reference.clone(),
@@ -386,6 +452,7 @@ impl Recombinant {
                 left_position,
                 right_position,
                 descendants: Vec::new(),
+                recombinant_id,
                 fitness: None,
             })
         })
@@ -441,6 +508,29 @@ impl Recombinant {
             ranges.push((self.left_ancestor.get_clone(), range))
         }
     }
+
+    #[inline]
+    pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
+        let inner = if self.left_ancestor.get_weak() == ancestor {
+            self.descendants
+                .iter()
+                .filter(|x| x.exists())
+                .map(|x| {
+                    x.upgrade()
+                        .unwrap()
+                        .borrow()
+                        .get_subtree(self.reference.clone())
+                })
+                .collect::<Vec<String>>()
+                .join(",")
+        } else {
+            "".to_string()
+        };
+        format!(
+            "({})\"l{}r{}\"#R{}",
+            inner, self.left_position, self.right_position, self.recombinant_id
+        )
+    }
 }
 
 impl fmt::Display for Haplotype {
@@ -452,6 +542,7 @@ impl fmt::Display for Haplotype {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn initiate_wildtype() {
@@ -490,6 +581,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn single_recombination() {
         let mut haplotypes: Vec<HaplotypeRef> = Vec::new();
         let bytes = vec![Some(0x01); 100];
@@ -517,6 +609,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn get_length() {
         let mut wildtype = Wildtype::new(vec![Some(0x00); 100]);
         let mut haplotype = wildtype.borrow_mut().create_descendant(0, 0x01);
@@ -527,6 +620,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn get_sequence() {
         let mut wildtype = Wildtype::new(vec![Some(0x00); 100]);
         let mut haplotype = wildtype.borrow_mut().create_descendant(0, 0x01);
@@ -536,5 +630,19 @@ mod tests {
         expected.append(&mut vec![Some(0x00); 99]);
 
         assert_eq!(recombinant.borrow().get_sequence(), expected);
+    }
+
+    #[test]
+    #[serial]
+    fn create_tree() {
+        let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
+        let mut wt = Wildtype::new(bytes);
+        let mut ht = wt.borrow_mut().create_descendant(0, 0x03);
+        assert_eq!(wt.borrow().get_tree(), "(\"0:3\")wt");
+        let _rc = Haplotype::create_recombinant(&mut wt, &mut ht, 1, 2);
+        assert_eq!(
+            wt.borrow().get_tree(),
+            "((()\"l1r2\"#R0)\"0:3\",()\"l1r2\"#R0)wt"
+        );
     }
 }
