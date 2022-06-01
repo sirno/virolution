@@ -1,24 +1,10 @@
 use crate::haplotype::Haplotype;
+use derive_more::{Deref, DerefMut};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-#[derive(Clone)]
+#[derive(Clone, Deref, DerefMut)]
 pub struct HaplotypeRef(pub Rc<RefCell<Haplotype>>);
-
-impl std::ops::Deref for HaplotypeRef {
-    // type Target = Rc<RefCell<Haplotype>>;
-    type Target = Rc<RefCell<Haplotype>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for HaplotypeRef {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 impl HaplotypeRef {
     pub fn new(haplotype: Haplotype) -> Self {
@@ -44,16 +30,8 @@ impl HaplotypeRef {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deref)]
 pub struct HaplotypeWeak(Weak<RefCell<Haplotype>>);
-
-impl std::ops::Deref for HaplotypeWeak {
-    type Target = Weak<RefCell<Haplotype>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
 
 impl HaplotypeWeak {
     pub fn upgrade(&self) -> Option<HaplotypeRef> {

@@ -1,4 +1,5 @@
 use csv;
+use derive_more::{Deref, DerefMut};
 use phf::phf_map;
 use serde::Deserialize;
 use std::fs::File;
@@ -29,7 +30,7 @@ const MIGRATION_REV: [[f64; 4]; 4] = [
     [0., 0., 0., 0.],
 ];
 
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Plan(Vec<PlanRecord>);
 
 #[derive(Debug, Deserialize)]
@@ -37,20 +38,6 @@ pub struct PlanRecord {
     generation: usize,
     event: String,
     value: String,
-}
-
-impl std::ops::Deref for Plan {
-    type Target = Vec<PlanRecord>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for Plan {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
 }
 
 impl Plan {

@@ -1,23 +1,10 @@
 use crate::haplotype::Haplotype;
+use derive_more::{Deref, DerefMut};
 use std::sync::{Arc, Weak};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-#[derive(Clone)]
+#[derive(Clone, Deref, DerefMut)]
 pub struct HaplotypeRef(pub Arc<RwLock<Haplotype>>);
-
-impl std::ops::Deref for HaplotypeRef {
-    type Target = Arc<RwLock<Haplotype>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for HaplotypeRef {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 impl HaplotypeRef {
     pub fn new(haplotype: Haplotype) -> Self {
@@ -54,16 +41,8 @@ impl HaplotypeRef {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deref)]
 pub struct HaplotypeWeak(Weak<RwLock<Haplotype>>);
-
-impl std::ops::Deref for HaplotypeWeak {
-    type Target = Weak<RwLock<Haplotype>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
 
 impl HaplotypeWeak {
     pub fn upgrade(&self) -> Option<HaplotypeRef> {
