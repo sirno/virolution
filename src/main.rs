@@ -4,6 +4,7 @@
 extern crate test;
 
 use clap::Parser;
+use indicatif::{ProgressBar, ProgressIterator, ProgressStyle};
 use rand::prelude::*;
 use rayon::prelude::*;
 use seq_io::fasta;
@@ -61,9 +62,16 @@ fn main() {
 
     let mut writer = io::BufWriter::new(fs::File::create(args.output).unwrap());
 
-    for generation in 1..=args.generations {
-        println!("generation={}", generation);
+    let bar = ProgressBar::new(args.generations as u64);
+    bar.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "[{elapsed_precise} / {duration_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
+            )
+            .progress_chars("##-"),
+    );
 
+    for generation in (0..args.generations).progress_with(bar) {
         let mut offsprings: Vec<Vec<usize>> = Vec::new();
         compartment_simulations
             .par_iter_mut()
