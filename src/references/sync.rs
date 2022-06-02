@@ -45,6 +45,13 @@ impl HaplotypeRef {
     }
 }
 
+impl PartialEq for HaplotypeRef {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(self, other)
+    }
+}
+
 #[derive(Clone, Deref)]
 pub struct HaplotypeWeak(Weak<RwLock<Haplotype>>);
 
@@ -62,6 +69,13 @@ impl HaplotypeWeak {
 
 impl PartialEq for HaplotypeWeak {
     fn eq(&self, other: &HaplotypeWeak) -> bool {
+        self.ptr_eq(other)
+    }
+}
+
+impl PartialEq for HaplotypeWeak {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
         self.ptr_eq(other)
     }
 }

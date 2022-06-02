@@ -31,6 +31,12 @@ impl HaplotypeRef {
     }
 }
 
+impl PartialEq for HaplotypeRef {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(self, other)
+    }
+}
+
 #[derive(Clone, Deref)]
 pub struct HaplotypeWeak(Weak<RefCell<Haplotype>>);
 
@@ -48,6 +54,12 @@ impl HaplotypeWeak {
 
 impl PartialEq for HaplotypeWeak {
     fn eq(&self, other: &HaplotypeWeak) -> bool {
+        self.ptr_eq(other)
+    }
+}
+
+impl PartialEq for HaplotypeWeak {
+    fn eq(&self, other: &Self) -> bool {
         self.ptr_eq(other)
     }
 }

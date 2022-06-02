@@ -171,6 +171,14 @@ impl Haplotype {
         }
     }
 
+    pub fn remove_descendant(&mut self, descendant: HaplotypeWeak) {
+        match self {
+            Haplotype::Wildtype(wt) => &wt.descendants.retain(|x| *x != descendant),
+            Haplotype::Descendant(ht) => &ht.descendants.retain(|x| *x != descendant),
+            Haplotype::Recombinant(rc) => &rc.descendants.retain(|x| *x != descendant),
+        };
+    }
+
     fn add_descendant(&mut self, descendant: HaplotypeWeak) {
         match self {
             Haplotype::Wildtype(wt) => wt.descendants.push(descendant),
@@ -376,6 +384,14 @@ impl Wildtype {
     }
 }
 
+// impl Drop for Descendant {
+//     fn drop(&mut self) {
+//         self.ancestor
+//             .borrow_mut()
+//             .remove_descendant(self.reference.clone());
+//     }
+// }
+
 impl Descendant {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
@@ -428,6 +444,17 @@ impl Descendant {
         format!("({})\"{}:{}\"", inner, self.position, self.change.unwrap())
     }
 }
+
+// impl Drop for Recombinant {
+//     fn drop(&mut self) {
+//         self.left_ancestor
+//             .borrow_mut()
+//             .remove_descendant(self.reference.clone());
+//         self.right_ancestor
+//             .borrow_mut()
+//             .remove_descendant(self.reference.clone());
+//     }
+// }
 
 impl Recombinant {
     #[allow(clippy::new_ret_no_self)]
