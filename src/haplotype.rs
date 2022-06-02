@@ -2,12 +2,12 @@ use super::fitness::FitnessTable;
 use super::references::sync::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
 use phf::phf_map;
+use rand::Rng;
 use seq_io::fasta::OwnedRecord;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::fmt;
 use std::ops::Range;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub type Symbol = Option<u8>;
 
@@ -41,7 +41,6 @@ pub struct Wildtype {
     sequence: Vec<Symbol>,
     #[derivative(Debug(format_with = "print_descendants"))]
     descendants: Vec<HaplotypeWeak>,
-    n_recombinations: AtomicUsize,
 }
 
 #[derive(Derivative)]
@@ -57,6 +56,7 @@ pub struct Descendant {
     descendants: Vec<HaplotypeWeak>,
     position: usize,
     change: Symbol,
+    descendant_id: usize,
     fitness: Option<f64>,
 }
 
@@ -318,11 +318,13 @@ impl Haplotype {
     }
 
     pub fn get_tree(&self) -> String {
-        match self {
+        let mut tree = match self {
             Haplotype::Wildtype(wt) => wt.get_subtree(),
             Haplotype::Descendant(ht) => ht.get_subtree(),
             Haplotype::Recombinant(rc) => rc.get_subtree(self.get_reference().get_weak()),
-        }
+        };
+        tree.push_str(";");
+        tree
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
@@ -342,7 +344,6 @@ impl Wildtype {
                 reference: reference.clone(),
                 sequence: sequence.clone(),
                 descendants: Vec::new(),
-                n_recombinations: AtomicUsize::new(0),
             })
         })
     }
@@ -359,10 +360,6 @@ impl Wildtype {
 
     pub fn get_length(&self) -> usize {
         self.sequence.len()
-    }
-
-    pub fn get_recombinant_id(&self) -> usize {
-        self.n_recombinations.fetch_add(1, Ordering::Relaxed)
     }
 
     #[inline]
@@ -391,6 +388,8 @@ impl Descendant {
         position: usize,
         change: Symbol,
     ) -> HaplotypeRef {
+        let mut rng = rand::thread_rng();
+        let descendant_id = rng.gen();
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Descendant(Self {
                 reference: reference.clone(),
@@ -399,6 +398,7 @@ impl Descendant {
                 descendants: Vec::new(),
                 position,
                 change,
+                descendant_id,
                 fitness: None,
             })
         })
@@ -429,10 +429,13 @@ impl Descendant {
             })
             .collect::<Vec<String>>()
             .join(",");
+        let outer = self.reference.upgrade().unwrap().borrow().get_string();
+
         if inner.is_empty() {
-            return format!("\"{}:{}\"", self.position, self.change.unwrap());
+            format!("'{}m{}'", outer, self.descendant_id)
+        } else {
+            format!("({})'{}m{}'", inner, outer, self.descendant_id)
         }
-        format!("({})\"{}:{}\"", inner, self.position, self.change.unwrap())
     }
 }
 
@@ -445,11 +448,8 @@ impl Recombinant {
         left_position: usize,
         right_position: usize,
     ) -> HaplotypeRef {
-        let recombinant_id = if let Haplotype::Wildtype(wt) = &*wildtype.borrow() {
-            wt.get_recombinant_id()
-        } else {
-            0
-        };
+        let mut rng = rand::thread_rng();
+        let recombinant_id = rng.gen();
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Recombinant(Self {
                 reference: reference.clone(),
@@ -533,10 +533,20 @@ impl Recombinant {
         } else {
             "".to_string()
         };
-        format!(
-            "({})\"l{}r{}\"#R{}",
-            inner, self.left_position, self.right_position, self.recombinant_id
-        )
+        if inner.is_empty() {
+            format!(
+                "#R'{}r{}'",
+                self.reference.upgrade().unwrap().borrow().get_string(),
+                self.recombinant_id,
+            )
+        } else {
+            format!(
+                "({})#R'{}r{}'",
+                inner,
+                self.reference.upgrade().unwrap().borrow().get_string(),
+                self.recombinant_id,
+            )
+        }
     }
 }
 
@@ -645,11 +655,11 @@ mod tests {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let mut wt = Wildtype::new(bytes);
         let mut ht = wt.borrow_mut().create_descendant(0, 0x03);
-        assert_eq!(wt.borrow().get_tree(), "(\"0:3\")wt");
+        assert_eq!(wt.borrow().get_tree(), "(\"0:3\")wt;");
         let _rc = Haplotype::create_recombinant(&mut wt, &mut ht, 1, 2);
         assert_eq!(
             wt.borrow().get_tree(),
-            "((()\"l1r2\"#R0)\"0:3\",()\"l1r2\"#R0)wt"
+            "((()\"0:0->3\"#R0)\"0:0->3\",()\"0:0->3\"#R0)wt;"
         );
     }
 }
