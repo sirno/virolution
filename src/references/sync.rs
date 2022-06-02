@@ -1,5 +1,6 @@
 use crate::haplotype::Haplotype;
 use derive_more::{Deref, DerefMut};
+use std::hint;
 use std::sync::{Arc, Weak};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
@@ -38,6 +39,7 @@ impl HaplotypeRef {
     #[inline]
     pub fn borrow_mut(&self) -> RwLockWriteGuard<'_, Haplotype> {
         loop {
+            hint::spin_loop();
             if let Ok(guard) = self.0.try_write() {
                 return guard;
             }
