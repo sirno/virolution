@@ -155,6 +155,14 @@ impl Haplotype {
         weak.upgrade().expect("Self-reference has been dropped.")
     }
 
+    pub fn get_id(&self) -> Option<usize> {
+        match self {
+            Haplotype::Wildtype(_) => None,
+            Haplotype::Descendant(ht) => Some(ht.descendant_id),
+            Haplotype::Recombinant(rc) => Some(rc.recombinant_id),
+        }
+    }
+
     pub fn get_wildtype(&self) -> HaplotypeRef {
         match self {
             // Haplotype::Wildtype(wt) => wt.get_reference().get_clone(),
@@ -654,12 +662,16 @@ mod tests {
     fn create_tree() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let mut wt = Wildtype::new(bytes);
+
         let mut ht = wt.borrow_mut().create_descendant(0, 0x03);
-        assert_eq!(wt.borrow().get_tree(), "(\"0:3\")wt;");
-        let _rc = Haplotype::create_recombinant(&mut wt, &mut ht, 1, 2);
+        let ht_id = ht.borrow().get_id().unwrap();
+        assert_eq!(wt.borrow().get_tree(), format!("('0:0->3m{}')wt;", ht_id));
+
+        let rc = Haplotype::create_recombinant(&mut wt, &mut ht, 1, 2);
+        let rc_id = rc.borrow().get_id().unwrap();
         assert_eq!(
             wt.borrow().get_tree(),
-            "((()\"0:0->3\"#R0)\"0:0->3\",()\"0:0->3\"#R0)wt;"
+            format!("((#R'0:0->3r{rc_id}')'0:0->3m{ht_id}',#R'0:0->3r{rc_id}')wt;")
         );
     }
 }
