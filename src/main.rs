@@ -113,7 +113,12 @@ fn main() {
             }
         }
     }
-    fs::write("tree.tree", wt.borrow().get_tree());
+
+    // Store tree if specified.
+    if let Some(tree_file) = args.trees {
+        fs::write(tree_file, wt.borrow().get_tree())
+            .unwrap_or_else(|_| eprintln!("Unable to write tree file."));
+    }
 }
 
 #[cfg(test)]

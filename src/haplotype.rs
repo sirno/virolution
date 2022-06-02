@@ -3,6 +3,7 @@ use super::references::sync::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
 use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
+use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::fmt;
 use std::ops::Range;
@@ -171,14 +172,6 @@ impl Haplotype {
         }
     }
 
-    pub fn remove_descendant(&mut self, descendant: HaplotypeWeak) {
-        match self {
-            Haplotype::Wildtype(wt) => &wt.descendants.retain(|x| *x != descendant),
-            Haplotype::Descendant(ht) => &ht.descendants.retain(|x| *x != descendant),
-            Haplotype::Recombinant(rc) => &rc.descendants.retain(|x| *x != descendant),
-        };
-    }
-
     fn add_descendant(&mut self, descendant: HaplotypeWeak) {
         match self {
             Haplotype::Wildtype(wt) => wt.descendants.push(descendant),
@@ -196,14 +189,10 @@ impl Haplotype {
     }
 
     pub fn get_sequence(&self) -> Vec<Symbol> {
-        let mut sequence = self.get_changes();
-        if let Haplotype::Wildtype(wildtype) = &*self.get_wildtype().get_clone().borrow() {
-            for (position, symbol) in wildtype.sequence.iter().enumerate() {
-                match sequence[position] {
-                    None => sequence[position] = *symbol,
-                    Some(_) => {}
-                }
-            }
+        let changes = self.get_changes();
+        let mut sequence = self.get_wildtype_sequence().clone();
+        for (position, (_, to)) in changes {
+            sequence[position] = to;
         }
         sequence
     }
@@ -221,14 +210,17 @@ impl Haplotype {
         let wildtype = self.get_wildtype_sequence();
 
         let mut out = String::new();
-        for (position, change) in changes.iter().enumerate() {
-            match change {
-                Some(symbol) => {
-                    if let Some(wt_symbol) = wildtype[position] {
-                        out.push_str(format!(";{position}:{wt_symbol}->{symbol}").as_str())
+        for (position, (from, to)) in changes.iter() {
+            match (from, to) {
+                (Some(f), Some(t)) => {
+                    out.push_str(format!(";{position}:{f}->{t}").as_str());
+                }
+                (None, Some(t)) => {
+                    if let Some(wt_symbol) = wildtype[*position] {
+                        out.push_str(format!(";{position}:{wt_symbol}->{t}").as_str())
                     }
                 }
-                None => {}
+                _ => {}
             }
         }
 
@@ -240,18 +232,24 @@ impl Haplotype {
         out
     }
 
-    pub fn get_changes(&self) -> Vec<Symbol> {
+    pub fn get_changes(&self) -> BTreeMap<usize, (Symbol, Symbol)> {
         let mut ranges: Vec<(HaplotypeRef, Range<usize>)> =
             vec![(self.get_reference().get_clone(), 0..self.get_length())];
-        let mut changes = vec![None; self.get_length()];
+        let mut changes = BTreeMap::new();
+
         while let Some((current, range)) = ranges.pop() {
             match &*current.get_clone().borrow() {
                 Haplotype::Wildtype(_wt) => {}
                 Haplotype::Descendant(ht) => {
-                    if let Some(symbol) = ht.change && range.contains(&ht.position) {
-                        match changes[ht.position] {
-                            Some(_) => {},
-                            None => changes[ht.position] = Some(symbol),
+                    if range.contains(&ht.position) {
+                        match changes.get_mut(&ht.position) {
+                            Some(e @ (None, Some(_))) => {
+                                *e = (ht.change, e.1);
+                            }
+                            Some(_) => {}
+                            None => {
+                                changes.insert(ht.position, (None, ht.change));
+                            }
                         }
                     }
                     ranges.push((ht.ancestor.get_clone(), range));
@@ -259,6 +257,7 @@ impl Haplotype {
                 Haplotype::Recombinant(rc) => rc.push_to_ranges(&mut ranges, range),
             }
         }
+
         changes
     }
 
@@ -384,14 +383,6 @@ impl Wildtype {
     }
 }
 
-// impl Drop for Descendant {
-//     fn drop(&mut self) {
-//         self.ancestor
-//             .borrow_mut()
-//             .remove_descendant(self.reference.clone());
-//     }
-// }
-
 impl Descendant {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
@@ -444,17 +435,6 @@ impl Descendant {
         format!("({})\"{}:{}\"", inner, self.position, self.change.unwrap())
     }
 }
-
-// impl Drop for Recombinant {
-//     fn drop(&mut self) {
-//         self.left_ancestor
-//             .borrow_mut()
-//             .remove_descendant(self.reference.clone());
-//         self.right_ancestor
-//             .borrow_mut()
-//             .remove_descendant(self.reference.clone());
-//     }
-// }
 
 impl Recombinant {
     #[allow(clippy::new_ret_no_self)]

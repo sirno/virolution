@@ -68,12 +68,6 @@ impl HaplotypeWeak {
 }
 
 impl PartialEq for HaplotypeWeak {
-    fn eq(&self, other: &HaplotypeWeak) -> bool {
-        self.ptr_eq(other)
-    }
-}
-
-impl PartialEq for HaplotypeWeak {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.ptr_eq(other)

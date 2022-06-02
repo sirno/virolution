@@ -22,11 +22,15 @@ pub struct Args {
     #[clap(long)]
     pub transfer_plan: String,
 
-    /// Path to sequence (fasta file)
+    /// Path to sequence. Format: FASTA.
     #[clap(long)]
     pub sequence: String,
 
-    /// Path to output (fasta file)
+    /// Path to output. Format: FASTA.
     #[clap(long, short)]
     pub output: String,
+
+    /// Path to optional tree file. Format: Extended Newick.
+    #[clap(long)]
+    pub trees: Option<String>,
 }

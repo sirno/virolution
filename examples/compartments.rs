@@ -58,6 +58,7 @@ fn main() {
     for gen in 1..=50 {
         println!("generation={}", gen);
         let mut offsprings: Vec<Vec<usize>> = Vec::new();
+
         compartment_simulations
             .par_iter_mut()
             .map(|simulation| {
@@ -67,13 +68,7 @@ fn main() {
                 simulation.replicate_infectants(&host_map)
             })
             .collect_into_vec(&mut offsprings);
-        // for simulation in compartment_simulations.iter_mut() {
-        //     let infectant_map = simulation.get_infectant_map();
-        //     let host_map = simulation.get_host_map(&infectant_map);
-        //     simulation.mutate_infectants(&host_map);
-        //     let offspring = simulation.replicate_infectants(&host_map);
-        //     offsprings.push(offspring);
-        // }
+
         let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
         let transfers = plan.get_transfer_matrix(gen);
         for origin in 0..n_compartments {
@@ -83,6 +78,7 @@ fn main() {
                 populations[target].append(&mut population);
             }
         }
+
         for (idx, simulation) in compartment_simulations.iter_mut().enumerate() {
             simulation.set_population(populations[idx].clone());
         }
