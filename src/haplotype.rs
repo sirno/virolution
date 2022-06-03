@@ -13,11 +13,6 @@ use std::ops::Range;
 // pub struct Symbol(Option<u8>);
 pub type Symbol = Option<u8>;
 
-pub struct Change {
-    from: Symbol,
-    to: Symbol,
-}
-
 pub static FASTA_ENCODE: phf::Map<u8, u8> = phf_map! {
     0x00u8 => 0x41,
     0x01u8 => 0x43,
@@ -31,8 +26,7 @@ pub static FASTA_DECODE: phf::Map<u8, u8> = phf_map! {
     0x54u8 => 0x03,
 };
 
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub enum Haplotype {
     Wildtype(Wildtype),
     Descendant(Descendant),
@@ -42,77 +36,32 @@ pub enum Haplotype {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Wildtype {
-    #[derivative(Debug(format_with = "print_reference_weak"))]
     reference: HaplotypeWeak,
-    #[derivative(Debug = "ignore")]
     sequence: Vec<Symbol>,
-    #[derivative(Debug(format_with = "print_descendants"))]
     descendants: Vec<HaplotypeWeak>,
 }
 
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct Descendant {
-    #[derivative(Debug(format_with = "print_reference_weak"))]
     reference: HaplotypeWeak,
-    #[derivative(Debug(format_with = "print_reference"))]
-    wildtype: HaplotypeRef,
-    #[derivative(Debug(format_with = "print_reference"))]
+    wildtype: HaplotypeWeak,
     ancestor: HaplotypeRef,
-    #[derivative(Debug(format_with = "print_descendants"))]
     descendants: Vec<HaplotypeWeak>,
     position: usize,
     change: (Symbol, Symbol),
     fitness: Option<f64>,
 }
 
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct Recombinant {
-    #[derivative(Debug(format_with = "print_reference_weak"))]
     reference: HaplotypeWeak,
-    #[derivative(Debug(format_with = "print_reference"))]
-    wildtype: HaplotypeRef,
-    #[derivative(Debug(format_with = "print_reference"))]
+    wildtype: HaplotypeWeak,
     left_ancestor: HaplotypeRef,
-    #[derivative(Debug(format_with = "print_reference"))]
     right_ancestor: HaplotypeRef,
-    #[derivative(Debug(format_with = "print_descendants"))]
     descendants: Vec<HaplotypeWeak>,
     left_position: usize,
     right_position: usize,
     fitness: Option<f64>,
-}
-
-fn print_reference(
-    reference: &HaplotypeRef,
-    formatter: &mut std::fmt::Formatter,
-) -> Result<(), std::fmt::Error> {
-    write!(formatter, "{}", reference.borrow().get_string())
-}
-
-fn print_reference_weak(
-    reference_weak: &HaplotypeWeak,
-    formatter: &mut std::fmt::Formatter,
-) -> Result<(), std::fmt::Error> {
-    match reference_weak.upgrade() {
-        Some(reference) => write!(formatter, "{}", reference.borrow().get_string()),
-        None => write!(formatter, "None"),
-    }
-}
-
-fn print_descendants(
-    descendants: &[HaplotypeWeak],
-    formatter: &mut std::fmt::Formatter,
-) -> Result<(), std::fmt::Error> {
-    let out: Vec<String> = descendants
-        .iter()
-        .map(|descendant_weak| match descendant_weak.upgrade() {
-            Some(descendant) => descendant.borrow().to_string(),
-            None => "None".to_string(),
-        })
-        .collect();
-    write!(formatter, "{:?}", out)
 }
 
 impl Haplotype {
@@ -169,8 +118,8 @@ impl Haplotype {
         match self {
             // Haplotype::Wildtype(wt) => wt.get_reference().get_clone(),
             Haplotype::Wildtype(wt) => wt.get_reference().get_clone(),
-            Haplotype::Descendant(ht) => ht.wildtype.get_clone(),
-            Haplotype::Recombinant(rc) => rc.wildtype.get_clone(),
+            Haplotype::Descendant(ht) => ht.wildtype.upgrade().unwrap().get_clone(),
+            Haplotype::Recombinant(rc) => rc.wildtype.upgrade().unwrap().get_clone(),
         }
     }
 
@@ -398,7 +347,7 @@ impl Descendant {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Descendant(Self {
                 reference: reference.clone(),
-                wildtype: wildtype.get_clone(),
+                wildtype: wildtype.get_weak(),
                 ancestor: ancestor.get_clone(),
                 descendants: Vec::new(),
                 position,
@@ -416,7 +365,7 @@ impl Descendant {
     }
 
     pub fn get_length(&self) -> usize {
-        self.wildtype.borrow().get_length()
+        self.wildtype.upgrade().unwrap().borrow().get_length()
     }
 
     #[inline]
@@ -455,7 +404,7 @@ impl Recombinant {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Recombinant(Self {
                 reference: reference.clone(),
-                wildtype: wildtype.get_clone(),
+                wildtype: wildtype.get_weak(),
                 left_ancestor: left_ancestor.get_clone(),
                 right_ancestor: right_ancestor.get_clone(),
                 left_position,
@@ -475,7 +424,7 @@ impl Recombinant {
     }
 
     pub fn get_length(&self) -> usize {
-        self.wildtype.borrow().get_length()
+        self.wildtype.upgrade().unwrap().borrow().get_length()
     }
 
     fn push_to_ranges(&self, ranges: &mut Vec<(HaplotypeRef, Range<usize>)>, range: Range<usize>) {

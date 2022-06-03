@@ -4,7 +4,7 @@ use derive_more::{Deref, DerefMut};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-#[derive(Clone, Deref, DerefMut)]
+#[derive(Clone, Debug, Deref, DerefMut)]
 pub struct HaplotypeRef(pub Rc<RefCell<Haplotype>>);
 
 thread_local! {
@@ -49,7 +49,7 @@ impl PartialEq for HaplotypeRef {
     }
 }
 
-#[derive(Clone, Deref)]
+#[derive(Clone, Debug, Deref)]
 pub struct HaplotypeWeak(Weak<RefCell<Haplotype>>);
 
 impl HaplotypeWeak {

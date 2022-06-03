@@ -1,6 +1,7 @@
 use crate::haplotype::Haplotype;
 use block_id::{Alphabet, BlockId};
 use derive_more::{Deref, DerefMut};
+use std::fmt;
 use std::hint;
 use std::sync::{Arc, Weak};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -10,6 +11,16 @@ pub struct HaplotypeRef(pub Arc<RwLock<Haplotype>>);
 
 thread_local! {
     pub static BLOCK_ID: BlockId<char> = BlockId::new(Alphabet::new(&("ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect::<Vec<char>>())), 0, 1);
+}
+
+fn print_reference_weak(
+    reference_weak: &HaplotypeWeak,
+    formatter: &mut std::fmt::Formatter,
+) -> Result<(), std::fmt::Error> {
+    match reference_weak.upgrade() {
+        Some(reference) => write!(formatter, "{}", reference.borrow().get_string()),
+        None => write!(formatter, "None"),
+    }
 }
 
 impl HaplotypeRef {
@@ -58,6 +69,12 @@ impl HaplotypeRef {
     }
 }
 
+impl fmt::Debug for HaplotypeRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.borrow().get_string())
+    }
+}
+
 impl PartialEq for HaplotypeRef {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
@@ -83,6 +100,15 @@ impl HaplotypeWeak {
     pub fn get_id(&self) -> String {
         let reference_ptr = Weak::as_ptr(&self.0) as u64;
         BLOCK_ID.with(|generator| generator.encode_string(reference_ptr))
+    }
+}
+
+impl fmt::Debug for HaplotypeWeak {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.upgrade() {
+            Some(reference) => write!(f, "{}", reference.borrow().get_string()),
+            None => write!(f, "(None)"),
+        }
     }
 }
 

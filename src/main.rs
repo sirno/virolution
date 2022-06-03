@@ -66,9 +66,9 @@ fn main() {
     bar.set_style(
         ProgressStyle::default_bar()
             .template(
-                "[{elapsed_precise} / {duration_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
+                "[{bar:40.cyan/blue}] {pos:>7}/{len:7} [{elapsed_precise} / {duration_precise}] {msg}",
             )
-            .progress_chars("##-"),
+            .progress_chars("=> "),
     );
 
     for generation in (0..args.generations).progress_with(bar) {
