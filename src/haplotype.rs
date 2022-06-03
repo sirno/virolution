@@ -1,6 +1,7 @@
 use super::fitness::FitnessTable;
 use super::references::sync::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
+use derive_more::{Deref, DerefMut};
 use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
 use std::collections::BTreeMap;
@@ -8,7 +9,14 @@ use std::collections::HashSet;
 use std::fmt;
 use std::ops::Range;
 
+// #[derive(Clone, Debug, Deref)]
+// pub struct Symbol(Option<u8>);
 pub type Symbol = Option<u8>;
+
+pub struct Change {
+    from: Symbol,
+    to: Symbol,
+}
 
 pub static FASTA_ENCODE: phf::Map<u8, u8> = phf_map! {
     0x00u8 => 0x41,
@@ -54,7 +62,7 @@ pub struct Descendant {
     #[derivative(Debug(format_with = "print_descendants"))]
     descendants: Vec<HaplotypeWeak>,
     position: usize,
-    change: Symbol,
+    change: (Symbol, Symbol),
     fitness: Option<f64>,
 }
 
@@ -111,7 +119,12 @@ impl Haplotype {
     pub fn create_descendant(&mut self, position: usize, change: u8) -> HaplotypeRef {
         let ancestor = self.get_reference();
         let wildtype = self.get_wildtype();
-        let descendant = Descendant::new(ancestor, wildtype, position, Some(change));
+        let descendant = Descendant::new(
+            ancestor,
+            wildtype,
+            position,
+            (self.get_base(position), Some(change)),
+        );
 
         self.add_descendant(descendant.get_weak());
 
@@ -240,12 +253,9 @@ impl Haplotype {
                 Haplotype::Descendant(ht) => {
                     if range.contains(&ht.position) {
                         match changes.get_mut(&ht.position) {
-                            Some(e @ (None, Some(_))) => {
-                                *e = (ht.change, e.1);
-                            }
                             Some(_) => {}
                             None => {
-                                changes.insert(ht.position, (None, ht.change));
+                                changes.insert(ht.position, ht.change);
                             }
                         }
                     }
@@ -279,7 +289,7 @@ impl Haplotype {
                 Haplotype::Wildtype(_wt) => {}
                 Haplotype::Descendant(ht) => {
                     if range.contains(&ht.position) && !checked.contains(&ht.position) {
-                        fitness *= fitness_table.get_fitness(&ht.position, &ht.change);
+                        fitness *= fitness_table.get_fitness(&ht.position, &ht.change.1);
                         checked.insert(ht.position);
                     }
                     ranges.push((ht.ancestor.get_clone(), range));
@@ -383,7 +393,7 @@ impl Descendant {
         ancestor: HaplotypeRef,
         wildtype: HaplotypeRef,
         position: usize,
-        change: Symbol,
+        change: (Symbol, Symbol),
     ) -> HaplotypeRef {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Descendant(Self {
@@ -400,7 +410,7 @@ impl Descendant {
 
     pub fn get_base(&self, position: usize) -> Symbol {
         if self.position == position {
-            return self.change;
+            return self.change.1;
         }
         self.ancestor.borrow().get_base(position)
     }
