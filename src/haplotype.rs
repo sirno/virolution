@@ -2,7 +2,6 @@ use super::fitness::FitnessTable;
 use super::references::sync::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
 use phf::phf_map;
-use rand::Rng;
 use seq_io::fasta::OwnedRecord;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
@@ -56,7 +55,6 @@ pub struct Descendant {
     descendants: Vec<HaplotypeWeak>,
     position: usize,
     change: Symbol,
-    descendant_id: usize,
     fitness: Option<f64>,
 }
 
@@ -75,7 +73,6 @@ pub struct Recombinant {
     descendants: Vec<HaplotypeWeak>,
     left_position: usize,
     right_position: usize,
-    recombinant_id: usize,
     fitness: Option<f64>,
 }
 
@@ -153,14 +150,6 @@ impl Haplotype {
             Haplotype::Recombinant(rc) => &rc.reference,
         };
         weak.upgrade().expect("Self-reference has been dropped.")
-    }
-
-    pub fn get_id(&self) -> Option<usize> {
-        match self {
-            Haplotype::Wildtype(_) => None,
-            Haplotype::Descendant(ht) => Some(ht.descendant_id),
-            Haplotype::Recombinant(rc) => Some(rc.recombinant_id),
-        }
     }
 
     pub fn get_wildtype(&self) -> HaplotypeRef {
@@ -396,8 +385,6 @@ impl Descendant {
         position: usize,
         change: Symbol,
     ) -> HaplotypeRef {
-        let mut rng = rand::thread_rng();
-        let descendant_id = rng.gen();
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Descendant(Self {
                 reference: reference.clone(),
@@ -406,7 +393,6 @@ impl Descendant {
                 descendants: Vec::new(),
                 position,
                 change,
-                descendant_id,
                 fitness: None,
             })
         })
@@ -440,9 +426,9 @@ impl Descendant {
         let outer = self.reference.upgrade().unwrap().borrow().get_string();
 
         if inner.is_empty() {
-            format!("'{}m{}'", outer, self.descendant_id)
+            format!("'{}m{}'", outer, self.reference.get_id())
         } else {
-            format!("({})'{}m{}'", inner, outer, self.descendant_id)
+            format!("({})'{}m{}'", inner, outer, self.reference.get_id())
         }
     }
 }
@@ -456,8 +442,6 @@ impl Recombinant {
         left_position: usize,
         right_position: usize,
     ) -> HaplotypeRef {
-        let mut rng = rand::thread_rng();
-        let recombinant_id = rng.gen();
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Recombinant(Self {
                 reference: reference.clone(),
@@ -467,7 +451,6 @@ impl Recombinant {
                 left_position,
                 right_position,
                 descendants: Vec::new(),
-                recombinant_id,
                 fitness: None,
             })
         })
@@ -545,14 +528,14 @@ impl Recombinant {
             format!(
                 "#R'{}r{}'",
                 self.reference.upgrade().unwrap().borrow().get_string(),
-                self.recombinant_id,
+                self.reference.get_id(),
             )
         } else {
             format!(
                 "({})#R'{}r{}'",
                 inner,
                 self.reference.upgrade().unwrap().borrow().get_string(),
-                self.recombinant_id,
+                self.reference.get_id(),
             )
         }
     }
@@ -664,11 +647,11 @@ mod tests {
         let mut wt = Wildtype::new(bytes);
 
         let mut ht = wt.borrow_mut().create_descendant(0, 0x03);
-        let ht_id = ht.borrow().get_id().unwrap();
+        let ht_id = ht.get_id();
         assert_eq!(wt.borrow().get_tree(), format!("('0:0->3m{}')wt;", ht_id));
 
         let rc = Haplotype::create_recombinant(&mut wt, &mut ht, 1, 2);
-        let rc_id = rc.borrow().get_id().unwrap();
+        let rc_id = rc.get_id();
         assert_eq!(
             wt.borrow().get_tree(),
             format!("((#R'0:0->3r{rc_id}')'0:0->3m{ht_id}',#R'0:0->3r{rc_id}')wt;")

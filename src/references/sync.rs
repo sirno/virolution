@@ -1,4 +1,5 @@
 use crate::haplotype::Haplotype;
+use block_id::{Alphabet, BlockId};
 use derive_more::{Deref, DerefMut};
 use std::hint;
 use std::sync::{Arc, Weak};
@@ -6,6 +7,10 @@ use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 #[derive(Clone, Deref, DerefMut)]
 pub struct HaplotypeRef(pub Arc<RwLock<Haplotype>>);
+
+thread_local! {
+    pub static BLOCK_ID: BlockId<char> = BlockId::new(Alphabet::new(&("ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect::<Vec<char>>())), 0, 1);
+}
 
 impl HaplotypeRef {
     pub fn new(haplotype: Haplotype) -> Self {
@@ -19,6 +24,12 @@ impl HaplotypeRef {
         Self(Arc::new_cyclic(|weak| {
             RwLock::new(data_fn(&HaplotypeWeak(weak.clone())))
         }))
+    }
+
+    #[inline]
+    pub fn get_id(&self) -> String {
+        let reference_ptr = Arc::as_ptr(&self.0) as u64;
+        BLOCK_ID.with(|generator| generator.encode_string(reference_ptr))
     }
 
     #[inline]
@@ -66,6 +77,12 @@ impl HaplotypeWeak {
     #[inline]
     pub fn exists(&self) -> bool {
         self.0.strong_count() > 0
+    }
+
+    #[inline]
+    pub fn get_id(&self) -> String {
+        let reference_ptr = Weak::as_ptr(&self.0) as u64;
+        BLOCK_ID.with(|generator| generator.encode_string(reference_ptr))
     }
 }
 

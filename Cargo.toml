@@ -13,6 +13,7 @@ name = "virolution"
 path = "src/lib.rs"
 
 [dependencies]
+block-id = "0.1.2"
 clap = { version = "3.1.18", features = ["derive"] }
 csv = "1.1.6"
 derivative = "2.2.0"
