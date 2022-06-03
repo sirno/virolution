@@ -1,7 +1,6 @@
 use super::fitness::FitnessTable;
 use super::references::sync::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
-use derive_more::{Deref, DerefMut};
 use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
 use std::collections::BTreeMap;

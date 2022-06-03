@@ -13,16 +13,6 @@ thread_local! {
     pub static BLOCK_ID: BlockId<char> = BlockId::new(Alphabet::new(&("ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect::<Vec<char>>())), 0, 1);
 }
 
-fn print_reference_weak(
-    reference_weak: &HaplotypeWeak,
-    formatter: &mut std::fmt::Formatter,
-) -> Result<(), std::fmt::Error> {
-    match reference_weak.upgrade() {
-        Some(reference) => write!(formatter, "{}", reference.borrow().get_string()),
-        None => write!(formatter, "None"),
-    }
-}
-
 impl HaplotypeRef {
     pub fn new(haplotype: Haplotype) -> Self {
         Self(Arc::new(RwLock::new(haplotype)))
