@@ -148,7 +148,7 @@ impl Haplotype {
 
     pub fn get_sequence(&self) -> Vec<Symbol> {
         let changes = self.get_changes();
-        let mut sequence = self.get_wildtype_sequence().clone();
+        let mut sequence = self.get_wildtype_sequence();
         for (position, (_, to)) in changes {
             sequence[position] = to;
         }
@@ -278,7 +278,7 @@ impl Haplotype {
             Haplotype::Descendant(ht) => ht.get_subtree(),
             Haplotype::Recombinant(rc) => rc.get_subtree(self.get_reference().get_weak()),
         };
-        tree.push_str(";");
+        tree.push(';');
         tree
     }
 

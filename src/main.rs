@@ -4,7 +4,7 @@
 extern crate test;
 
 use clap::Parser;
-use indicatif::{ProgressBar, ProgressIterator, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use rand::prelude::*;
 use rayon::prelude::*;
 use seq_io::fasta;
@@ -65,13 +65,11 @@ fn main() {
     let bar = ProgressBar::new(args.generations as u64);
     bar.set_style(
         ProgressStyle::default_bar()
-            .template(
-                "[{bar:40.cyan/blue}] {pos:>7}/{len:7} [{elapsed_precise} / {duration_precise}] {msg}",
-            )
+            .template("[{bar:40}] {pos:>7}/{len:7} [{elapsed_precise} / {duration_precise}] {msg}")
             .progress_chars("=> "),
     );
 
-    for generation in (0..args.generations).progress_with(bar) {
+    for generation in 0..args.generations {
         let mut offsprings: Vec<Vec<usize>> = Vec::new();
         compartment_simulations
             .par_iter_mut()
@@ -98,6 +96,8 @@ fn main() {
             simulation.set_population(populations[idx].clone());
         }
 
+        let population_sizes: Vec<usize> = populations.iter().map(|pop| pop.len()).collect();
+
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
             for (compartment_id, compartment) in compartment_simulations.iter().enumerate() {
@@ -120,7 +120,11 @@ fn main() {
                 }
             }
         }
+
+        bar.inc(1);
+        bar.set_message(format!("{population_sizes:?}"));
     }
+    bar.finish_with_message("Done.");
 
     // Store tree if specified.
     if let Some(tree_file) = args.trees {
