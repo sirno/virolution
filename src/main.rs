@@ -11,6 +11,7 @@ use seq_io::fasta;
 use seq_io::fasta::Record;
 use std::fs;
 use std::io;
+use std::panic::catch_unwind;
 use virolution::args::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
@@ -29,7 +30,11 @@ fn main() {
         .expect("Unable to read sequence.")
         .seq()
         .iter()
-        .map(|enc| Some(FASTA_DECODE[enc]))
+        .filter(|&&enc| enc != 0x0au8)
+        .map(|enc| match catch_unwind(|| Some(FASTA_DECODE[enc])) {
+            Ok(result) => result,
+            Err(_) => panic!("Unable to decode literal {}.", enc),
+        })
         .collect();
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
