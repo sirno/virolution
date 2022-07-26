@@ -30,6 +30,9 @@ pub struct Args {
     #[clap(long, short)]
     pub output: String,
 
+    #[clap(long, default_value = "virolution.log")]
+    pub log_file: String,
+
     /// Path to optional tree file. Format: Extended Newick.
     #[clap(long)]
     pub trees: Option<String>,

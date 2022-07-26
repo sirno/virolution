@@ -21,6 +21,8 @@ use virolution::transfers::*;
 
 fn main() {
     let args = Args::parse();
+    simple_logging::log_to_file(args.log_file.as_str(), log::LevelFilter::Info)
+        .expect("Failed to init logging.");
     let plan = Plan::read(args.transfer_plan.as_str());
     let mut reader =
         fasta::Reader::from_path(args.sequence).expect("Unable to open sequence file.");
@@ -92,7 +94,7 @@ fn main() {
             #[allow(clippy::needless_range_loop)]
             for target in 0..n_compartments {
                 let mut population = compartment_simulations[origin]
-                    .subsample_population(&offsprings[origin], transfers[origin][target]);
+                    .subsample_population(&offsprings[origin], transfers[target][origin]);
                 populations[target].append(&mut population);
             }
         }
@@ -128,6 +130,12 @@ fn main() {
 
         bar.inc(1);
         bar.set_message(format!("{population_sizes:?}"));
+
+        log::info!(
+            r###"
+    generation={generation}
+    population_sizes={population_sizes:?}"###
+        );
     }
     bar.finish_with_message("Done.");
 
