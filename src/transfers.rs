@@ -5,18 +5,16 @@ use serde::Deserialize;
 use std::fs::File;
 use std::io::BufReader;
 
-// Transfer rates between generations.
 pub static TRANSFERS: phf::Map<&'static str, &[[f64; 4]; 4]> = phf_map! {
     "migration_fwd" => &MIGRATION_FWD,
     "migration_rev" => &MIGRATION_REV,
-    "root" => &ROOT,
 };
 
-const DEFAULT: [[f64; 4]; 4] = [
+const MIGRATION: [[f64; 4]; 4] = [
     [1., 0., 0., 0.],
     [0., 1., 0., 0.],
     [0., 0., 1., 0.],
-    [0., 0., 0., 1.],
+    [0., 0., 0., 0.],
 ];
 
 const MIGRATION_FWD: [[f64; 4]; 4] = [
@@ -30,13 +28,6 @@ const MIGRATION_REV: [[f64; 4]; 4] = [
     [0., 1., 0., 0.],
     [0., 0., 1., 0.],
     [0., 0., 0., 0.],
-];
-
-const ROOT: [[f64; 4]; 4] = [
-    [1., 0., 0., 0.],
-    [1., 1., 0., 0.],
-    [0., 1., 1., 0.],
-    [0., 0., 1., 0.],
 ];
 
 #[derive(Debug, Deref, DerefMut)]
