@@ -36,4 +36,7 @@ pub struct Args {
     /// Path to optional tree file. Format: Extended Newick.
     #[clap(long)]
     pub trees: Option<String>,
+
+    #[clap(long, default_value = "0")]
+    pub n_compartments: usize,
 }

@@ -54,7 +54,7 @@ fn main() {
     let wt = Wildtype::new(sequence);
     let settings = SimulationSettings::read(args.settings.as_str());
 
-    let n_compartments = 3;
+    let n_compartments = args.n_compartments;
     let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
         .map(|_| {
             let init_population = (0..1_000_000).map(|_| wt.get_clone()).collect();
