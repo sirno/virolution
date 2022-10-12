@@ -54,10 +54,16 @@ fn main() {
     let wt = Wildtype::new(sequence);
     let settings = SimulationSettings::read(args.settings.as_str());
 
+    // create individual compartments
     let n_compartments = args.n_compartments;
+    print!("Creating {} compartments...\n", n_compartments);
     let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
-        .map(|_| {
-            let init_population = (0..1_000_000).map(|_| wt.get_clone()).collect();
+        .map(|compartment_idx| {
+            let init_population: Population = if compartment_idx == 0 {
+                (0..1_000_000).map(|_| wt.get_clone()).collect()
+            } else {
+                Vec::new()
+            };
             Simulation::new(
                 wt.get_clone(),
                 init_population,
@@ -67,8 +73,10 @@ fn main() {
         })
         .collect();
 
+    // create output files
     let mut writer = io::BufWriter::new(fs::File::create(args.output).unwrap());
 
+    // init progress bar
     let bar = ProgressBar::new(args.generations as u64);
     bar.set_style(
         ProgressStyle::default_bar()
@@ -76,11 +84,16 @@ fn main() {
             .progress_chars("=> "),
     );
 
+    // run simulation
     for generation in 0..args.generations {
+        // simulate compartmentalized population in parallel
         let mut offsprings: Vec<Vec<usize>> = Vec::new();
         compartment_simulations
             .par_iter_mut()
             .map(|simulation| {
+                if simulation.get_population().is_empty() {
+                    return Vec::new();
+                }
                 let infectant_map = simulation.get_infectant_map();
                 let host_map = simulation.get_host_map(&infectant_map);
                 simulation.mutate_infectants(&host_map);
@@ -88,6 +101,7 @@ fn main() {
             })
             .collect_into_vec(&mut offsprings);
 
+        // transfer between compartments
         let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
         let transfers = plan.get_transfer_matrix(generation);
         for origin in 0..n_compartments {
@@ -99,12 +113,14 @@ fn main() {
             }
         }
 
+        // update populations
         for (idx, simulation) in compartment_simulations.iter_mut().enumerate() {
             simulation.set_population(populations[idx].clone());
         }
 
         let population_sizes: Vec<usize> = populations.iter().map(|pop| pop.len()).collect();
 
+        // write to output when sampling
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
             for (compartment_id, compartment) in compartment_simulations.iter().enumerate() {
