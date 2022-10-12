@@ -8,7 +8,6 @@ use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
 use std::cmp::min;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::process;
 
 pub type Population = Vec<HaplotypeRef>;
 pub type HostMap = HashMap<usize, Vec<usize>>;
@@ -179,6 +178,11 @@ impl Simulation {
     }
 
     pub fn subsample_population(&mut self, offspring_map: &Vec<usize>, factor: f64) -> Population {
+        // if there is no offspring, return empty population
+        if offspring_map.is_empty() {
+            return Vec::new();
+        }
+
         let mut rng = rand::thread_rng();
         let offspring_size: usize = offspring_map.iter().sum();
         let sample_size = (factor
@@ -186,13 +190,8 @@ impl Simulation {
                 (offspring_size as f64 * self.simulation_settings.dilution) as usize,
                 self.simulation_settings.max_population,
             ) as f64) as usize;
-        let sampler = match WeightedIndex::new(offspring_map) {
-            Ok(s) => s,
-            Err(_) => {
-                println!("Population went extinct.");
-                process::exit(1);
-            }
-        };
+        let sampler = WeightedIndex::new(offspring_map).unwrap();
+
         (0..sample_size)
             .map(|_| self.population[sampler.sample(&mut rng)].get_clone())
             .collect()
