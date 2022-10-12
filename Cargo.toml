@@ -12,6 +12,8 @@ path = "src/main.rs"
 name = "virolution"
 path = "src/lib.rs"
 
+[workspace]
+
 [dependencies]
 block-id = "0.1.2"
 clap = { version = "3.1.18", features = ["derive"] }
