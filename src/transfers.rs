@@ -73,7 +73,7 @@ impl Plan {
     pub fn get_transfer_matrix(&self, generation: usize) -> &[[f64; 4]; 4] {
         match self.get_transfer_name(generation) {
             Some(transfer_name) => TRANSFERS[transfer_name],
-            None => &MIGRATION,
+            None => &DEFAULT,
         }
     }
 
