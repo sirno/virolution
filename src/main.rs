@@ -85,7 +85,7 @@ fn main() {
     );
 
     // run simulation
-    for generation in 0..args.generations {
+    for generation in 0..=args.generations {
         // simulate compartmentalized population in parallel
         let mut offsprings: Vec<Vec<usize>> = Vec::new();
         compartment_simulations
