@@ -31,7 +31,7 @@ impl Simulation {
         simulation_settings: SimulationSettings,
     ) -> Self {
         let mutation_sampler = Binomial::new(
-            population[0].borrow().get_length() as u64,
+            wildtype.borrow().get_length() as u64,
             simulation_settings.mutation_rate,
         )
         .unwrap();
@@ -199,10 +199,20 @@ impl Simulation {
     }
 
     pub fn next_generation(&mut self) {
+        // do nothing if there is no population
+        if self.population.is_empty() {
+            return;
+        }
+
+        // simulate infection
         let infectant_map = self.get_infectant_map();
         let host_map = self.get_host_map(&infectant_map);
+
+        // simulate replication and mutation
         self.mutate_infectants(&host_map);
         let offspring = self.replicate_infectants(&host_map);
+
+        // subsample population
         let population = self.subsample_population(&offspring, 1.);
         self.set_population(population);
     }
@@ -212,5 +222,67 @@ impl Simulation {
             .iter()
             .map(|hap| hap.borrow().get_string())
             .collect::<Vec<String>>()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fitness::{ExponentialParameters, FitnessDistribution, MutationCategoryWeights};
+    use crate::haplotype::Wildtype;
+
+    const SIMULATION_SETTINGS: SimulationSettings = SimulationSettings {
+        mutation_rate: 1e-3,
+        recombination_rate: 1e-5,
+        substitution_matrix: [
+            [0., 1., 1., 1.],
+            [1., 0., 1., 1.],
+            [1., 1., 0., 1.],
+            [1., 1., 1., 0.],
+        ],
+        host_population_size: 5,
+        infection_fraction: 0.7,
+        basic_reproductive_number: 100.,
+        max_population: 100000000,
+        dilution: 0.17,
+    };
+
+    const DISTRIBUTION: FitnessDistribution =
+        FitnessDistribution::Exponential(ExponentialParameters {
+            weights: MutationCategoryWeights {
+                beneficial: 0.29,
+                deleterious: 0.51,
+                lethal: 0.2,
+                neutral: 0.,
+            },
+            lambda_beneficial: 0.03,
+            lambda_deleterious: 0.21,
+        });
+
+    #[test]
+    fn next_generation() {
+        let sequence = vec![Some(0x00); 100];
+
+        let fitness_table = FitnessTable::new(&sequence, &4, DISTRIBUTION);
+
+        let wt = Wildtype::new(sequence);
+        let init_population: Population = (0..10).map(|_| wt.get_clone()).collect();
+        let mut simulation =
+            Simulation::new(wt, init_population, fitness_table, SIMULATION_SETTINGS);
+        simulation.next_generation()
+    }
+
+    #[test]
+    fn next_generation_without_population() {
+        let sequence = vec![Some(0x00); 100];
+
+        let fitness_table = FitnessTable::new(&sequence, &4, DISTRIBUTION);
+
+        let wt = Wildtype::new(sequence);
+        let init_population: Population = (0..0).map(|_| wt.get_clone()).collect();
+        let mut simulation =
+            Simulation::new(wt, init_population, fitness_table, SIMULATION_SETTINGS);
+
+        simulation.next_generation()
     }
 }
