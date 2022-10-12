@@ -37,6 +37,6 @@ pub struct Args {
     #[clap(long)]
     pub trees: Option<String>,
 
-    #[clap(long, default_value = "0")]
+    #[clap(long, default_value = "3")]
     pub n_compartments: usize,
 }
