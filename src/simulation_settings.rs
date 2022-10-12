@@ -11,6 +11,9 @@ pub struct SimulationSettings {
     pub max_population: usize,
     pub dilution: f64,
     pub substitution_matrix: [[f64; 4]; 4],
+
+    pub n_compartments: usize,
+    pub initial_population: Vec<usize>,
 }
 
 impl SimulationSettings {
@@ -48,6 +51,8 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
+            n_compartments: 3,
+            initial_population: vec![100, 100, 100],
         };
         settings.write("test.yaml");
         let read_settings = SimulationSettings::read("test.yaml");
