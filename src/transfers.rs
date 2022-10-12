@@ -8,9 +8,10 @@ use std::io::BufReader;
 pub static TRANSFERS: phf::Map<&'static str, &[[f64; 4]; 4]> = phf_map! {
     "migration_fwd" => &MIGRATION_FWD,
     "migration_rev" => &MIGRATION_REV,
+    "root" => &ROOT,
 };
 
-const MIGRATION: [[f64; 4]; 4] = [
+const DEFAULT: [[f64; 4]; 4] = [
     [1., 0., 0., 0.],
     [0., 1., 0., 0.],
     [0., 0., 1., 0.],
@@ -28,6 +29,12 @@ const MIGRATION_REV: [[f64; 4]; 4] = [
     [0., 1., 0., 0.],
     [0., 0., 1., 0.],
     [0., 0., 0., 0.],
+];
+const ROOT: [[f64; 4]; 4] = [
+    [1., 0., 0., 0.],
+    [1., 1., 0., 0.],
+    [0., 1., 1., 0.],
+    [0., 0., 1., 1.],
 ];
 
 #[derive(Debug, Deref, DerefMut)]
