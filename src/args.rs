@@ -30,6 +30,7 @@ pub struct Args {
     #[clap(long, short)]
     pub output: String,
 
+    // path to log file
     #[clap(long, default_value = "virolution.log")]
     pub log_file: String,
 
@@ -37,6 +38,7 @@ pub struct Args {
     #[clap(long)]
     pub trees: Option<String>,
 
+    // number of compartments
     #[clap(long, default_value = "3")]
     pub n_compartments: usize,
 }
