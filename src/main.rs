@@ -145,7 +145,7 @@ fn main() {
         // logging
         let population_sizes: Vec<usize> = populations.iter().map(|pop| pop.len()).collect();
 
-        bar.inc(1);
+        bar.set_position(generation.try_into().unwrap());
         bar.set_message(format!("{population_sizes:?}"));
 
         log::info!(
