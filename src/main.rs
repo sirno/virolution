@@ -113,13 +113,6 @@ fn main() {
             }
         }
 
-        // update populations
-        for (idx, simulation) in compartment_simulations.iter_mut().enumerate() {
-            simulation.set_population(populations[idx].clone());
-        }
-
-        let population_sizes: Vec<usize> = populations.iter().map(|pop| pop.len()).collect();
-
         // write to output when sampling
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
@@ -143,6 +136,14 @@ fn main() {
                 }
             }
         }
+
+        // update populations
+        for (idx, simulation) in compartment_simulations.iter_mut().enumerate() {
+            simulation.set_population(populations[idx].clone());
+        }
+
+        // logging
+        let population_sizes: Vec<usize> = populations.iter().map(|pop| pop.len()).collect();
 
         bar.inc(1);
         bar.set_message(format!("{population_sizes:?}"));
