@@ -10,23 +10,23 @@ use clap::Parser;
     trailing_var_arg = true,
 )]
 pub struct Args {
-    /// Number of generations to simulate.
+    /// Number of generations to simulate
     #[clap(short, long, default_value_t = 200)]
     pub generations: usize,
 
-    /// Path to settings.
+    /// Path to settings. Format: YAML
     #[clap(long)]
     pub settings: String,
 
-    /// Path to transfer plan.
+    /// Path to transfer plan. Format: CSV
     #[clap(long)]
     pub transfer_plan: String,
 
-    /// Path to sequence. Format: FASTA.
+    /// Path to sequence. Format: FASTA
     #[clap(long)]
     pub sequence: String,
 
-    /// Path to output. Format: FASTA.
+    /// Path to output. Format: FASTA
     #[clap(long, short)]
     pub output: String,
 
@@ -34,7 +34,7 @@ pub struct Args {
     #[clap(long, default_value = "virolution.log")]
     pub log_file: String,
 
-    /// Path to optional tree file. Format: Extended Newick.
+    /// Path to optional tree file. Format: Extended Newick
     #[clap(long)]
     pub trees: Option<String>,
 
