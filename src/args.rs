@@ -6,7 +6,7 @@ use clap::Parser;
     version,
     about,
     long_about = None,
-    name = "value_hints_derive",
+    name = "virolution",
     trailing_var_arg = true,
 )]
 pub struct Args {
@@ -30,7 +30,7 @@ pub struct Args {
     #[clap(long, short)]
     pub output: String,
 
-    // path to log file
+    /// Path to log file
     #[clap(long, default_value = "virolution.log")]
     pub log_file: String,
 
@@ -38,7 +38,7 @@ pub struct Args {
     #[clap(long)]
     pub trees: Option<String>,
 
-    // number of compartments
+    /// Number of compartments
     #[clap(long, default_value = "3")]
     pub n_compartments: usize,
 }
