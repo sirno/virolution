@@ -177,7 +177,7 @@ impl Simulation {
         offspring
     }
 
-    pub fn subsample_population(&mut self, offspring_map: &Vec<usize>, factor: f64) -> Population {
+    pub fn subsample_population(&self, offspring_map: &Vec<usize>, factor: f64) -> Population {
         // if there is no offspring, return empty population
         if offspring_map.is_empty() {
             return Vec::new();

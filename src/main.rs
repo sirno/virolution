@@ -55,9 +55,8 @@ fn main() {
     let settings = SimulationSettings::read(args.settings.as_str());
 
     // create individual compartments
-    let n_compartments = args.n_compartments;
-    print!("Creating {} compartments...\n", n_compartments);
-    let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
+    println!("Creating {} compartments...", args.n_compartments);
+    let mut compartment_simulations: Vec<Simulation> = (0..args.n_compartments)
         .map(|compartment_idx| {
             let init_population: Population = if compartment_idx == 0 {
                 (0..1_000_000).map(|_| wt.get_clone()).collect()
@@ -72,6 +71,16 @@ fn main() {
             )
         })
         .collect();
+
+    // setup global threadpool
+    println!(
+        "Creating global threadpool with {} threads...",
+        args.n_compartments
+    );
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(args.n_compartments)
+        .build_global()
+        .unwrap();
 
     // create output files
     let mut writer = io::BufWriter::new(fs::File::create(args.output).unwrap());
@@ -102,16 +111,22 @@ fn main() {
             .collect_into_vec(&mut offsprings);
 
         // transfer between compartments
-        let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
-        let transfers = plan.get_transfer_matrix(generation);
-        for origin in 0..n_compartments {
-            #[allow(clippy::needless_range_loop)]
-            for target in 0..n_compartments {
-                let mut population = compartment_simulations[origin]
-                    .subsample_population(&offsprings[origin], transfers[target][origin]);
-                populations[target].append(&mut population);
-            }
-        }
+        let mut populations: Vec<Population> = Vec::new();
+        let transfer = plan.get_transfer_matrix(generation);
+
+        (0..args.n_compartments)
+            .into_par_iter()
+            .map(|target| {
+                let mut target_population: Population = Vec::new();
+                #[allow(clippy::needless_range_loop)]
+                for origin in 0..args.n_compartments {
+                    let mut population = compartment_simulations[origin]
+                        .subsample_population(&offsprings[origin], transfer[target][origin]);
+                    target_population.append(&mut population);
+                }
+                target_population
+            })
+            .collect_into_vec(&mut populations);
 
         // write to output when sampling
         let sample_size = plan.get_sample_size(generation);
