@@ -5,9 +5,11 @@ use crate::simulation_settings::SimulationSettings;
 use itertools::Itertools;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
+use rayon::prelude::*;
 use std::cmp::min;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::sync::mpsc::channel;
 
 pub type Population = Vec<HaplotypeRef>;
 pub type HostMap = HashMap<usize, Vec<usize>>;
@@ -56,15 +58,18 @@ impl Simulation {
     }
 
     pub fn get_infectant_map(&self) -> Vec<Option<usize>> {
-        let mut rng = rand::thread_rng();
         let infectant_map: Vec<Option<usize>> = (0..self.population.len())
-            .map(|_| {
-                if self.infection_sampler.sample(&mut rng) {
-                    Some(rng.gen_range(0..self.simulation_settings.host_population_size))
-                } else {
-                    None
-                }
-            })
+            .into_par_iter()
+            .map_init(
+                || rand::thread_rng(),
+                |rng, _| {
+                    if self.infection_sampler.sample(rng) {
+                        Some(rng.gen_range(0..self.simulation_settings.host_population_size))
+                    } else {
+                        None
+                    }
+                },
+            )
             .collect();
         infectant_map
     }
@@ -88,69 +93,101 @@ impl Simulation {
 
     pub fn mutate_infectants(&mut self, host_map: &HostMap) {
         // mutate infectants based on host cell assignment
-        let mut rng = rand::thread_rng();
         let sequence_length = self.wildtype.borrow().get_length();
         let site_vector: Vec<usize> = (0..sequence_length).collect();
         let site_options: &[usize] = site_vector.as_slice();
-        for infectants in host_map.values() {
-            let n_infectants = infectants.len();
 
-            // Recombine
-            if n_infectants > 1 {
-                for infectant_pair in infectants.iter().combinations(2) {
-                    if self.recombination_sampler.sample(&mut rng) {
-                        let mut pair = [infectant_pair[0], infectant_pair[1]];
-                        pair.shuffle(&mut rng);
-                        let infectant_a = pair[0];
-                        let infectant_b = pair[1];
-                        let mut positions =
-                            rand::seq::index::sample(&mut rng, sequence_length, 2).into_vec();
-                        positions.sort();
-                        let recombinant = Haplotype::create_recombinant(
-                            &self.population[*infectant_a],
-                            &self.population[*infectant_b],
-                            positions[0],
-                            positions[1],
-                        );
-                        self.population[*positions.choose(&mut rng).unwrap()] = recombinant;
-                    }
-                }
-            }
+        // create recombination channel
+        let (recombination_sender, recombination_receiver) = channel();
 
-            // Mutate
-            for infectant in infectants {
-                let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
+        // recombine infectants
+        host_map
+            .into_par_iter()
+            .for_each_with(recombination_sender, |sender, entry| {
+                let mut rng = rand::thread_rng();
 
-                if n_mutations == 0 {
-                    continue;
-                }
+                let infectants = entry.1;
+                let n_infectants = infectants.len();
 
-                let mut infectant_ref = self.population[*infectant].get_clone();
-                let sites = site_options.choose_multiple(&mut rng, n_mutations);
-                for site in sites {
-                    let base = infectant_ref.borrow().get_base(*site);
-                    match base {
-                        Some(val) => {
-                            let dist = WeightedIndex::new(
-                                self.simulation_settings.substitution_matrix[val as usize],
-                            )
-                            .unwrap();
-                            let new_base = dist.sample(&mut rng);
-                            infectant_ref = infectant_ref
-                                .get_clone()
-                                .borrow_mut()
-                                .create_descendant(*site, new_base as u8);
-
-                            if infectant_ref.borrow().get_fitness(&self.fitness_table) <= 0. {
-                                continue;
-                            }
+                // Recombine
+                if n_infectants > 1 {
+                    for infectant_pair in infectants.iter().combinations(2) {
+                        if self.recombination_sampler.sample(&mut rng) {
+                            let mut pair = [infectant_pair[0], infectant_pair[1]];
+                            pair.shuffle(&mut rng);
+                            let infectant_a = pair[0];
+                            let infectant_b = pair[1];
+                            let mut positions =
+                                rand::seq::index::sample(&mut rng, sequence_length, 2).into_vec();
+                            positions.sort();
+                            let recombinant = Haplotype::create_recombinant(
+                                &self.population[*infectant_a],
+                                &self.population[*infectant_b],
+                                positions[0],
+                                positions[1],
+                            );
+                            sender
+                                .send((*positions.choose(&mut rng).unwrap(), recombinant))
+                                .unwrap();
                         }
-                        None => {}
                     }
                 }
+            });
 
-                self.population[*infectant] = infectant_ref;
-            }
+        // collect recominants
+        for (position, recombinant) in recombination_receiver.iter() {
+            self.population[position] = recombinant;
+        }
+
+        // create mutation channel
+        let (mutation_sender, mutation_receiver) = channel();
+
+        // mutate infectants
+        host_map
+            .into_par_iter()
+            .for_each_with(mutation_sender, |sender, entry| {
+                let mut rng = rand::thread_rng();
+
+                let infectants = entry.1;
+
+                for infectant in infectants {
+                    let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
+
+                    if n_mutations == 0 {
+                        continue;
+                    }
+
+                    let mut infectant_ref = self.population[*infectant].get_clone();
+                    let sites = site_options.choose_multiple(&mut rng, n_mutations);
+                    for site in sites {
+                        let base = infectant_ref.borrow().get_base(*site);
+                        match base {
+                            Some(val) => {
+                                let dist = WeightedIndex::new(
+                                    self.simulation_settings.substitution_matrix[val as usize],
+                                )
+                                .unwrap();
+                                let new_base = dist.sample(&mut rng);
+                                infectant_ref = infectant_ref
+                                    .get_clone()
+                                    .borrow_mut()
+                                    .create_descendant(*site, new_base as u8);
+
+                                if infectant_ref.borrow().get_fitness(&self.fitness_table) <= 0. {
+                                    continue;
+                                }
+                            }
+                            None => {}
+                        }
+                    }
+
+                    sender.send((*infectant, infectant_ref)).unwrap();
+                }
+            });
+
+        // collect mutants
+        for (position, mutant) in mutation_receiver.iter() {
+            self.population[position] = mutant;
         }
     }
 
