@@ -72,16 +72,6 @@ fn main() {
         })
         .collect();
 
-    // setup global threadpool
-    println!(
-        "Creating global threadpool with {} threads...",
-        args.n_compartments
-    );
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(args.n_compartments)
-        .build_global()
-        .unwrap();
-
     // create output files
     let mut writer = io::BufWriter::new(fs::File::create(args.output).unwrap());
 
