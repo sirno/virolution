@@ -41,4 +41,8 @@ pub struct Args {
     /// Number of compartments
     #[clap(long, default_value = "3")]
     pub n_compartments: usize,
+
+    /// Initial population size
+    #[clap(long, default_value = "10000000")]
+    pub initial_population_size: usize,
 }

@@ -59,7 +59,9 @@ fn main() {
     let mut compartment_simulations: Vec<Simulation> = (0..args.n_compartments)
         .map(|compartment_idx| {
             let init_population: Population = if compartment_idx == 0 {
-                (0..1_000_000).map(|_| wt.get_clone()).collect()
+                (0..args.initial_population_size)
+                    .map(|_| wt.get_clone())
+                    .collect()
             } else {
                 Vec::new()
             };
