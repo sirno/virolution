@@ -131,6 +131,7 @@ fn main() {
         // write to output when sampling
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
+            log::info!("Sampling {} individuals...", sample_size);
             for (compartment_id, compartment) in compartment_simulations.iter().enumerate() {
                 for (sequence_id, sequence) in compartment
                     .get_population()
@@ -145,9 +146,6 @@ fn main() {
                         .as_str(),
                     );
                     record.write(&mut writer).expect("Unable to write to file.");
-                    if sequence_id > 10 {
-                        break;
-                    }
                 }
             }
         }
