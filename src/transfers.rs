@@ -8,7 +8,9 @@ use std::io::BufReader;
 pub static TRANSFERS: phf::Map<&'static str, &[[f64; 4]; 4]> = phf_map! {
     "migration_fwd" => &MIGRATION_FWD,
     "migration_rev" => &MIGRATION_REV,
-    "root" => &ROOT,
+    "root_ab" => &ROOT_AB,
+    "root_bc" => &ROOT_BC,
+    "root_cd" => &ROOT_CD,
 };
 
 const DEFAULT: [[f64; 4]; 4] = [
@@ -30,10 +32,23 @@ const MIGRATION_REV: [[f64; 4]; 4] = [
     [0., 0., 1., 0.],
     [0., 0., 0., 0.],
 ];
-const ROOT: [[f64; 4]; 4] = [
+
+const ROOT_AB: [[f64; 4]; 4] = [
     [1., 0., 0., 0.],
     [1., 1., 0., 0.],
+    [0., 0., 1., 0.],
+    [0., 0., 0., 1.],
+];
+const ROOT_BC: [[f64; 4]; 4] = [
+    [1., 0., 0., 0.],
+    [0., 1., 0., 0.],
     [0., 1., 1., 0.],
+    [0., 0., 0., 1.],
+];
+const ROOT_CD: [[f64; 4]; 4] = [
+    [1., 0., 0., 0.],
+    [0., 1., 0., 0.],
+    [0., 0., 1., 0.],
     [0., 0., 1., 1.],
 ];
 
