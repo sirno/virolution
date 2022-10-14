@@ -193,23 +193,37 @@ impl Simulation {
 
     pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         // replicate infectants within each host
-        let mut rng = rand::thread_rng();
+        let (replicate_sender, replicate_receiver) = channel();
+
+        host_map
+            .into_par_iter()
+            .for_each_with(replicate_sender, |sender, entry| {
+                let mut rng = rand::thread_rng();
+
+                let infectants = entry.1;
+                let n_infectants = infectants.len() as f64;
+
+                for infectant in infectants {
+                    let fitness = self.population[*infectant]
+                        .borrow()
+                        .get_fitness(&self.fitness_table);
+                    let offspring_sample = match Poisson::new(
+                        fitness * self.simulation_settings.basic_reproductive_number,
+                    ) {
+                        Ok(dist) => dist.sample(&mut rng),
+                        // if fitness is 0 => no offspring
+                        Err(_) => 0.,
+                    };
+
+                    sender
+                        .send((*infectant, offspring_sample / n_infectants))
+                        .unwrap();
+                }
+            });
+
         let mut offspring = vec![0; self.population.len()];
-        for infectants in host_map.values() {
-            let n_infectants = infectants.len();
-            for infectant in infectants {
-                let fitness = self.population[*infectant]
-                    .borrow()
-                    .get_fitness(&self.fitness_table);
-                let offspring_sample = match Poisson::new(
-                    fitness * self.simulation_settings.basic_reproductive_number,
-                ) {
-                    Ok(dist) => dist.sample(&mut rng),
-                    // if fitness is 0 => no offspring
-                    Err(_) => 0.,
-                };
-                offspring[*infectant] = (offspring_sample / n_infectants as f64) as usize;
-            }
+        for (infectant, offspring_sample) in replicate_receiver.iter() {
+            offspring[infectant] = offspring_sample as usize;
         }
         offspring
     }
