@@ -1,4 +1,5 @@
 #![feature(let_chains)]
+#![feature(once_cell)]
 
 pub mod args;
 pub mod fitness;

@@ -234,8 +234,7 @@ impl Simulation {
             return Vec::new();
         }
 
-        let mut rng = rand::thread_rng();
-        let offspring_size: usize = offspring_map.iter().sum();
+        let offspring_size: usize = offspring_map.into_par_iter().sum();
         let sample_size = (factor
             * min(
                 (offspring_size as f64 * self.simulation_settings.dilution) as usize,
@@ -244,7 +243,11 @@ impl Simulation {
         let sampler = WeightedIndex::new(offspring_map).unwrap();
 
         (0..sample_size)
-            .map(|_| self.population[sampler.sample(&mut rng)].get_clone())
+            .into_par_iter()
+            .map_init(
+                || rand::thread_rng(),
+                |rng, _| self.population[sampler.sample(rng)].get_clone(),
+            )
             .collect()
     }
 
