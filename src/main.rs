@@ -74,9 +74,6 @@ fn main() {
         })
         .collect();
 
-    // create output files
-    let mut writer = io::BufWriter::new(fs::File::create(args.output).unwrap());
-
     // init progress bar
     let bar = ProgressBar::new(args.generations as u64);
     bar.set_style(
@@ -125,6 +122,19 @@ fn main() {
         if sample_size > 0 {
             log::info!("Sampling {} individuals...", sample_size);
             for (compartment_id, compartment) in compartment_simulations.iter().enumerate() {
+                // create output files
+                let file_path = format!(
+                    "{}_compartment_{}_sequence_{}.fasta",
+                    args.output_prefix, compartment_id, generation
+                );
+
+                // create path if it does not exist
+                let prefix = path.parent().unwrap();
+                std::fs::create_dir_all(file_path).unwrap();
+
+                let mut writer = io::BufWriter::new(fs::File::create(file_path).unwrap());
+
+                // sample sequences and write to file
                 for (sequence_id, sequence) in compartment
                     .get_population()
                     .choose_multiple(&mut rand::thread_rng(), sample_size)
