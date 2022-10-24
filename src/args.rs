@@ -26,9 +26,9 @@ pub struct Args {
     #[clap(long)]
     pub sequence: String,
 
-    /// Path to output. Format: FASTA
-    #[clap(long, short)]
-    pub output: String,
+    /// Prefix for samples file.
+    #[clap(long, short, default_value = "samples")]
+    pub output_prefix: String,
 
     /// Path to log file
     #[clap(long, default_value = "virolution.log")]
