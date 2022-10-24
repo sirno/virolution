@@ -224,7 +224,6 @@ impl Haplotype {
     }
 
     pub fn get_record(&self, head: &str) -> OwnedRecord {
-        let signature = self.to_string();
         let header = format!("{head}");
         OwnedRecord {
             head: header.as_bytes().to_vec(),
