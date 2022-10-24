@@ -13,6 +13,7 @@ use seq_io::fasta::Record;
 use std::fs;
 use std::io;
 use std::panic::catch_unwind;
+use std::path::Path;
 use virolution::args::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
@@ -130,8 +131,8 @@ fn main() {
                 );
 
                 // create path if it does not exist
-                let prefix = path.parent().unwrap();
-                std::fs::create_dir_all(file_path).unwrap();
+                let prefix = Path::new(file_path.as_str().clone()).parent().unwrap();
+                std::fs::create_dir_all(prefix).unwrap();
 
                 let mut writer = io::BufWriter::new(fs::File::create(file_path).unwrap());
 
