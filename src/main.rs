@@ -1,4 +1,5 @@
 #![feature(let_chains)]
+#![feature(once_cell)]
 #![feature(test)]
 
 extern crate test;
@@ -58,9 +59,11 @@ fn main() {
     // create individual compartments
     println!("Creating {} compartments...", args.n_compartments);
     let mut compartment_simulations: Vec<Simulation> = (0..args.n_compartments)
+        .into_par_iter()
         .map(|compartment_idx| {
             let init_population: Population = if compartment_idx == 0 {
                 (0..args.initial_population_size)
+                    .into_par_iter()
                     .map(|_| wt.get_clone())
                     .collect()
             } else {
@@ -86,8 +89,7 @@ fn main() {
     // run simulation
     for generation in 0..=args.generations {
         // simulate compartmentalized population in parallel
-        let mut offsprings: Vec<Vec<usize>> = Vec::new();
-        compartment_simulations
+        let offsprings: Vec<Vec<usize>> = compartment_simulations
             .par_iter_mut()
             .map(|simulation| {
                 if simulation.get_population().is_empty() {
@@ -98,13 +100,12 @@ fn main() {
                 simulation.mutate_infectants(&host_map);
                 simulation.replicate_infectants(&host_map)
             })
-            .collect_into_vec(&mut offsprings);
+            .collect();
 
         // transfer between compartments
-        let mut populations: Vec<Population> = Vec::new();
         let transfer = plan.get_transfer_matrix(generation);
 
-        (0..args.n_compartments)
+        let populations: Vec<Population> = (0..args.n_compartments)
             .into_par_iter()
             .map(|target| {
                 let mut target_population: Population = Vec::new();
@@ -116,7 +117,7 @@ fn main() {
                 }
                 target_population
             })
-            .collect_into_vec(&mut populations);
+            .collect();
 
         // write to output when sampling
         let sample_size = plan.get_sample_size(generation);
@@ -141,7 +142,7 @@ fn main() {
                     .choose_multiple(&mut rand::thread_rng(), sample_size)
                     .enumerate()
                 {
-                    let record = sequence.borrow().get_record(
+                    let record = sequence.get_record(
                         format!(
                             "compartment_id={};sequence_id={};generation={}",
                             compartment_id, sequence_id, generation
@@ -174,7 +175,7 @@ fn main() {
 
     // Store tree if specified.
     if let Some(tree_file) = args.trees {
-        fs::write(tree_file, wt.borrow().get_tree())
+        fs::write(tree_file, wt.get_tree())
             .unwrap_or_else(|_| eprintln!("Unable to write tree file."));
     }
 }
