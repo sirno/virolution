@@ -108,14 +108,15 @@ fn main() {
         let populations: Vec<Population> = (0..args.n_compartments)
             .into_par_iter()
             .map(|target| {
-                let mut target_population: Population = Vec::new();
-                #[allow(clippy::needless_range_loop)]
-                for origin in 0..args.n_compartments {
-                    let mut population = compartment_simulations[origin]
-                        .subsample_population(&offsprings[origin], transfer[target][origin]);
-                    target_population.append(&mut population);
-                }
-                target_population
+                let target_populations: Vec<Population> = (0..args.n_compartments)
+                    .into_iter()
+                    .map(|origin| {
+                        compartment_simulations[origin]
+                            .subsample_population(&offsprings[origin], transfer[target][origin])
+                    })
+                    .collect();
+
+                target_populations.concat()
             })
             .collect();
 
