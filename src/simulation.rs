@@ -157,30 +157,40 @@ impl Simulation {
                         continue;
                     }
 
-                    let mut infectant_ref = self.population[*infectant].get_clone();
+                    let infectant_ref = &self.population[*infectant];
+                    let mut mutant_ref: Option<HaplotypeRef> = None;
+
                     let sites = site_options.choose_multiple(&mut rng, n_mutations);
+
                     for site in sites {
                         let base = infectant_ref.get_base(*site);
+
                         match base {
                             Some(val) => {
                                 let dist = WeightedIndex::new(
                                     self.simulation_settings.substitution_matrix[val as usize],
                                 )
                                 .unwrap();
-                                let new_base = dist.sample(&mut rng);
-                                infectant_ref = infectant_ref
-                                    .get_clone()
-                                    .create_descendant(*site, new_base as u8);
+                                let new_base = dist.sample(&mut rng) as u8;
 
-                                if infectant_ref.get_fitness(&self.fitness_table) <= 0. {
+                                let descendant = match &mutant_ref {
+                                    Some(mutant) => mutant.create_descendant(*site, new_base),
+                                    None => infectant_ref.create_descendant(*site, new_base),
+                                };
+
+                                if descendant.get_fitness(&self.fitness_table) <= 0. {
                                     continue;
                                 }
+
+                                mutant_ref = Some(descendant);
                             }
                             None => {}
                         }
                     }
 
-                    sender.send((*infectant, infectant_ref)).unwrap();
+                    sender
+                        .send((*infectant, infectant_ref.get_clone()))
+                        .unwrap();
                 }
             });
 
