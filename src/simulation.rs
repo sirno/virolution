@@ -32,7 +32,7 @@ impl Simulation {
         simulation_settings: SimulationSettings,
     ) -> Self {
         let mutation_sampler = Binomial::new(
-            wildtype.borrow().get_length() as u64,
+            wildtype.get_length() as u64,
             simulation_settings.mutation_rate,
         )
         .unwrap();
@@ -93,7 +93,7 @@ impl Simulation {
 
     pub fn mutate_infectants(&mut self, host_map: &HostMap) {
         // mutate infectants based on host cell assignment
-        let sequence_length = self.wildtype.borrow().get_length();
+        let sequence_length = self.wildtype.get_length();
         let site_vector: Vec<usize> = (0..sequence_length).collect();
         let site_options: &[usize] = site_vector.as_slice();
 
@@ -160,7 +160,7 @@ impl Simulation {
                     let mut infectant_ref = self.population[*infectant].get_clone();
                     let sites = site_options.choose_multiple(&mut rng, n_mutations);
                     for site in sites {
-                        let base = infectant_ref.borrow().get_base(*site);
+                        let base = infectant_ref.get_base(*site);
                         match base {
                             Some(val) => {
                                 let dist = WeightedIndex::new(
@@ -170,10 +170,9 @@ impl Simulation {
                                 let new_base = dist.sample(&mut rng);
                                 infectant_ref = infectant_ref
                                     .get_clone()
-                                    .borrow_mut()
                                     .create_descendant(*site, new_base as u8);
 
-                                if infectant_ref.borrow().get_fitness(&self.fitness_table) <= 0. {
+                                if infectant_ref.get_fitness(&self.fitness_table) <= 0. {
                                     continue;
                                 }
                             }
@@ -204,9 +203,7 @@ impl Simulation {
                 let n_infectants = infectants.len() as f64;
 
                 for infectant in infectants {
-                    let fitness = self.population[*infectant]
-                        .borrow()
-                        .get_fitness(&self.fitness_table);
+                    let fitness = self.population[*infectant].get_fitness(&self.fitness_table);
                     let offspring_sample = match Poisson::new(
                         fitness * self.simulation_settings.basic_reproductive_number,
                     ) {
@@ -273,7 +270,7 @@ impl Simulation {
     pub fn print_population(&self) -> Vec<String> {
         self.population
             .iter()
-            .map(|hap| hap.borrow().get_string())
+            .map(|hap| hap.get_string())
             .collect::<Vec<String>>()
     }
 }

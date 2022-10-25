@@ -1,12 +1,11 @@
 use crate::haplotype::Haplotype;
 use block_id::{Alphabet, BlockId};
 use derive_more::{Deref, DerefMut};
-use std::cell::RefCell;
 use std::fmt;
 use std::rc::{Rc, Weak};
 
 #[derive(Clone, Deref, DerefMut)]
-pub struct HaplotypeRef(pub Rc<RefCell<Haplotype>>);
+pub struct HaplotypeRef(pub Rc<Haplotype>);
 
 thread_local! {
     pub static BLOCK_ID: BlockId<char> = BlockId::new(Alphabet::new(&("ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect::<Vec<char>>())), 0, 1);
@@ -14,16 +13,14 @@ thread_local! {
 
 impl HaplotypeRef {
     pub fn new(haplotype: Haplotype) -> Self {
-        Self(Rc::new(RefCell::new(haplotype)))
+        Self(Rc::new(haplotype))
     }
 
     pub fn new_cyclic<F>(data_fn: F) -> Self
     where
         F: std::ops::Fn(&HaplotypeWeak) -> Haplotype,
     {
-        Self(Rc::new_cyclic(|weak| {
-            RefCell::new(data_fn(&HaplotypeWeak(weak.clone())))
-        }))
+        Self(Rc::new_cyclic(|weak| data_fn(&HaplotypeWeak(weak.clone()))))
     }
 
     #[inline]
@@ -45,7 +42,7 @@ impl HaplotypeRef {
 
 impl fmt::Debug for HaplotypeRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.borrow().get_string())
+        write!(f, "{}", self.get_string())
     }
 }
 
@@ -57,7 +54,7 @@ impl PartialEq for HaplotypeRef {
 }
 
 #[derive(Clone, Deref)]
-pub struct HaplotypeWeak(Weak<RefCell<Haplotype>>);
+pub struct HaplotypeWeak(Weak<Haplotype>);
 
 impl HaplotypeWeak {
     #[inline]
@@ -80,7 +77,7 @@ impl HaplotypeWeak {
 impl fmt::Debug for HaplotypeWeak {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.upgrade() {
-            Some(reference) => write!(f, "{}", reference.borrow().get_string()),
+            Some(reference) => write!(f, "{}", reference.get_string()),
             None => write!(f, "(None)"),
         }
     }

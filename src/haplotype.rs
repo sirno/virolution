@@ -87,7 +87,7 @@ impl Haplotype {
         left_position: usize,
         right_position: usize,
     ) -> HaplotypeRef {
-        let wildtype = left_ancestor.borrow().get_wildtype();
+        let wildtype = left_ancestor.get_wildtype();
 
         let recombinant = Recombinant::new(
             wildtype,
@@ -97,12 +97,8 @@ impl Haplotype {
             right_position,
         );
 
-        left_ancestor
-            .borrow()
-            .add_descendant(recombinant.get_weak());
-        right_ancestor
-            .borrow()
-            .add_descendant(recombinant.get_weak());
+        left_ancestor.add_descendant(recombinant.get_weak());
+        right_ancestor.add_descendant(recombinant.get_weak());
         recombinant
     }
 
@@ -160,8 +156,8 @@ impl Haplotype {
     pub fn get_wildtype_sequence(&self) -> Vec<Symbol> {
         match self {
             Haplotype::Wildtype(wt) => wt.sequence.to_vec(),
-            Haplotype::Descendant(_ht) => self.get_wildtype().borrow().get_wildtype_sequence(),
-            Haplotype::Recombinant(_rc) => self.get_wildtype().borrow().get_wildtype_sequence(),
+            Haplotype::Descendant(_ht) => self.get_wildtype().get_wildtype_sequence(),
+            Haplotype::Recombinant(_rc) => self.get_wildtype().get_wildtype_sequence(),
         }
     }
 
@@ -299,12 +295,7 @@ impl Wildtype {
             .unwrap()
             .iter()
             .filter(|x| x.exists())
-            .map(|x| {
-                x.upgrade()
-                    .unwrap()
-                    .borrow()
-                    .get_subtree(self.reference.clone())
-            })
+            .map(|x| x.upgrade().unwrap().get_subtree(self.reference.clone()))
             .collect::<Vec<String>>()
             .join(",");
         format!("({inner})wt")
@@ -337,22 +328,17 @@ impl Descendant {
         if self.position == position {
             return self.change.1;
         }
-        self.ancestor.borrow().get_base(position)
+        self.ancestor.get_base(position)
     }
 
     pub fn get_length(&self) -> usize {
-        self.wildtype.upgrade().unwrap().borrow().get_length()
+        self.wildtype.upgrade().unwrap().get_length()
     }
 
     pub fn get_changes(&self) -> &HashMap<usize, (Symbol, Symbol)> {
         self.changes.get_or_init(|| {
-            let mut changes = self.ancestor.borrow().get_changes().clone();
-            let wt_base = self
-                .wildtype
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .get_base(self.position);
+            let mut changes = self.ancestor.get_changes().clone();
+            let wt_base = self.wildtype.upgrade().unwrap().get_base(self.position);
 
             if self.change.1 == wt_base {
                 changes.remove(&self.position);
@@ -372,15 +358,10 @@ impl Descendant {
             .unwrap()
             .iter()
             .filter(|x| x.exists())
-            .map(|x| {
-                x.upgrade()
-                    .unwrap()
-                    .borrow()
-                    .get_subtree(self.reference.clone())
-            })
+            .map(|x| x.upgrade().unwrap().get_subtree(self.reference.clone()))
             .collect::<Vec<String>>()
             .join(",");
-        let outer = self.reference.upgrade().unwrap().borrow().get_string();
+        let outer = self.reference.upgrade().unwrap().get_string();
 
         if inner.is_empty() {
             format!("'{}m{}'", outer, self.reference.get_id())
@@ -416,20 +397,20 @@ impl Recombinant {
 
     pub fn get_base(&self, position: usize) -> Symbol {
         if position >= self.left_position && position < self.right_position {
-            return self.left_ancestor.borrow().get_base(position);
+            return self.left_ancestor.get_base(position);
         }
 
-        self.right_ancestor.borrow().get_base(position)
+        self.right_ancestor.get_base(position)
     }
 
     pub fn get_length(&self) -> usize {
-        self.wildtype.upgrade().unwrap().borrow().get_length()
+        self.wildtype.upgrade().unwrap().get_length()
     }
 
     pub fn get_changes(&self) -> &HashMap<usize, (Symbol, Symbol)> {
         self.changes.get_or_init(|| {
-            let left_changes = self.left_ancestor.borrow().get_changes();
-            let right_changes = self.right_ancestor.borrow().get_changes();
+            let left_changes = self.left_ancestor.get_changes();
+            let right_changes = self.right_ancestor.get_changes();
 
             let mut changes = HashMap::new();
 
@@ -457,12 +438,7 @@ impl Recombinant {
                 .unwrap()
                 .iter()
                 .filter(|x| x.exists())
-                .map(|x| {
-                    x.upgrade()
-                        .unwrap()
-                        .borrow()
-                        .get_subtree(self.reference.clone())
-                })
+                .map(|x| x.upgrade().unwrap().get_subtree(self.reference.clone()))
                 .collect::<Vec<String>>()
                 .join(",")
         } else {
@@ -471,14 +447,14 @@ impl Recombinant {
         if inner.is_empty() {
             format!(
                 "#R'{}r{}'",
-                self.reference.upgrade().unwrap().borrow().get_string(),
+                self.reference.upgrade().unwrap().get_string(),
                 self.reference.get_id(),
             )
         } else {
             format!(
                 "({})#R'{}r{}'",
                 inner,
-                self.reference.upgrade().unwrap().borrow().get_string(),
+                self.reference.upgrade().unwrap().get_string(),
                 self.reference.get_id(),
             )
         }
@@ -501,7 +477,7 @@ mod tests {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let wt = Wildtype::new(bytes);
         for i in 0..4 {
-            assert_eq!(wt.borrow().get_base(i), Some(i as u8));
+            assert_eq!(wt.get_base(i), Some(i as u8));
         }
     }
 
@@ -509,30 +485,21 @@ mod tests {
     fn create_descendant() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let wt = Wildtype::new(bytes);
-        let ht = wt.borrow().create_descendant(0, 0x03);
-        assert_eq!(ht.borrow().get_base(0), Some(0x03));
-        assert_eq!(ht.borrow().get_base(1), Some(0x01));
-        assert_eq!(ht.borrow().get_base(2), Some(0x02));
-        assert_eq!(ht.borrow().get_base(3), Some(0x03));
+        let ht = wt.create_descendant(0, 0x03);
+        assert_eq!(ht.get_base(0), Some(0x03));
+        assert_eq!(ht.get_base(1), Some(0x01));
+        assert_eq!(ht.get_base(2), Some(0x02));
+        assert_eq!(ht.get_base(3), Some(0x03));
     }
 
     #[test]
     fn create_wide_geneaology() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let wt = Wildtype::new(bytes);
-        let _hts: Vec<HaplotypeRef> = (0..100)
-            .map(|i| wt.borrow().create_descendant(0, i))
-            .collect();
-        for (position, descendant) in wt
-            .borrow()
-            .get_descendants()
-            .lock()
-            .unwrap()
-            .iter()
-            .enumerate()
-        {
+        let _hts: Vec<HaplotypeRef> = (0..100).map(|i| wt.create_descendant(0, i)).collect();
+        for (position, descendant) in wt.get_descendants().lock().unwrap().iter().enumerate() {
             if let Some(d) = descendant.upgrade() {
-                assert_eq!(d.borrow().get_base(0), Some(position as u8));
+                assert_eq!(d.get_base(0), Some(position as u8));
             } else {
                 panic!();
             }
@@ -548,12 +515,12 @@ mod tests {
         haplotypes.push(wildtype.get_clone());
         for i in 0..100 {
             let ht = haplotypes.last().unwrap().get_clone();
-            haplotypes.push(ht.borrow().create_descendant(i, 0x02));
+            haplotypes.push(ht.create_descendant(i, 0x02));
         }
-        haplotypes.push(wildtype.borrow().create_descendant(0, 0x03));
+        haplotypes.push(wildtype.create_descendant(0, 0x03));
         for i in 1..100 {
             let ht = haplotypes.last().unwrap().get_clone();
-            haplotypes.push(ht.borrow().create_descendant(i, 0x03));
+            haplotypes.push(ht.create_descendant(i, 0x03));
         }
         let left_ancestor = haplotypes[100].get_clone();
         let right_ancestor = haplotypes[200].get_clone();
@@ -563,31 +530,31 @@ mod tests {
         expected.append(&mut vec![Some(0x02); 80]);
         expected.append(&mut vec![Some(0x03); 10]);
 
-        assert_eq!(recombinant.borrow().get_sequence(), expected);
+        assert_eq!(recombinant.get_sequence(), expected);
     }
 
     #[test]
     #[serial]
     fn get_length() {
         let wildtype = Wildtype::new(vec![Some(0x00); 100]);
-        let haplotype = wildtype.borrow().create_descendant(0, 0x01);
+        let haplotype = wildtype.create_descendant(0, 0x01);
         let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75);
-        assert_eq!(wildtype.borrow().get_length(), 100);
-        assert_eq!(haplotype.borrow().get_length(), 100);
-        assert_eq!(recombinant.borrow().get_length(), 100);
+        assert_eq!(wildtype.get_length(), 100);
+        assert_eq!(haplotype.get_length(), 100);
+        assert_eq!(recombinant.get_length(), 100);
     }
 
     #[test]
     #[serial]
     fn get_sequence() {
         let wildtype = Wildtype::new(vec![Some(0x00); 100]);
-        let haplotype = wildtype.borrow().create_descendant(0, 0x01);
+        let haplotype = wildtype.create_descendant(0, 0x01);
         let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75);
 
         let mut expected = vec![Some(0x01)];
         expected.append(&mut vec![Some(0x00); 99]);
 
-        assert_eq!(recombinant.borrow().get_sequence(), expected);
+        assert_eq!(recombinant.get_sequence(), expected);
     }
 
     #[test]
@@ -596,14 +563,14 @@ mod tests {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let wt = Wildtype::new(bytes);
 
-        let ht = wt.borrow().create_descendant(0, 0x03);
+        let ht = wt.create_descendant(0, 0x03);
         let ht_id = ht.get_id();
-        assert_eq!(wt.borrow().get_tree(), format!("('0:0->3m{}')wt;", ht_id));
+        assert_eq!(wt.get_tree(), format!("('0:0->3m{}')wt;", ht_id));
 
         let rc = Haplotype::create_recombinant(&wt, &ht, 1, 2);
         let rc_id = rc.get_id();
         assert_eq!(
-            wt.borrow().get_tree(),
+            wt.get_tree(),
             format!("((#R'0:0->3r{rc_id}')'0:0->3m{ht_id}',#R'0:0->3r{rc_id}')wt;")
         );
     }

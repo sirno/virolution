@@ -2,12 +2,10 @@ use crate::haplotype::Haplotype;
 use block_id::{Alphabet, BlockId};
 use derive_more::{Deref, DerefMut};
 use std::fmt;
-use std::hint;
 use std::sync::{Arc, Weak};
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 #[derive(Clone, Deref, DerefMut)]
-pub struct HaplotypeRef(pub Arc<RwLock<Haplotype>>);
+pub struct HaplotypeRef(pub Arc<Haplotype>);
 
 thread_local! {
     pub static BLOCK_ID: BlockId<char> = BlockId::new(Alphabet::new(&("ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect::<Vec<char>>())), 0, 1);
@@ -15,7 +13,7 @@ thread_local! {
 
 impl HaplotypeRef {
     pub fn new(haplotype: Haplotype) -> Self {
-        Self(Arc::new(RwLock::new(haplotype)))
+        Self(Arc::new(haplotype))
     }
 
     pub fn new_cyclic<F>(data_fn: F) -> Self
@@ -23,7 +21,7 @@ impl HaplotypeRef {
         F: std::ops::Fn(&HaplotypeWeak) -> Haplotype,
     {
         Self(Arc::new_cyclic(|weak| {
-            RwLock::new(data_fn(&HaplotypeWeak(weak.clone())))
+            data_fn(&HaplotypeWeak(weak.clone()))
         }))
     }
 
@@ -42,26 +40,11 @@ impl HaplotypeRef {
     pub fn get_weak(&self) -> HaplotypeWeak {
         HaplotypeWeak(Arc::downgrade(&self.0))
     }
-
-    #[inline]
-    pub fn borrow(&self) -> RwLockReadGuard<'_, Haplotype> {
-        self.0.read().unwrap()
-    }
-
-    #[inline]
-    pub fn borrow_mut(&self) -> RwLockWriteGuard<'_, Haplotype> {
-        loop {
-            hint::spin_loop();
-            if let Ok(guard) = self.0.try_write() {
-                return guard;
-            }
-        }
-    }
 }
 
 impl fmt::Debug for HaplotypeRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.borrow().get_string())
+        write!(f, "{}", self.get_string())
     }
 }
 
@@ -73,7 +56,7 @@ impl PartialEq for HaplotypeRef {
 }
 
 #[derive(Clone, Deref)]
-pub struct HaplotypeWeak(Weak<RwLock<Haplotype>>);
+pub struct HaplotypeWeak(Weak<Haplotype>);
 
 impl HaplotypeWeak {
     #[inline]
@@ -96,7 +79,7 @@ impl HaplotypeWeak {
 impl fmt::Debug for HaplotypeWeak {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.upgrade() {
-            Some(reference) => write!(f, "{}", reference.borrow().get_string()),
+            Some(reference) => write!(f, "{}", reference.get_string()),
             None => write!(f, "(None)"),
         }
     }

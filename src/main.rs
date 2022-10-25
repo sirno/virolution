@@ -142,7 +142,7 @@ fn main() {
                     .choose_multiple(&mut rand::thread_rng(), sample_size)
                     .enumerate()
                 {
-                    let record = sequence.borrow().get_record(
+                    let record = sequence.get_record(
                         format!(
                             "compartment_id={};sequence_id={};generation={}",
                             compartment_id, sequence_id, generation
@@ -175,7 +175,7 @@ fn main() {
 
     // Store tree if specified.
     if let Some(tree_file) = args.trees {
-        fs::write(tree_file, wt.borrow().get_tree())
+        fs::write(tree_file, wt.get_tree())
             .unwrap_or_else(|_| eprintln!("Unable to write tree file."));
     }
 }
