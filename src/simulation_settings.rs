@@ -15,16 +15,15 @@ pub struct SimulationSettings {
 
 impl SimulationSettings {
     pub fn write(&self, filename: &str) {
-        let out = serde_yaml::to_string(self)
-            .unwrap_or_else(|_| panic!("Unable to serialize {:?}.", self));
-        fs::write(filename, out).unwrap_or_else(|_| panic!("Unable to write to {}.", filename));
+        let out =
+            serde_yaml::to_string(self).unwrap_or_else(|_| panic!("Unable to serialize {self:?}."));
+        fs::write(filename, out).unwrap_or_else(|_| panic!("Unable to write to {filename}."));
     }
 
     pub fn read(filename: &str) -> Self {
         let input = fs::read_to_string(filename)
-            .unwrap_or_else(|_| panic!("Unable to read from {}.", filename));
-        serde_yaml::from_str(&input)
-            .unwrap_or_else(|_| panic!("Unable to deserialize {}.", filename))
+            .unwrap_or_else(|_| panic!("Unable to read from {filename}."));
+        serde_yaml::from_str(&input).unwrap_or_else(|_| panic!("Unable to deserialize {filename}."))
     }
 }
 

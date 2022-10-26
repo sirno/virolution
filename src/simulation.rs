@@ -60,16 +60,13 @@ impl Simulation {
     pub fn get_infectant_map(&self) -> Vec<Option<usize>> {
         let infectant_map: Vec<Option<usize>> = (0..self.population.len())
             .into_par_iter()
-            .map_init(
-                || rand::thread_rng(),
-                |rng, _| {
-                    if self.infection_sampler.sample(rng) {
-                        Some(rng.gen_range(0..self.simulation_settings.host_population_size))
-                    } else {
-                        None
-                    }
-                },
-            )
+            .map_init(rand::thread_rng, |rng, _| {
+                if self.infection_sampler.sample(rng) {
+                    Some(rng.gen_range(0..self.simulation_settings.host_population_size))
+                } else {
+                    None
+                }
+            })
             .collect();
         infectant_map
     }
@@ -165,26 +162,23 @@ impl Simulation {
                     for site in sites {
                         let base = infectant_ref.get_base(*site);
 
-                        match base {
-                            Some(val) => {
-                                let dist = WeightedIndex::new(
-                                    self.simulation_settings.substitution_matrix[val as usize],
-                                )
-                                .unwrap();
-                                let new_base = dist.sample(&mut rng) as u8;
+                        if let Some(val) = base {
+                            let dist = WeightedIndex::new(
+                                self.simulation_settings.substitution_matrix[val as usize],
+                            )
+                            .unwrap();
+                            let new_base = dist.sample(&mut rng) as u8;
 
-                                let descendant = match &mutant_ref {
-                                    Some(mutant) => mutant.create_descendant(*site, new_base),
-                                    None => infectant_ref.create_descendant(*site, new_base),
-                                };
+                            let descendant = match &mutant_ref {
+                                Some(mutant) => mutant.create_descendant(*site, new_base),
+                                None => infectant_ref.create_descendant(*site, new_base),
+                            };
 
-                                if descendant.get_fitness(&self.fitness_table) <= 0. {
-                                    continue;
-                                }
-
-                                mutant_ref = Some(descendant);
+                            if descendant.get_fitness(&self.fitness_table) <= 0. {
+                                continue;
                             }
-                            None => {}
+
+                            mutant_ref = Some(descendant);
                         }
                     }
 
@@ -251,10 +245,9 @@ impl Simulation {
 
         (0..sample_size)
             .into_par_iter()
-            .map_init(
-                || rand::thread_rng(),
-                |rng, _| self.population[sampler.sample(rng)].get_clone(),
-            )
+            .map_init(rand::thread_rng, |rng, _| {
+                self.population[sampler.sample(rng)].get_clone()
+            })
             .collect()
     }
 

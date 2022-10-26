@@ -220,9 +220,8 @@ impl Haplotype {
     }
 
     pub fn get_record(&self, head: &str) -> OwnedRecord {
-        let header = format!("{head}");
         OwnedRecord {
-            head: header.as_bytes().to_vec(),
+            head: head.to_string().as_bytes().to_vec(),
             seq: self
                 .get_sequence()
                 .into_iter()
@@ -337,7 +336,7 @@ impl Descendant {
 
     pub fn get_changes(&self) -> &HashMap<usize, (Symbol, Symbol)> {
         self.changes.get_or_init(|| {
-            let mut changes = self.ancestor.get_changes().clone();
+            let mut changes = self.ancestor.get_changes();
             let wt_base = self.wildtype.upgrade().unwrap().get_base(self.position);
 
             if self.change.1 == wt_base {
@@ -364,9 +363,9 @@ impl Descendant {
         let outer = self.reference.upgrade().unwrap().get_string();
 
         if inner.is_empty() {
-            format!("'{}m{}'", outer, self.reference.get_id())
+            format!("'{outer}m{}'", self.reference.get_id())
         } else {
-            format!("({})'{}m{}'", inner, outer, self.reference.get_id())
+            format!("({inner})'{outer}m{}'", self.reference.get_id())
         }
     }
 }

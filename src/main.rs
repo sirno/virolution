@@ -37,7 +37,7 @@ fn main() {
         .filter(|&&enc| enc != 0x0au8)
         .map(|enc| match catch_unwind(|| Some(FASTA_DECODE[enc])) {
             Ok(result) => result,
-            Err(_) => panic!("Unable to decode literal {}.", enc),
+            Err(_) => panic!("Unable to decode literal {enc}."),
         })
         .collect();
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
@@ -127,12 +127,12 @@ fn main() {
             for (compartment_id, compartment) in compartment_simulations.iter().enumerate() {
                 // create output files
                 let file_path = format!(
-                    "{}_compartment_{}_sequence_{}.fasta",
-                    args.output_prefix, compartment_id, generation
+                    "{}_compartment_{compartment_id}_generation_{generation}.fasta",
+                    args.output_prefix
                 );
 
                 // create path if it does not exist
-                let prefix = Path::new(file_path.as_str().clone()).parent().unwrap();
+                let prefix = Path::new(file_path.as_str()).parent().unwrap();
                 std::fs::create_dir_all(prefix).unwrap();
 
                 let mut writer = io::BufWriter::new(fs::File::create(file_path).unwrap());
