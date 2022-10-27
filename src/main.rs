@@ -87,6 +87,15 @@ fn main() {
             .progress_chars("=> "),
     );
 
+    // create barcode file
+    let barcode_path = Path::new(&args.output_path).join("barcodes.csv");
+    let mut barcode_file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(barcode_path)
+        .expect("Unable to open barcode file.");
+    BarcodeEntry::write_header(&mut barcode_file).expect("Unable to write barcode header.");
+
     // run simulation
     for generation in 0..=args.generations {
         // simulate compartmentalized population in parallel
