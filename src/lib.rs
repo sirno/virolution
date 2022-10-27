@@ -2,6 +2,7 @@
 #![feature(once_cell)]
 
 pub mod args;
+pub mod barcode;
 pub mod fitness;
 pub mod haplotype;
 pub mod references;

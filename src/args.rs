@@ -26,9 +26,13 @@ pub struct Args {
     #[clap(long)]
     pub sequence: String,
 
-    /// Prefix for samples file.
-    #[clap(long, short, default_value = "samples")]
-    pub output_prefix: String,
+    /// Path to samples directory
+    #[clap(long, default_value = "./samples")]
+    pub output_path: String,
+
+    /// Simulation name
+    #[clap(long, default_value = "simulation")]
+    pub simulation_name: String,
 
     /// Path to log file
     #[clap(long, default_value = "virolution.log")]

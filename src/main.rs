@@ -15,6 +15,7 @@ use std::io;
 use std::panic::catch_unwind;
 use std::path::Path;
 use virolution::args::*;
+use virolution::barcode::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
 use virolution::simulation::*;
@@ -139,17 +140,23 @@ fn main() {
         if sample_size > 0 {
             log::info!("Sampling {} individuals...", sample_size);
             for (compartment_id, compartment) in compartment_simulations.iter().enumerate() {
+                let barcode = format!("sample_{compartment_id}_{generation}");
+
                 // create output files
-                let file_path = format!(
-                    "{}_compartment_{compartment_id}_generation_{generation}.fasta",
-                    args.output_prefix
-                );
+                let barcode_path = Path::new(&args.output_path).join("barcodes.csv");
+                let sample_path = Path::new(&args.output_path).join(format!("{barcode}.fasta"));
 
                 // create path if it does not exist
-                let prefix = Path::new(file_path.as_str()).parent().unwrap();
-                std::fs::create_dir_all(prefix).unwrap();
+                std::fs::create_dir_all(sample_path.parent().unwrap())
+                    .expect("Unable to create output path.");
 
-                let mut writer = io::BufWriter::new(fs::File::create(file_path).unwrap());
+                // create file buffers
+                let mut barcode_file = fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(barcode_path)
+                    .expect("Unable to open barcode file.");
+                let mut samples_file = io::BufWriter::new(fs::File::create(sample_path).unwrap());
 
                 // sample sequences and write to file
                 for (sequence_id, sequence) in compartment
@@ -164,8 +171,21 @@ fn main() {
                         )
                         .as_str(),
                     );
-                    record.write(&mut writer).expect("Unable to write to file.");
+                    record
+                        .write(&mut samples_file)
+                        .expect("Unable to write to file.");
                 }
+
+                // write barcode to file
+                BarcodeEntry {
+                    barcode: &barcode,
+                    experiment: &args.simulation_name,
+                    time: generation,
+                    replicate: 0,
+                    compartment: compartment_id,
+                }
+                .write(&mut barcode_file)
+                .expect("Unable to write to barcode file.");
             }
         }
 
