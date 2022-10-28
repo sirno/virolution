@@ -28,7 +28,7 @@ pub struct Args {
 
     /// Path to samples directory
     #[clap(long, default_value = "./samples")]
-    pub output_path: String,
+    pub outdir: String,
 
     /// Simulation name
     #[clap(long, default_value = "simulation")]

@@ -88,7 +88,7 @@ fn main() {
     );
 
     // create barcode file
-    let barcode_path = Path::new(&args.output_path).join("barcodes.csv");
+    let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
     std::fs::create_dir_all(barcode_path.parent().unwrap()).expect("Unable to create output path.");
     let mut barcode_file = fs::OpenOptions::new()
         .create(true)
@@ -153,8 +153,8 @@ fn main() {
                 let barcode = format!("sample_{compartment_id}_{generation}");
 
                 // create output files
-                let barcode_path = Path::new(&args.output_path).join("barcodes.csv");
-                let sample_path = Path::new(&args.output_path).join(format!("{barcode}.fasta"));
+                let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
+                let sample_path = Path::new(&args.outdir).join(format!("{barcode}.fasta"));
 
                 // create file buffers
                 let mut barcode_file = fs::OpenOptions::new()
