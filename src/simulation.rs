@@ -182,9 +182,9 @@ impl Simulation {
                         }
                     }
 
-                    sender
-                        .send((*infectant, infectant_ref.get_clone()))
-                        .unwrap();
+                    if let Some(mutant) = mutant_ref {
+                        sender.send((*infectant, mutant)).unwrap();
+                    }
                 }
             });
 
