@@ -200,12 +200,15 @@ fn main() {
         bar.set_message(format!("{population_sizes:?}"));
     }
     bar.finish_with_message("Done.");
+    log::info!("Finished simulation.");
 
     // Store tree if specified.
+    log::info!("Storing tree...");
     if let Some(tree_file) = args.trees {
         fs::write(tree_file, wt.get_tree())
             .unwrap_or_else(|_| eprintln!("Unable to write tree file."));
     }
+    log::info!("Finished storing tree.");
 }
 
 #[cfg(test)]
