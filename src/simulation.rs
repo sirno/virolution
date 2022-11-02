@@ -94,46 +94,49 @@ impl Simulation {
         let site_vector: Vec<usize> = (0..sequence_length).collect();
         let site_options: &[usize] = site_vector.as_slice();
 
-        // create recombination channel
-        let (recombination_sender, recombination_receiver) = channel();
+        if self.simulation_settings.recombination_rate > 0. {
+            // create recombination channel
+            let (recombination_sender, recombination_receiver) = channel();
 
-        // recombine infectants
-        host_map
-            .into_par_iter()
-            .for_each_with(recombination_sender, |sender, entry| {
-                let mut rng = rand::thread_rng();
+            // recombine infectants
+            host_map
+                .into_par_iter()
+                .for_each_with(recombination_sender, |sender, entry| {
+                    let mut rng = rand::thread_rng();
 
-                let infectants = entry.1;
-                let n_infectants = infectants.len();
+                    let infectants = entry.1;
+                    let n_infectants = infectants.len();
 
-                // Recombine
-                if n_infectants > 1 {
-                    for infectant_pair in infectants.iter().combinations(2) {
-                        if self.recombination_sampler.sample(&mut rng) {
-                            let mut pair = [infectant_pair[0], infectant_pair[1]];
-                            pair.shuffle(&mut rng);
-                            let infectant_a = pair[0];
-                            let infectant_b = pair[1];
-                            let mut positions =
-                                rand::seq::index::sample(&mut rng, sequence_length, 2).into_vec();
-                            positions.sort();
-                            let recombinant = Haplotype::create_recombinant(
-                                &self.population[*infectant_a],
-                                &self.population[*infectant_b],
-                                positions[0],
-                                positions[1],
-                            );
-                            sender
-                                .send((*positions.choose(&mut rng).unwrap(), recombinant))
-                                .unwrap();
+                    // Recombine
+                    if n_infectants > 1 {
+                        for infectant_pair in infectants.iter().combinations(2) {
+                            if self.recombination_sampler.sample(&mut rng) {
+                                let mut pair = [infectant_pair[0], infectant_pair[1]];
+                                pair.shuffle(&mut rng);
+                                let infectant_a = pair[0];
+                                let infectant_b = pair[1];
+                                let mut positions =
+                                    rand::seq::index::sample(&mut rng, sequence_length, 2)
+                                        .into_vec();
+                                positions.sort();
+                                let recombinant = Haplotype::create_recombinant(
+                                    &self.population[*infectant_a],
+                                    &self.population[*infectant_b],
+                                    positions[0],
+                                    positions[1],
+                                );
+                                sender
+                                    .send((*positions.choose(&mut rng).unwrap(), recombinant))
+                                    .unwrap();
+                            }
                         }
                     }
-                }
-            });
+                });
 
-        // collect recominants
-        for (position, recombinant) in recombination_receiver.iter() {
-            self.population[position] = recombinant;
+            // collect recominants
+            for (position, recombinant) in recombination_receiver.iter() {
+                self.population[position] = recombinant;
+            }
         }
 
         // create mutation channel
