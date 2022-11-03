@@ -24,6 +24,7 @@ evalexpr = "8.1.0"
 indicatif = "0.16.2"
 itertools = "0.10.3"
 log = "0.4.17"
+npyz = "0.7.1"
 phf = { version = "0.10.1", features = ["macros"] }
 rand = { version = "0.8.5", features = ["alloc"] }
 rand_distr = "0.4.3"

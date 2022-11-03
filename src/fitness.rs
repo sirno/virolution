@@ -1,10 +1,11 @@
 use super::haplotype::Symbol;
+use npyz::WriterBuilder;
 use rand::prelude::*;
 use rand_distr::{Exp, WeightedIndex};
 
 #[derive(Clone)]
 pub struct FitnessTable {
-    // n_sites: usize,
+    n_sites: usize,
     n_symbols: usize,
     table: Vec<f64>,
 }
@@ -45,7 +46,7 @@ impl MutationCategoryWeights {
 }
 
 impl ExponentialParameters {
-    fn create_table(&self, n_symbols: &usize, sequence: &Vec<Symbol>) -> Vec<f64> {
+    fn create_table(&self, n_symbols: usize, sequence: &Vec<Symbol>) -> Vec<f64> {
         let mut table = vec![-1.; sequence.len() * n_symbols];
         let mut rng = rand::thread_rng();
 
@@ -89,7 +90,7 @@ impl ExponentialParameters {
 impl FitnessTable {
     pub fn new(
         sequence: &Vec<Symbol>,
-        n_symbols: &usize,
+        n_symbols: usize,
         distribution: FitnessDistribution,
     ) -> Self {
         let n_sites = sequence.len();
@@ -98,7 +99,8 @@ impl FitnessTable {
             FitnessDistribution::Neutral => vec![1.; n_sites * n_symbols],
         };
         Self {
-            n_symbols: *n_symbols,
+            n_sites,
+            n_symbols,
             table,
         }
     }
@@ -109,6 +111,16 @@ impl FitnessTable {
             None => 1.,
         }
     }
+
+    pub fn write(&self, writer: &mut impl std::io::Write) -> Result<(), std::io::Error> {
+        let mut npy_writer = npyz::WriteOptions::new()
+            .default_dtype()
+            .shape(&[self.n_symbols as u64, self.n_sites as u64])
+            .writer(writer)
+            .begin_nd()?;
+        npy_writer.extend(&self.table)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -118,7 +130,7 @@ mod tests {
     #[test]
     fn create_neutral_table() {
         let sequence = vec![Some(0x00); 100];
-        let fitness = FitnessTable::new(&sequence, &4, FitnessDistribution::Neutral);
+        let fitness = FitnessTable::new(&sequence, 4, FitnessDistribution::Neutral);
         for val in fitness.table {
             assert_eq!(val, 1.);
         }
@@ -138,7 +150,7 @@ mod tests {
             lambda_deleterious: 0.21,
         });
 
-        let fitness = FitnessTable::new(&sequence, &4, distribution);
+        let fitness = FitnessTable::new(&sequence, 4, distribution);
         for (idx, val) in fitness.table.into_iter().enumerate() {
             if idx % 4 == 0 {
                 assert_eq!(val, 1.);
@@ -151,12 +163,31 @@ mod tests {
     #[test]
     fn get_fitness() {
         let sequence = vec![Some(0x00); 100];
-        let fitness = FitnessTable::new(&sequence, &4, FitnessDistribution::Neutral);
+        let fitness = FitnessTable::new(&sequence, 4, FitnessDistribution::Neutral);
         for position in 0..100 {
             for s in 0..4 {
                 assert_eq!(fitness.get_fitness(&position, &Some(s)), 1.);
                 assert_eq!(fitness.get_fitness(&position, &None), 1.);
             }
         }
+    }
+
+    #[test]
+    fn write_fitness() {
+        let sequence = vec![Some(0x00); 100];
+        let fitness = FitnessTable::new(&sequence, 4, FitnessDistribution::Neutral);
+        let mut buffer = Vec::new();
+
+        fitness.write(&mut buffer).unwrap();
+
+        let npy_data = npyz::NpyFile::new(buffer.as_slice()).unwrap();
+        assert_eq!(npy_data.shape(), &[4, 100]);
+        let data: Vec<f64> = npy_data
+            .data::<f64>()
+            .unwrap()
+            .map(|el| el.unwrap())
+            .collect();
+
+        assert_eq!(data, fitness.table);
     }
 }

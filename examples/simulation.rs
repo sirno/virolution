@@ -19,7 +19,7 @@ fn main() {
         lambda_deleterious: 0.21,
     });
 
-    let fitness_table = FitnessTable::new(&sequence, &4, distribution);
+    let fitness_table = FitnessTable::new(&sequence, 4, distribution);
 
     let wt = Wildtype::new(sequence);
     let ht = wt.create_descendant(2, 0x01);

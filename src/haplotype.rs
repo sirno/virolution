@@ -147,9 +147,11 @@ impl Haplotype {
     pub fn get_sequence(&self) -> Vec<Symbol> {
         let changes = self.get_changes();
         let mut sequence = self.get_wildtype_sequence();
+
         for (position, (_, to)) in changes {
             sequence[position] = to;
         }
+
         sequence
     }
 

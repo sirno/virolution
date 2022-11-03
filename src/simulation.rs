@@ -319,7 +319,7 @@ mod tests {
     fn next_generation() {
         let sequence = vec![Some(0x00); 100];
 
-        let fitness_table = FitnessTable::new(&sequence, &4, DISTRIBUTION);
+        let fitness_table = FitnessTable::new(&sequence, 4, DISTRIBUTION);
 
         let wt = Wildtype::new(sequence);
         let init_population: Population = (0..10).map(|_| wt.get_clone()).collect();
@@ -332,7 +332,7 @@ mod tests {
     fn next_generation_without_population() {
         let sequence = vec![Some(0x00); 100];
 
-        let fitness_table = FitnessTable::new(&sequence, &4, DISTRIBUTION);
+        let fitness_table = FitnessTable::new(&sequence, 4, DISTRIBUTION);
 
         let wt = Wildtype::new(sequence);
         let init_population: Population = (0..0).map(|_| wt.get_clone()).collect();

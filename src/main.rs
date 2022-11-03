@@ -41,6 +41,8 @@ fn main() {
             Err(_) => panic!("Unable to decode literal {enc}."),
         })
         .collect();
+
+    // Create fitness table
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,
@@ -51,8 +53,11 @@ fn main() {
         lambda_beneficial: 0.03,
         lambda_deleterious: 0.21,
     });
+    let fitness_table = FitnessTable::new(&sequence, 4, distribution);
 
-    let fitness_table = FitnessTable::new(&sequence, &4, distribution);
+    // Write fitness table
+    let mut fitness_file = io::BufWriter::new(fs::File::create("fitness_table.npy").unwrap());
+    fitness_table.write(&mut fitness_file).unwrap();
 
     let wt = Wildtype::new(sequence);
     let settings = SimulationSettings::read(args.settings.as_str());
@@ -230,7 +235,7 @@ mod tests {
             lambda_deleterious: 0.21,
         });
 
-        let fitness_table = FitnessTable::new(&sequence, &4, distribution);
+        let fitness_table = FitnessTable::new(&sequence, 4, distribution);
 
         let wt = Wildtype::new(sequence);
         let init_population: Population = (0..10).map(|_| wt.get_clone()).collect();
