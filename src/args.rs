@@ -30,6 +30,10 @@ pub struct Args {
     #[clap(long, default_value = "./samples")]
     pub outdir: String,
 
+    /// Path to fitness table
+    #[clap(long, default_value = "fitness_table.npy")]
+    pub fitness_table: String,
+
     /// Simulation name
     #[clap(long, default_value = "simulation")]
     pub simulation_name: String,

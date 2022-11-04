@@ -42,7 +42,7 @@ fn main() {
         })
         .collect();
 
-    // Create fitness table
+    // create and store fitness table
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,
@@ -54,9 +54,7 @@ fn main() {
         lambda_deleterious: 0.21,
     });
     let fitness_table = FitnessTable::new(&sequence, 4, distribution);
-
-    // Write fitness table
-    let mut fitness_file = io::BufWriter::new(fs::File::create("fitness_table.npy").unwrap());
+    let mut fitness_file = io::BufWriter::new(fs::File::create(args.fitness_table).unwrap());
     fitness_table.write(&mut fitness_file).unwrap();
 
     let wt = Wildtype::new(sequence);
