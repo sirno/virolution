@@ -42,7 +42,7 @@ fn main() {
         })
         .collect();
 
-    // create and store fitness table
+    // create and write fitness table
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,
@@ -153,7 +153,7 @@ fn main() {
         if sample_size > 0 {
             log::info!("Sampling {} individuals...", sample_size);
             for (compartment_id, compartment) in compartment_simulations.iter().enumerate() {
-                let barcode = format!("sample_{compartment_id}_{generation}");
+                let barcode = format!("sample_{generation}_{compartment_id}");
 
                 // create output files
                 let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
