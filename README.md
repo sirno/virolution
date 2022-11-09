@@ -1,12 +1,13 @@
 # Virolation2000
 
 This tool simulates a virus population under static selective pressure with
-single-nucleotide polymorphism and recombination in discrete generations.
-The host population is kept constant for each generation, and multiple
-simulations can be run in parallel with controlled mixing. As input, the
-simulation requires the model parameters, a wildtype sequence and a file with
-all migration and sampling events. As output, a fasta file with samples of the
-populations is generated.
+single-nucleotide polymorphism and recombination in discrete generations.  The
+host population is kept constant for each generation, while the virus population
+may change in number and composition. Multiple simulations can be run in
+parallel with controlled mixing. As input, the simulation requires model
+parameters, a wildtype sequence and a file with a schedule for all migration and
+sampling events. As output, multiple fasta files with samples of the populations at each sampling event is
+generated.
 
 ## Details
 
@@ -30,5 +31,6 @@ pub struct SimulationSettings {
     pub max_population: usize,
     pub infection_fraction: f64,
     pub dilution: f64,
+    pub fitness_distribution: FitnessDistribution
 }
 ```
