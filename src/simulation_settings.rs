@@ -15,25 +15,35 @@ pub struct SimulationSettings {
     pub fitness_distribution: FitnessDistribution,
 }
 
+impl std::fmt::Display for SimulationSettings {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut output = vec![];
+        self.write(&mut output).map_err(|_| std::fmt::Error)?;
+        write!(formatter, "{}", String::from_utf8(output).unwrap())
+    }
+}
+
 impl SimulationSettings {
-    pub fn write(&self, writer: &mut dyn std::io::Write) {
-        serde_yaml::to_writer(writer, self).expect("Unable to write settings.");
+    pub fn write(&self, writer: &mut dyn std::io::Write) -> std::io::Result<()> {
+        serde_yaml::to_writer(writer, self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
-    pub fn read(reader: &mut dyn std::io::Read) -> Self {
-        serde_yaml::from_reader(reader).expect("Unable to read settings.")
+    pub fn read(reader: &mut dyn std::io::Read) -> std::io::Result<Self> {
+        serde_yaml::from_reader(reader)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
-    pub fn write_to_file(&self, filename: &str) {
-        let out =
-            serde_yaml::to_string(self).unwrap_or_else(|_| panic!("Unable to serialize {self:?}."));
-        fs::write(filename, out).unwrap_or_else(|_| panic!("Unable to write to {filename}."));
+    pub fn write_to_file(&self, filename: &str) -> std::io::Result<()> {
+        let file = fs::File::create(filename)?;
+        let mut writer = std::io::BufWriter::new(file);
+        self.write(&mut writer)
     }
 
-    pub fn read_from_file(filename: &str) -> Self {
-        let input = fs::read_to_string(filename)
-            .unwrap_or_else(|_| panic!("Unable to read from {filename}."));
-        serde_yaml::from_str(&input).unwrap_or_else(|_| panic!("Unable to deserialize {filename}."))
+    pub fn read_from_file(filename: &str) -> std::io::Result<Self> {
+        let file = fs::File::open(filename)?;
+        let mut reader = std::io::BufReader::new(file);
+        Self::read(&mut reader)
     }
 }
 
@@ -61,8 +71,8 @@ mod tests {
             dilution: 0.17,
             fitness_distribution: FitnessDistribution::Neutral,
         };
-        settings.write(&mut buffer);
-        let read_settings = SimulationSettings::read(&mut buffer.as_slice());
+        settings.write(&mut buffer).unwrap();
+        let read_settings = SimulationSettings::read(&mut buffer.as_slice()).unwrap();
         assert_eq!(read_settings, settings);
     }
 
@@ -94,8 +104,8 @@ mod tests {
                 lambda_deleterious: 0.21,
             }),
         };
-        settings.write(&mut buffer);
-        let read_settings = SimulationSettings::read(&mut buffer.as_slice());
+        settings.write(&mut buffer).unwrap();
+        let read_settings = SimulationSettings::read(&mut buffer.as_slice()).unwrap();
         assert_eq!(read_settings, settings);
     }
 
@@ -117,8 +127,8 @@ mod tests {
             dilution: 0.17,
             fitness_distribution: FitnessDistribution::Neutral,
         };
-        settings.write_to_file("test_settings.yaml");
-        let read_settings = SimulationSettings::read_from_file("test_settings.yaml");
+        settings.write_to_file("test_settings.yaml").unwrap();
+        let read_settings = SimulationSettings::read_from_file("test_settings.yaml").unwrap();
         assert_eq!(read_settings, settings);
         std::fs::remove_file("test_settings.yaml").unwrap();
     }
