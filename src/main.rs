@@ -42,23 +42,16 @@ fn main() {
         })
         .collect();
 
+    // create wildtype
+    let wt = Wildtype::new(sequence.clone());
+
+    // load simulation settings
+    let settings = SimulationSettings::read(args.settings.as_str());
+
     // create and write fitness table
-    let distribution = FitnessDistribution::Exponential(ExponentialParameters {
-        weights: MutationCategoryWeights {
-            beneficial: 0.29,
-            deleterious: 0.51,
-            lethal: 0.2,
-            neutral: 0.,
-        },
-        lambda_beneficial: 0.03,
-        lambda_deleterious: 0.21,
-    });
-    let fitness_table = FitnessTable::new(&sequence, 4, distribution);
+    let fitness_table = FitnessTable::new(&sequence, 4, settings.fitness_distribution.clone());
     let mut fitness_file = io::BufWriter::new(fs::File::create(args.fitness_table).unwrap());
     fitness_table.write(&mut fitness_file).unwrap();
-
-    let wt = Wildtype::new(sequence);
-    let settings = SimulationSettings::read(args.settings.as_str());
 
     // create individual compartments
     println!("Creating {} compartments...", args.n_compartments);
@@ -233,7 +226,7 @@ mod tests {
             lambda_deleterious: 0.21,
         });
 
-        let fitness_table = FitnessTable::new(&sequence, 4, distribution);
+        let fitness_table = FitnessTable::new(&sequence, 4, distribution.clone());
 
         let wt = Wildtype::new(sequence);
         let init_population: Population = (0..10).map(|_| wt.get_clone()).collect();
@@ -251,6 +244,7 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100000000,
             dilution: 0.17,
+            fitness_distribution: distribution,
         };
         let mut simulation = Simulation::new(wt, init_population, fitness_table, settings);
         b.iter(|| {

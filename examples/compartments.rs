@@ -23,7 +23,7 @@ fn main() {
         lambda_deleterious: 0.21,
     });
 
-    let fitness_table = FitnessTable::new(&sequence, 4, distribution);
+    let fitness_table = FitnessTable::new(&sequence, 4, distribution.clone());
 
     let wt = Wildtype::new(sequence);
     let settings = SimulationSettings {
@@ -40,6 +40,7 @@ fn main() {
         basic_reproductive_number: 100.,
         max_population: 1_000_000,
         dilution: 0.02,
+        fitness_distribution: distribution,
     };
 
     let n_compartments = 3;

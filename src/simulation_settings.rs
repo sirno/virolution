@@ -1,3 +1,4 @@
+use super::fitness::FitnessDistribution;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
@@ -11,6 +12,7 @@ pub struct SimulationSettings {
     pub max_population: usize,
     pub dilution: f64,
     pub substitution_matrix: [[f64; 4]; 4],
+    pub fitness_distribution: FitnessDistribution,
 }
 
 impl SimulationSettings {
@@ -47,6 +49,7 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
+            fitness_distribution: FitnessDistribution::Neutral,
         };
         settings.write("test.yaml");
         let read_settings = SimulationSettings::read("test.yaml");

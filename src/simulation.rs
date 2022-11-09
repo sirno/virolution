@@ -287,6 +287,18 @@ mod tests {
     use crate::fitness::{ExponentialParameters, FitnessDistribution, MutationCategoryWeights};
     use crate::haplotype::Wildtype;
 
+    const DISTRIBUTION: FitnessDistribution =
+        FitnessDistribution::Exponential(ExponentialParameters {
+            weights: MutationCategoryWeights {
+                beneficial: 0.29,
+                deleterious: 0.51,
+                lethal: 0.2,
+                neutral: 0.,
+            },
+            lambda_beneficial: 0.03,
+            lambda_deleterious: 0.21,
+        });
+
     const SIMULATION_SETTINGS: SimulationSettings = SimulationSettings {
         mutation_rate: 1e-3,
         recombination_rate: 1e-5,
@@ -301,19 +313,8 @@ mod tests {
         basic_reproductive_number: 100.,
         max_population: 100000000,
         dilution: 0.17,
+        fitness_distribution: DISTRIBUTION,
     };
-
-    const DISTRIBUTION: FitnessDistribution =
-        FitnessDistribution::Exponential(ExponentialParameters {
-            weights: MutationCategoryWeights {
-                beneficial: 0.29,
-                deleterious: 0.51,
-                lethal: 0.2,
-                neutral: 0.,
-            },
-            lambda_beneficial: 0.03,
-            lambda_deleterious: 0.21,
-        });
 
     #[test]
     fn next_generation() {

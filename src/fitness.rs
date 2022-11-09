@@ -2,6 +2,7 @@ use super::haplotype::Symbol;
 use npyz::WriterBuilder;
 use rand::prelude::*;
 use rand_distr::{Exp, WeightedIndex};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct FitnessTable {
@@ -10,6 +11,7 @@ pub struct FitnessTable {
     table: Vec<f64>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum FitnessDistribution {
     Neutral,
     Exponential(ExponentialParameters),
@@ -19,6 +21,7 @@ pub enum FitnessDistribution {
     // Empirical,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum MutationCategory {
     Beneficial,
     Deleterious,
@@ -26,6 +29,7 @@ pub enum MutationCategory {
     Neutral,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MutationCategoryWeights {
     pub beneficial: f64,
     pub deleterious: f64,
@@ -33,6 +37,7 @@ pub struct MutationCategoryWeights {
     pub neutral: f64,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ExponentialParameters {
     pub weights: MutationCategoryWeights,
     pub lambda_beneficial: f64,
