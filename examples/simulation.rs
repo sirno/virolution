@@ -51,8 +51,8 @@ fn main() {
         dilution: 0.02,
         fitness_distribution: distribution,
     };
-    simulation_settings.write("settings_example.yaml");
-    let settings = SimulationSettings::read("settings_example.yaml");
+    simulation_settings.write_to_file("settings_example.yaml");
+    let settings = SimulationSettings::read_from_file("settings_example.yaml");
     fs::remove_file("settings_example.yaml").expect("Unable to remove file.");
     let mut simulation = Simulation::new(wt, population, fitness_table, settings.clone());
     let infectant_map = simulation.get_infectant_map();

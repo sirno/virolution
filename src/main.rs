@@ -46,7 +46,7 @@ fn main() {
     let wt = Wildtype::new(sequence.clone());
 
     // load simulation settings
-    let settings = SimulationSettings::read(args.settings.as_str());
+    let settings = SimulationSettings::read_from_file(args.settings.as_str());
 
     // create and write fitness table
     let fitness_table = FitnessTable::new(&sequence, 4, settings.fitness_distribution.clone());
