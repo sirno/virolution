@@ -1,14 +1,16 @@
 use crate::fitness::FitnessTable;
 use crate::haplotype::Haplotype;
-use crate::references::sync::HaplotypeRef;
+use crate::references::HaplotypeRef;
 use crate::simulation_settings::SimulationSettings;
 use itertools::Itertools;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
+#[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::cmp::min;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+#[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
 
 pub type Population = Vec<HaplotypeRef>;
@@ -57,11 +59,28 @@ impl Simulation {
         self.population = population;
     }
 
+    #[cfg(feature = "parallel")]
     pub fn get_infectant_map(&self) -> Vec<Option<usize>> {
         let infectant_map: Vec<Option<usize>> = (0..self.population.len())
             .into_par_iter()
             .map_init(rand::thread_rng, |rng, _| {
                 if self.infection_sampler.sample(rng) {
+                    Some(rng.gen_range(0..self.simulation_settings.host_population_size))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        infectant_map
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    pub fn get_infectant_map(&self) -> Vec<Option<usize>> {
+        let mut rng = rand::thread_rng();
+        let infectant_map: Vec<Option<usize>> = (0..self.population.len())
+            .into_iter()
+            .map(|_| {
+                if self.infection_sampler.sample(&mut rng) {
                     Some(rng.gen_range(0..self.simulation_settings.host_population_size))
                 } else {
                     None
@@ -88,11 +107,84 @@ impl Simulation {
         host_map
     }
 
+    fn _recombine_infectants(
+        &self,
+        sequence_length: usize,
+        infectants: &Vec<usize>,
+    ) -> Vec<(usize, HaplotypeRef)> {
+        let n_infectants = infectants.len();
+
+        if n_infectants <= 1 {
+            return Vec::new();
+        }
+
+        // Recombine
+        infectants
+            .iter()
+            .combinations(2)
+            .filter(|_| self.recombination_sampler.sample(&mut rand::thread_rng()))
+            .map(|infectant_pair| {
+                let mut rng = rand::thread_rng();
+                let infectant_a = infectant_pair[0];
+                let infectant_b = infectant_pair[1];
+                let mut recombination_sites =
+                    rand::seq::index::sample(&mut rng, sequence_length, 2).into_vec();
+                recombination_sites.sort();
+                let recombinant = Haplotype::create_recombinant(
+                    &self.population[*infectant_a],
+                    &self.population[*infectant_b],
+                    recombination_sites[0],
+                    recombination_sites[1],
+                );
+                (**infectant_pair.choose(&mut rng).unwrap(), recombinant)
+            })
+            .collect()
+    }
+
+    fn _mutate_infectants(
+        &self,
+        sequence_length: usize,
+        infectants: &Vec<usize>,
+    ) -> Vec<(usize, HaplotypeRef)> {
+        infectants
+            .iter()
+            .filter_map(|infectant| {
+                let mut rng = rand::thread_rng();
+                let infectant_ref = &self.population[*infectant];
+                let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
+                if n_mutations == 0 {
+                    return None;
+                };
+                let mut mutation_sites =
+                    rand::seq::index::sample(&mut rng, sequence_length, n_mutations).into_vec();
+                mutation_sites.sort();
+                let bases = mutation_sites
+                    .iter()
+                    .map(|position| {
+                        let mut rng = rand::thread_rng();
+                        match infectant_ref.get_base(position) {
+                            Some(base) => {
+                                let dist = WeightedIndex::new(
+                                    self.simulation_settings.substitution_matrix[base as usize],
+                                )
+                                .unwrap();
+                                Some(dist.sample(&mut rng) as u8)
+                            }
+                            None => None,
+                        }
+                    })
+                    .collect();
+
+                let descendant = Haplotype::create_descendant(infectant_ref, mutation_sites, bases);
+                Some((*infectant, descendant))
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "parallel")]
     pub fn mutate_infectants(&mut self, host_map: &HostMap) {
         // mutate infectants based on host cell assignment
         let sequence_length = self.wildtype.get_length();
-        let site_vector: Vec<usize> = (0..sequence_length).collect();
-        let site_options: &[usize] = site_vector.as_slice();
 
         if self.simulation_settings.recombination_rate > 0. {
             // create recombination channel
@@ -101,36 +193,15 @@ impl Simulation {
             // recombine infectants
             host_map
                 .into_par_iter()
-                .for_each_with(recombination_sender, |sender, entry| {
-                    let mut rng = rand::thread_rng();
-
-                    let infectants = entry.1;
-                    let n_infectants = infectants.len();
+                .for_each_with(recombination_sender, |sender, host| {
+                    let infectants = host.1;
 
                     // Recombine
-                    if n_infectants > 1 {
-                        for infectant_pair in infectants.iter().combinations(2) {
-                            if self.recombination_sampler.sample(&mut rng) {
-                                let mut pair = [infectant_pair[0], infectant_pair[1]];
-                                pair.shuffle(&mut rng);
-                                let infectant_a = pair[0];
-                                let infectant_b = pair[1];
-                                let mut positions =
-                                    rand::seq::index::sample(&mut rng, sequence_length, 2)
-                                        .into_vec();
-                                positions.sort();
-                                let recombinant = Haplotype::create_recombinant(
-                                    &self.population[*infectant_a],
-                                    &self.population[*infectant_b],
-                                    positions[0],
-                                    positions[1],
-                                );
-                                sender
-                                    .send((*positions.choose(&mut rng).unwrap(), recombinant))
-                                    .unwrap();
-                            }
-                        }
-                    }
+                    self._recombine_infectants(sequence_length, infectants)
+                        .into_iter()
+                        .for_each(|recombination| {
+                            sender.send(recombination).unwrap();
+                        });
                 });
 
             // collect recominants
@@ -146,49 +217,12 @@ impl Simulation {
         host_map
             .into_par_iter()
             .for_each_with(mutation_sender, |sender, entry| {
-                let mut rng = rand::thread_rng();
-
                 let infectants = entry.1;
-
-                for infectant in infectants {
-                    let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
-
-                    if n_mutations == 0 {
-                        continue;
-                    }
-
-                    let infectant_ref = &self.population[*infectant];
-                    let mut mutant_ref: Option<HaplotypeRef> = None;
-
-                    let sites = site_options.choose_multiple(&mut rng, n_mutations);
-
-                    for site in sites {
-                        let base = infectant_ref.get_base(*site);
-
-                        if let Some(val) = base {
-                            let dist = WeightedIndex::new(
-                                self.simulation_settings.substitution_matrix[val as usize],
-                            )
-                            .unwrap();
-                            let new_base = dist.sample(&mut rng) as u8;
-
-                            let descendant = match &mutant_ref {
-                                Some(mutant) => mutant.create_descendant(*site, new_base),
-                                None => infectant_ref.create_descendant(*site, new_base),
-                            };
-
-                            if descendant.get_fitness(&self.fitness_table) <= 0. {
-                                continue;
-                            }
-
-                            mutant_ref = Some(descendant);
-                        }
-                    }
-
-                    if let Some(mutant) = mutant_ref {
-                        sender.send((*infectant, mutant)).unwrap();
-                    }
-                }
+                self._mutate_infectants(sequence_length, infectants)
+                    .into_iter()
+                    .for_each(|mutation| {
+                        sender.send(mutation).unwrap();
+                    });
             });
 
         // collect mutants
@@ -197,32 +231,63 @@ impl Simulation {
         }
     }
 
+    #[cfg(not(feature = "parallel"))]
+    pub fn mutate_infectants(&mut self, host_map: &HostMap) {
+        // mutate infectants based on host cell assignment
+        let sequence_length = self.wildtype.get_length();
+
+        if self.simulation_settings.recombination_rate > 0. {
+            // recombine infectants
+            for host in host_map {
+                let infectants = host.1;
+                self._recombine_infectants(sequence_length, infectants)
+                    .into_iter()
+                    .for_each(|recombination| {
+                        self.population[recombination.0] = recombination.1;
+                    });
+            }
+        }
+
+        // mutate infectants
+        for host in host_map {
+            let infectants = host.1;
+            self._mutate_infectants(sequence_length, infectants)
+                .into_iter()
+                .for_each(|mutation| {
+                    self.population[mutation.0] = mutation.1;
+                });
+        }
+    }
+
+    fn _replicate_infectants(&self, infectants: &Vec<usize>) -> Vec<(usize, f64)> {
+        infectants
+            .iter()
+            .filter_map(|infectant| {
+                let mut rng = rand::thread_rng();
+                let fitness = self.population[*infectant].get_fitness(&self.fitness_table);
+                match Poisson::new(fitness * self.simulation_settings.basic_reproductive_number) {
+                    Ok(dist) => Some((*infectant, dist.sample(&mut rng))),
+                    // if fitness is 0 => no offspring
+                    Err(_) => None,
+                }
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "parallel")]
     pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         // replicate infectants within each host
         let (replicate_sender, replicate_receiver) = channel();
 
         host_map
             .into_par_iter()
-            .for_each_with(replicate_sender, |sender, entry| {
-                let mut rng = rand::thread_rng();
-
-                let infectants = entry.1;
-                let n_infectants = infectants.len() as f64;
-
-                for infectant in infectants {
-                    let fitness = self.population[*infectant].get_fitness(&self.fitness_table);
-                    let offspring_sample = match Poisson::new(
-                        fitness * self.simulation_settings.basic_reproductive_number,
-                    ) {
-                        Ok(dist) => dist.sample(&mut rng),
-                        // if fitness is 0 => no offspring
-                        Err(_) => 0.,
-                    };
-
-                    sender
-                        .send((*infectant, offspring_sample / n_infectants))
-                        .unwrap();
-                }
+            .for_each_with(replicate_sender, |sender, host| {
+                let infectants = host.1;
+                self._replicate_infectants(infectants)
+                    .into_iter()
+                    .for_each(|replication| {
+                        sender.send(replication).unwrap();
+                    });
             });
 
         let mut offspring = vec![0; self.population.len()];
@@ -232,6 +297,21 @@ impl Simulation {
         offspring
     }
 
+    #[cfg(not(feature = "parallel"))]
+    pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
+        let mut offspring = vec![0; self.population.len()];
+        host_map.iter().for_each(|host| {
+            let infectants = host.1;
+            self._replicate_infectants(infectants)
+                .into_iter()
+                .for_each(|replication| {
+                    offspring[replication.0] = replication.1 as usize;
+                });
+        });
+        offspring
+    }
+
+    #[cfg(feature = "parallel")]
     pub fn subsample_population(&self, offspring_map: &Vec<usize>, factor: f64) -> Population {
         // if there is no offspring, return empty population
         if offspring_map.is_empty() {
@@ -251,6 +331,27 @@ impl Simulation {
             .map_init(rand::thread_rng, |rng, _| {
                 self.population[sampler.sample(rng)].get_clone()
             })
+            .collect()
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    pub fn subsample_population(&self, offspring_map: &Vec<usize>, factor: f64) -> Population {
+        // if there is no offspring, return empty population
+        if offspring_map.is_empty() {
+            return Vec::new();
+        }
+
+        let offspring_size: usize = offspring_map.into_iter().sum();
+        let sample_size = (factor
+            * min(
+                (offspring_size as f64 * self.simulation_settings.dilution) as usize,
+                self.simulation_settings.max_population,
+            ) as f64) as usize;
+        let sampler = WeightedIndex::new(offspring_map).unwrap();
+
+        let mut rng = rand::thread_rng();
+        (0..sample_size)
+            .map(|_| self.population[sampler.sample(&mut rng)].get_clone())
             .collect()
     }
 

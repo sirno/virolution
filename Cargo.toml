@@ -16,27 +16,31 @@ path = "src/lib.rs"
 
 [dependencies]
 block-id = "0.1.2"
-clap = { version = "3.1.18", features = ["derive"] }
+clap = { version = "4.0.22", features = ["derive"] }
 csv = "1.1.6"
 derivative = "2.2.0"
 derive_more = "0.99.17"
 evalexpr = "8.1.0"
-indicatif = "0.16.2"
-itertools = "0.10.3"
+indicatif = "0.17.2"
+itertools = "0.10.5"
 log = "0.4.17"
 npyz = "0.7.1"
-phf = { version = "0.10.1", features = ["macros"] }
+phf = { version = "0.11.1", features = ["macros"] }
 rand = { version = "0.8.5", features = ["alloc"] }
 rand_distr = "0.4.3"
-serde = { version = "1.0.137", features = ["derive"] }
-serde_yaml = "0.8.24"
+serde = { version = "1.0.147", features = ["derive"] }
+serde_yaml = "0.9.14"
 seq_io = "0.3.1"
 simple-logging = "2.0.2"
-rayon = "1.5.3"
+rayon = { version = "1.5.3", optional = true }
 
 [build-dependencies]
-clap = { version = "3.1.18", features = ["derive"] }
-clap_complete = "3.1.4"
+clap = { version = "4.0.22", features = ["derive"] }
+clap_complete = "4.0.5"
 
 [dev-dependencies]
-serial_test = "0.6.0"
+serial_test = "0.9.0"
+
+[features]
+# default = ["parallel"]
+parallel = ["rayon"]

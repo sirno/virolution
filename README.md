@@ -7,7 +7,7 @@ may change in number and composition. Multiple simulations can be run in
 parallel with controlled mixing. As input, the simulation requires model
 parameters, a wildtype sequence and a file with a schedule for all migration and
 sampling events. As output, multiple fasta files with samples of the populations
-at each sampling event is generated.
+at each sampling event are generated.
 
 ## Details
 

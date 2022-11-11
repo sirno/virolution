@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::haplotype::Haplotype;
 use block_id::{Alphabet, BlockId};
 use derive_more::{Deref, DerefMut};

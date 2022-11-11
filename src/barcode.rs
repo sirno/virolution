@@ -24,7 +24,7 @@ impl BarcodeEntry<'_> {
         let mut csv_writer = csv::WriterBuilder::new()
             .has_headers(true)
             .from_writer(writer);
-        csv_writer.write_record(&["barcode", "experiment", "time", "replicate", "compartment"])?;
+        csv_writer.write_record(["barcode", "experiment", "time", "replicate", "compartment"])?;
         Ok(())
     }
 }

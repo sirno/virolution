@@ -1,5 +1,5 @@
 use super::fitness::FitnessTable;
-use super::references::sync::{HaplotypeRef, HaplotypeWeak};
+use super::references::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
 use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
@@ -8,7 +8,6 @@ use std::fmt;
 use std::sync::{Arc, Mutex, OnceLock};
 
 // #[derive(Clone, Debug, Deref)]
-// pub struct Symbol(Option<u8>);
 pub type Symbol = Option<u8>;
 
 pub static FASTA_ENCODE: phf::Map<u8, u8> = phf_map! {
@@ -45,9 +44,9 @@ pub struct Descendant {
     wildtype: HaplotypeWeak,
     ancestor: HaplotypeRef,
     descendants: Arc<Mutex<Vec<HaplotypeWeak>>>,
-    position: usize,
-    change: (Symbol, Symbol),
-    changes: OnceLock<HashMap<usize, (Symbol, Symbol)>>,
+    positions: Vec<usize>,
+    changes: Vec<(Symbol, Symbol)>,
+    mutations: OnceLock<HashMap<usize, (Symbol, Symbol)>>,
     fitness: OnceLock<f64>,
 }
 
@@ -60,21 +59,22 @@ pub struct Recombinant {
     descendants: Arc<Mutex<Vec<HaplotypeWeak>>>,
     left_position: usize,
     right_position: usize,
-    changes: OnceLock<HashMap<usize, (Symbol, Symbol)>>,
+    mutations: OnceLock<HashMap<usize, (Symbol, Symbol)>>,
     fitness: OnceLock<f64>,
 }
 
 impl Haplotype {
-    pub fn create_descendant(&self, position: usize, change: u8) -> HaplotypeRef {
+    pub fn create_descendant(&self, positions: Vec<usize>, changes: Vec<Symbol>) -> HaplotypeRef {
         let ancestor = self.get_reference();
         let wildtype = self.get_wildtype();
 
-        let descendant = Descendant::new(
-            ancestor,
-            wildtype,
-            position,
-            (self.get_base(position), Some(change)),
-        );
+        let changes = positions
+            .iter()
+            .enumerate()
+            .map(|(idx, position)| (self.get_base(position), changes[idx]))
+            .collect();
+
+        let descendant = Descendant::new(ancestor, wildtype, positions, changes);
 
         self.add_descendant(descendant.get_weak());
 
@@ -136,7 +136,7 @@ impl Haplotype {
         };
     }
 
-    pub fn get_base(&self, position: usize) -> Symbol {
+    pub fn get_base(&self, position: &usize) -> Symbol {
         match self {
             Haplotype::Wildtype(wt) => wt.get_base(position),
             Haplotype::Descendant(ht) => ht.get_base(position),
@@ -145,10 +145,10 @@ impl Haplotype {
     }
 
     pub fn get_sequence(&self) -> Vec<Symbol> {
-        let changes = self.get_changes();
+        let mutations = self.get_mutations();
         let mut sequence = self.get_wildtype_sequence();
 
-        for (position, (_, to)) in changes {
+        for (position, (_, to)) in mutations {
             sequence[position] = to;
         }
 
@@ -164,11 +164,11 @@ impl Haplotype {
     }
 
     pub fn get_string(&self) -> String {
-        let changes = self.get_changes();
+        let mutations = self.get_mutations();
         let wildtype = self.get_wildtype_sequence();
 
         let mut out = String::new();
-        for (position, (from, to)) in changes.iter() {
+        for (position, (from, to)) in mutations.iter() {
             match (from, to) {
                 (Some(f), Some(t)) => {
                     out.push_str(format!(";{position}:{f}->{t}").as_str());
@@ -190,20 +190,20 @@ impl Haplotype {
         out
     }
 
-    pub fn get_changes(&self) -> HashMap<usize, (Symbol, Symbol)> {
+    pub fn get_mutations(&self) -> HashMap<usize, (Symbol, Symbol)> {
         match self {
             Haplotype::Wildtype(_wt) => HashMap::new(),
-            Haplotype::Descendant(ht) => ht.get_changes().clone(),
-            Haplotype::Recombinant(rc) => rc.get_changes().clone(),
+            Haplotype::Descendant(ht) => ht.get_mutations().clone(),
+            Haplotype::Recombinant(rc) => rc.get_mutations().clone(),
         }
     }
 
     pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
         let compute_fitness = || {
-            let changes = self.get_changes();
+            let mutations = self.get_mutations();
             let mut fitness = 1.;
 
-            for (position, (_from, to)) in changes {
+            for (position, (_from, to)) in mutations {
                 fitness *= fitness_table.get_fitness(&position, &to);
             }
 
@@ -280,8 +280,8 @@ impl Wildtype {
             .expect("Self-reference has been dropped.")
     }
 
-    pub fn get_base(&self, position: usize) -> Symbol {
-        self.sequence[position]
+    pub fn get_base(&self, position: &usize) -> Symbol {
+        self.sequence[*position]
     }
 
     pub fn get_length(&self) -> usize {
@@ -308,8 +308,8 @@ impl Descendant {
     pub fn new(
         ancestor: HaplotypeRef,
         wildtype: HaplotypeRef,
-        position: usize,
-        change: (Symbol, Symbol),
+        positions: Vec<usize>,
+        changes: Vec<(Symbol, Symbol)>,
     ) -> HaplotypeRef {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Descendant(Self {
@@ -317,37 +317,46 @@ impl Descendant {
                 wildtype: wildtype.get_weak(),
                 ancestor: ancestor.get_clone(),
                 descendants: Arc::new(Mutex::new(Vec::new())),
-                position,
-                change,
-                changes: OnceLock::new(),
+                positions: positions.clone(),
+                changes: changes.clone(),
+                mutations: OnceLock::new(),
                 fitness: OnceLock::new(),
             })
         })
     }
 
-    pub fn get_base(&self, position: usize) -> Symbol {
-        if self.position == position {
-            return self.change.1;
+    pub fn get_base(&self, position: &usize) -> Symbol {
+        match self.positions.iter().find(|p| *p == position) {
+            Some(_) => self.changes[*position].1,
+            None => self.ancestor.get_base(position),
         }
-        self.ancestor.get_base(position)
     }
 
     pub fn get_length(&self) -> usize {
         self.wildtype.upgrade().unwrap().get_length()
     }
 
-    pub fn get_changes(&self) -> &HashMap<usize, (Symbol, Symbol)> {
-        self.changes.get_or_init(|| {
-            let mut changes = self.ancestor.get_changes();
-            let wt_base = self.wildtype.upgrade().unwrap().get_base(self.position);
-
-            if self.change.1 == wt_base {
-                changes.remove(&self.position);
-                return changes;
-            }
-
-            changes.insert(self.position, (wt_base, self.change.1));
-            changes
+    pub fn get_mutations(&self) -> &HashMap<usize, (Symbol, Symbol)> {
+        self.mutations.get_or_init(|| {
+            let mut mutations = self.ancestor.get_mutations();
+            self.positions
+                .iter()
+                .enumerate()
+                .map(|(idx, position)| {
+                    (
+                        position,
+                        self.changes[idx],
+                        self.wildtype.upgrade().unwrap().get_base(position),
+                    )
+                })
+                .for_each(|(position, change, wt_base)| {
+                    if change.1 == wt_base {
+                        mutations.remove(position);
+                    } else {
+                        mutations.insert(*position, (wt_base, change.1));
+                    }
+                });
+            mutations
         })
     }
 
@@ -390,14 +399,14 @@ impl Recombinant {
                 left_position,
                 right_position,
                 descendants: Arc::new(Mutex::new(Vec::new())),
-                changes: OnceLock::new(),
+                mutations: OnceLock::new(),
                 fitness: OnceLock::new(),
             })
         })
     }
 
-    pub fn get_base(&self, position: usize) -> Symbol {
-        if position >= self.left_position && position < self.right_position {
+    pub fn get_base(&self, position: &usize) -> Symbol {
+        if *position >= self.left_position && *position < self.right_position {
             return self.left_ancestor.get_base(position);
         }
 
@@ -408,26 +417,26 @@ impl Recombinant {
         self.wildtype.upgrade().unwrap().get_length()
     }
 
-    pub fn get_changes(&self) -> &HashMap<usize, (Symbol, Symbol)> {
-        self.changes.get_or_init(|| {
-            let left_changes = self.left_ancestor.get_changes();
-            let right_changes = self.right_ancestor.get_changes();
+    pub fn get_mutations(&self) -> &HashMap<usize, (Symbol, Symbol)> {
+        self.mutations.get_or_init(|| {
+            let left_mutations = self.left_ancestor.get_mutations();
+            let right_mutations = self.right_ancestor.get_mutations();
 
-            let mut changes = HashMap::new();
+            let mut mutations = HashMap::new();
 
-            for (position, change) in left_changes {
+            for (position, change) in left_mutations {
                 if position >= self.left_position && position < self.right_position {
-                    changes.insert(position, change);
+                    mutations.insert(position, change);
                 }
             }
 
-            for (position, change) in right_changes {
+            for (position, change) in right_mutations {
                 if position < self.left_position || position >= self.right_position {
-                    changes.insert(position, change);
+                    mutations.insert(position, change);
                 }
             }
 
-            changes
+            mutations
         })
     }
 
@@ -478,7 +487,7 @@ mod tests {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let wt = Wildtype::new(bytes);
         for i in 0..4 {
-            assert_eq!(wt.get_base(i), Some(i as u8));
+            assert_eq!(wt.get_base(&i), Some(i as u8));
         }
     }
 
@@ -486,21 +495,23 @@ mod tests {
     fn create_descendant() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let wt = Wildtype::new(bytes);
-        let ht = wt.create_descendant(0, 0x03);
-        assert_eq!(ht.get_base(0), Some(0x03));
-        assert_eq!(ht.get_base(1), Some(0x01));
-        assert_eq!(ht.get_base(2), Some(0x02));
-        assert_eq!(ht.get_base(3), Some(0x03));
+        let ht = wt.create_descendant(vec![0], vec![Some(0x03)]);
+        assert_eq!(ht.get_base(&0), Some(0x03));
+        assert_eq!(ht.get_base(&1), Some(0x01));
+        assert_eq!(ht.get_base(&2), Some(0x02));
+        assert_eq!(ht.get_base(&3), Some(0x03));
     }
 
     #[test]
     fn create_wide_geneaology() {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let wt = Wildtype::new(bytes);
-        let _hts: Vec<HaplotypeRef> = (0..100).map(|i| wt.create_descendant(0, i)).collect();
+        let _hts: Vec<HaplotypeRef> = (0..100)
+            .map(|i| wt.create_descendant(vec![0], vec![Some(i)]))
+            .collect();
         for (position, descendant) in wt.get_descendants().lock().unwrap().iter().enumerate() {
             if let Some(d) = descendant.upgrade() {
-                assert_eq!(d.get_base(0), Some(position as u8));
+                assert_eq!(d.get_base(&0), Some(position as u8));
             } else {
                 panic!();
             }
@@ -516,12 +527,12 @@ mod tests {
         haplotypes.push(wildtype.get_clone());
         for i in 0..100 {
             let ht = haplotypes.last().unwrap().get_clone();
-            haplotypes.push(ht.create_descendant(i, 0x02));
+            haplotypes.push(ht.create_descendant(vec![i], vec![Some(0x02)]));
         }
-        haplotypes.push(wildtype.create_descendant(0, 0x03));
+        haplotypes.push(wildtype.create_descendant(vec![0], vec![Some(0x03)]));
         for i in 1..100 {
             let ht = haplotypes.last().unwrap().get_clone();
-            haplotypes.push(ht.create_descendant(i, 0x03));
+            haplotypes.push(ht.create_descendant(vec![i], vec![Some(0x03)]));
         }
         let left_ancestor = haplotypes[100].get_clone();
         let right_ancestor = haplotypes[200].get_clone();
@@ -538,7 +549,7 @@ mod tests {
     #[serial]
     fn get_length() {
         let wildtype = Wildtype::new(vec![Some(0x00); 100]);
-        let haplotype = wildtype.create_descendant(0, 0x01);
+        let haplotype = wildtype.create_descendant(vec![0], vec![Some(0x01)]);
         let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75);
         assert_eq!(wildtype.get_length(), 100);
         assert_eq!(haplotype.get_length(), 100);
@@ -549,7 +560,7 @@ mod tests {
     #[serial]
     fn get_sequence() {
         let wildtype = Wildtype::new(vec![Some(0x00); 100]);
-        let haplotype = wildtype.create_descendant(0, 0x01);
+        let haplotype = wildtype.create_descendant(vec![0], vec![Some(0x01)]);
         let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75);
 
         let mut expected = vec![Some(0x01)];
@@ -564,7 +575,7 @@ mod tests {
         let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
         let wt = Wildtype::new(bytes);
 
-        let ht = wt.create_descendant(0, 0x03);
+        let ht = wt.create_descendant(vec![0], vec![Some(0x03)]);
         let ht_id = ht.get_id();
         assert_eq!(wt.get_tree(), format!("('0:0->3m{}')wt;", ht_id));
 

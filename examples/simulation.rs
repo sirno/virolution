@@ -22,9 +22,9 @@ fn main() {
     let fitness_table = FitnessTable::new(&sequence, 4, distribution.clone());
 
     let wt = Wildtype::new(sequence);
-    let ht = wt.create_descendant(2, 0x01);
-    let ht2 = ht.create_descendant(1, 0x02);
-    let ht3 = ht2.create_descendant(2, 0x03);
+    let ht = wt.create_descendant(vec![2], vec![Some(0x01)]);
+    let ht2 = ht.create_descendant(vec![1], vec![Some(0x02)]);
+    let ht3 = ht2.create_descendant(vec![2], vec![Some(0x03)]);
     let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2);
 
     println!("---fitnesses---");

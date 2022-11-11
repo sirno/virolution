@@ -1,6 +1,5 @@
 extern crate virolution;
 
-use rayon::prelude::*;
 use std::path::PathBuf;
 use virolution::fitness::*;
 use virolution::haplotype::*;
@@ -58,17 +57,15 @@ fn main() {
 
     for gen in 1..=50 {
         println!("generation={}", gen);
-        let mut offsprings: Vec<Vec<usize>> = Vec::new();
-
-        compartment_simulations
-            .par_iter_mut()
+        let offsprings: Vec<Vec<usize>> = compartment_simulations
+            .iter_mut()
             .map(|simulation| {
                 let infectant_map = simulation.get_infectant_map();
                 let host_map = simulation.get_host_map(&infectant_map);
                 simulation.mutate_infectants(&host_map);
                 simulation.replicate_infectants(&host_map)
             })
-            .collect_into_vec(&mut offsprings);
+            .collect();
 
         let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
         let transfers = plan.get_transfer_matrix(gen);
