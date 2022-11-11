@@ -345,6 +345,12 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
 }
 
 fn main() {
+    if cfg!(feature = "parallel") {
+        println!("Running in parallel mode.");
+    } else {
+        println!("Running in serial mode.");
+    }
+
     let args = Args::parse();
 
     setup(&args);
