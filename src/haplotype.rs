@@ -326,8 +326,13 @@ impl Descendant {
     }
 
     pub fn get_base(&self, position: &usize) -> Symbol {
-        match self.positions.iter().find(|p| *p == position) {
-            Some(_) => self.changes[*position].1,
+        match self
+            .positions
+            .iter()
+            .enumerate()
+            .find(|(_idx, p)| *p == position)
+        {
+            Some((idx, _)) => self.changes[idx].1,
             None => self.ancestor.get_base(position),
         }
     }
