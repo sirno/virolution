@@ -112,6 +112,54 @@ fn create_simulations(
         .collect()
 }
 
+fn sample(simulations: &Vec<Simulation>, sample_size: usize, generation: usize, args: &Args) {
+    log::info!("Sampling {} individuals...", sample_size);
+    for (compartment_id, compartment) in simulations.iter().enumerate() {
+        let barcode = format!("sample_{generation}_{compartment_id}");
+
+        // create output files
+        let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
+        let sample_path = Path::new(&args.outdir).join(format!("{barcode}.fasta"));
+
+        // create file buffers
+        let mut barcode_file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(barcode_path)
+            .expect("Unable to open barcode file.");
+        let mut samples_file = io::BufWriter::new(fs::File::create(sample_path).unwrap());
+
+        // sample sequences and write to file
+        for (sequence_id, sequence) in compartment
+            .get_population()
+            .choose_multiple(&mut rand::thread_rng(), sample_size)
+            .enumerate()
+        {
+            let record = sequence.get_record(
+                format!(
+                    "compartment_id={};sequence_id={};generation={}",
+                    compartment_id, sequence_id, generation
+                )
+                .as_str(),
+            );
+            record
+                .write(&mut samples_file)
+                .expect("Unable to write to file.");
+        }
+
+        // write barcode to file
+        BarcodeEntry {
+            barcode: &barcode,
+            experiment: &args.simulation_name,
+            time: generation,
+            replicate: 0,
+            compartment: compartment_id,
+        }
+        .write(&mut barcode_file)
+        .expect("Unable to write to barcode file.");
+    }
+}
+
 #[cfg(feature = "parallel")]
 fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
     // init progress bar
@@ -124,6 +172,12 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
     );
 
     for generation in 0..=args.generations {
+        // write to output when sampling
+        let sample_size = plan.get_sample_size(generation);
+        if sample_size > 0 {
+            sample(simulations, sample_size, generation, args);
+        }
+
         // simulate compartmentalized population in parallel
         let offsprings: Vec<Vec<usize>> = simulations
             .par_iter_mut()
@@ -170,56 +224,6 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
     population_sizes={population_sizes:?}"###
         );
 
-        // write to output when sampling
-        let sample_size = plan.get_sample_size(generation);
-        if sample_size > 0 {
-            log::info!("Sampling {} individuals...", sample_size);
-            for (compartment_id, compartment) in simulations.iter().enumerate() {
-                let barcode = format!("sample_{generation}_{compartment_id}");
-
-                // create output files
-                let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
-                let sample_path = Path::new(&args.outdir).join(format!("{barcode}.fasta"));
-
-                // create file buffers
-                let mut barcode_file = fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(barcode_path)
-                    .expect("Unable to open barcode file.");
-                let mut samples_file = io::BufWriter::new(fs::File::create(sample_path).unwrap());
-
-                // sample sequences and write to file
-                for (sequence_id, sequence) in compartment
-                    .get_population()
-                    .choose_multiple(&mut rand::thread_rng(), sample_size)
-                    .enumerate()
-                {
-                    let record = sequence.get_record(
-                        format!(
-                            "compartment_id={};sequence_id={};generation={}",
-                            compartment_id, sequence_id, generation
-                        )
-                        .as_str(),
-                    );
-                    record
-                        .write(&mut samples_file)
-                        .expect("Unable to write to file.");
-                }
-
-                // write barcode to file
-                BarcodeEntry {
-                    barcode: &barcode,
-                    experiment: &args.simulation_name,
-                    time: generation,
-                    replicate: 0,
-                    compartment: compartment_id,
-                }
-                .write(&mut barcode_file)
-                .expect("Unable to write to barcode file.");
-            }
-        }
-
         // update progress bar
         bar.set_position(generation.try_into().unwrap());
         bar.set_message(format!("{population_sizes:?}"));
@@ -240,6 +244,12 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
     );
 
     for generation in 0..=args.generations {
+        // write to output when sampling
+        let sample_size = plan.get_sample_size(generation);
+        if sample_size > 0 {
+            sample(simulations, sample_size, generation, args);
+        }
+
         // simulate compartmentalized population in parallel
         let offsprings: Vec<Vec<usize>> = simulations
             .iter_mut()
@@ -285,56 +295,6 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
     generation={generation}
     population_sizes={population_sizes:?}"###
         );
-
-        // write to output when sampling
-        let sample_size = plan.get_sample_size(generation);
-        if sample_size > 0 {
-            log::info!("Sampling {} individuals...", sample_size);
-            for (compartment_id, compartment) in simulations.iter().enumerate() {
-                let barcode = format!("sample_{generation}_{compartment_id}");
-
-                // create output files
-                let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
-                let sample_path = Path::new(&args.outdir).join(format!("{barcode}.fasta"));
-
-                // create file buffers
-                let mut barcode_file = fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(barcode_path)
-                    .expect("Unable to open barcode file.");
-                let mut samples_file = io::BufWriter::new(fs::File::create(sample_path).unwrap());
-
-                // sample sequences and write to file
-                for (sequence_id, sequence) in compartment
-                    .get_population()
-                    .choose_multiple(&mut rand::thread_rng(), sample_size)
-                    .enumerate()
-                {
-                    let record = sequence.get_record(
-                        format!(
-                            "compartment_id={};sequence_id={};generation={}",
-                            compartment_id, sequence_id, generation
-                        )
-                        .as_str(),
-                    );
-                    record
-                        .write(&mut samples_file)
-                        .expect("Unable to write to file.");
-                }
-
-                // write barcode to file
-                BarcodeEntry {
-                    barcode: &barcode,
-                    experiment: &args.simulation_name,
-                    time: generation,
-                    replicate: 0,
-                    compartment: compartment_id,
-                }
-                .write(&mut barcode_file)
-                .expect("Unable to write to barcode file.");
-            }
-        }
 
         // update progress bar
         bar.set_position(generation.try_into().unwrap());
