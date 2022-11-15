@@ -113,7 +113,6 @@ impl Haplotype {
 
     pub fn get_wildtype(&self) -> HaplotypeRef {
         match self {
-            // Haplotype::Wildtype(wt) => wt.get_reference().get_clone(),
             Haplotype::Wildtype(wt) => wt.get_reference().get_clone(),
             Haplotype::Descendant(ht) => ht.wildtype.upgrade().unwrap().get_clone(),
             Haplotype::Recombinant(rc) => rc.wildtype.upgrade().unwrap().get_clone(),
@@ -379,9 +378,9 @@ impl Descendant {
         let outer = self.reference.upgrade().unwrap().get_string();
 
         if inner.is_empty() {
-            format!("'{outer}m{}'", self.reference.get_id())
+            format!("'{outer}m{}'", self.reference.get_block_id())
         } else {
-            format!("({inner})'{outer}m{}'", self.reference.get_id())
+            format!("({inner})'{outer}m{}'", self.reference.get_block_id())
         }
     }
 }
@@ -463,14 +462,14 @@ impl Recombinant {
             format!(
                 "#R'{}r{}'",
                 self.reference.upgrade().unwrap().get_string(),
-                self.reference.get_id(),
+                self.reference.get_block_id(),
             )
         } else {
             format!(
                 "({})#R'{}r{}'",
                 inner,
                 self.reference.upgrade().unwrap().get_string(),
-                self.reference.get_id(),
+                self.reference.get_block_id(),
             )
         }
     }
@@ -581,11 +580,11 @@ mod tests {
         let wt = Wildtype::new(bytes);
 
         let ht = wt.create_descendant(vec![0], vec![Some(0x03)]);
-        let ht_id = ht.get_id();
+        let ht_id = ht.get_block_id();
         assert_eq!(wt.get_tree(), format!("('0:0->3m{}')wt;", ht_id));
 
         let rc = Haplotype::create_recombinant(&wt, &ht, 1, 2);
-        let rc_id = rc.get_id();
+        let rc_id = rc.get_block_id();
         assert_eq!(
             wt.get_tree(),
             format!("((#R'0:0->3r{rc_id}')'0:0->3m{ht_id}',#R'0:0->3r{rc_id}')wt;")

@@ -28,7 +28,7 @@ impl HaplotypeRef {
     }
 
     #[inline]
-    pub fn get_id(&self) -> String {
+    pub fn get_block_id(&self) -> String {
         let reference_ptr = Arc::as_ptr(&self.0) as u64;
         BLOCK_ID.with(|generator| generator.encode_string(reference_ptr))
     }
@@ -72,7 +72,7 @@ impl HaplotypeWeak {
     }
 
     #[inline]
-    pub fn get_id(&self) -> String {
+    pub fn get_block_id(&self) -> String {
         let reference_ptr = Weak::as_ptr(&self.0) as u64;
         BLOCK_ID.with(|generator| generator.encode_string(reference_ptr))
     }
