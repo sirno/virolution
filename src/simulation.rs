@@ -115,7 +115,9 @@ impl Simulation {
             if let Some(host_id) = *host {
                 match host_map.entry(host_id) {
                     Entry::Vacant(e) => {
-                        e.insert(vec![infectant]);
+                        let mut infectants = Vec::with_capacity(4);
+                        infectants.push(infectant);
+                        e.insert(infectants);
                     }
                     Entry::Occupied(mut e) => {
                         e.get_mut().push(infectant);
