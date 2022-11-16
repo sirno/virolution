@@ -13,12 +13,14 @@ use std::collections::HashMap;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
 
-pub type Population = Vec<HaplotypeRef>;
+pub type Population = Vec<usize>;
+pub type Genotypes = HashMap<usize, HaplotypeRef>;
 pub type HostMap = HashMap<usize, Vec<usize>>;
 
 pub struct Simulation {
     wildtype: HaplotypeRef,
     population: Population,
+    genotypes: Genotypes,
     fitness_table: FitnessTable,
     simulation_settings: SimulationSettings,
     mutation_sampler: Binomial,
@@ -30,6 +32,7 @@ impl Simulation {
     pub fn new(
         wildtype: HaplotypeRef,
         population: Population,
+        genotypes: Genotypes,
         fitness_table: FitnessTable,
         simulation_settings: SimulationSettings,
     ) -> Self {
@@ -43,6 +46,7 @@ impl Simulation {
         Self {
             wildtype,
             population,
+            genotypes,
             fitness_table,
             simulation_settings,
             mutation_sampler,
@@ -55,8 +59,22 @@ impl Simulation {
         self.population.clone()
     }
 
-    pub fn set_population(&mut self, population: Population) {
+    pub fn set_population(&mut self, population: Population, genotypes: Genotypes) {
         self.population = population;
+        self.genotypes.extend(
+            self.population
+                .iter()
+                .unique()
+                .map(|id| (*id, genotypes[id].clone())),
+        );
+    }
+
+    pub fn get_genotype(&self, haplotype_id: &usize) -> HaplotypeRef {
+        self.genotypes[haplotype_id].clone()
+    }
+
+    pub fn get_genotypes(&self) -> Genotypes {
+        self.genotypes.clone()
     }
 
     #[cfg(feature = "parallel")]
@@ -125,14 +143,20 @@ impl Simulation {
             .filter(|_| self.recombination_sampler.sample(&mut rand::thread_rng()))
             .map(|infectant_pair| {
                 let mut rng = rand::thread_rng();
-                let infectant_a = infectant_pair[0];
-                let infectant_b = infectant_pair[1];
+                let infectant_a = &self.population[*infectant_pair[0]];
+                let infectant_b = &self.population[*infectant_pair[1]];
                 let mut recombination_sites =
                     rand::seq::index::sample(&mut rng, sequence_length, 2).into_vec();
                 recombination_sites.sort();
                 let recombinant = Haplotype::create_recombinant(
-                    &self.population[*infectant_a],
-                    &self.population[*infectant_b],
+                    &self
+                        .genotypes
+                        .get(infectant_a)
+                        .expect(format!("Infectant {} not found", infectant_a).as_str()),
+                    &self
+                        .genotypes
+                        .get(infectant_b)
+                        .expect(format!("Infectant {} not found", infectant_b).as_str()),
                     recombination_sites[0],
                     recombination_sites[1],
                 );
@@ -150,7 +174,8 @@ impl Simulation {
             .iter()
             .filter_map(|infectant| {
                 let mut rng = rand::thread_rng();
-                let infectant_ref = &self.population[*infectant];
+                let infectant_id = &self.population[*infectant];
+                let infectant_ref = &self.genotypes[infectant_id];
                 let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
                 if n_mutations == 0 {
                     return None;
@@ -192,7 +217,7 @@ impl Simulation {
 
             // recombine infectants
             host_map
-                .into_par_iter()
+                .par_iter()
                 .for_each_with(recombination_sender, |sender, host| {
                     let infectants = host.1;
 
@@ -206,7 +231,9 @@ impl Simulation {
 
             // collect recominants
             for (position, recombinant) in recombination_receiver.iter() {
-                self.population[position] = recombinant;
+                let recombinant_id = recombinant.get_id();
+                self.genotypes.insert(recombinant_id, recombinant);
+                self.population[position] = recombinant_id;
             }
         }
 
@@ -215,7 +242,7 @@ impl Simulation {
 
         // mutate infectants
         host_map
-            .into_par_iter()
+            .par_iter()
             .for_each_with(mutation_sender, |sender, entry| {
                 let infectants = entry.1;
                 self._mutate_infectants(sequence_length, infectants)
@@ -227,7 +254,9 @@ impl Simulation {
 
         // collect mutants
         for (position, mutant) in mutation_receiver.iter() {
-            self.population[position] = mutant;
+            let mutant_id = mutant.get_id();
+            self.genotypes.insert(mutant_id, mutant);
+            self.population[position] = mutant_id;
         }
     }
 
@@ -243,7 +272,9 @@ impl Simulation {
                 self._recombine_infectants(sequence_length, infectants)
                     .into_iter()
                     .for_each(|recombination| {
-                        self.population[recombination.0] = recombination.1;
+                        let recombination_id = recombination.1.get_id();
+                        self.genotypes.insert(recombination_id, recombination.1);
+                        self.population[recombination.0] = recombination_id;
                     });
             }
         }
@@ -254,7 +285,9 @@ impl Simulation {
             self._mutate_infectants(sequence_length, infectants)
                 .into_iter()
                 .for_each(|mutation| {
-                    self.population[mutation.0] = mutation.1;
+                    let mutation_id = mutation.1.get_id();
+                    self.genotypes.insert(mutation_id, mutation.1);
+                    self.population[mutation.0] = mutation_id;
                 });
         }
     }
@@ -264,7 +297,8 @@ impl Simulation {
             .iter()
             .filter_map(|infectant| {
                 let mut rng = rand::thread_rng();
-                let fitness = self.population[*infectant].get_fitness(&self.fitness_table);
+                let genotype_id = self.population[*infectant];
+                let fitness = self.genotypes[&genotype_id].get_fitness(&self.fitness_table);
                 match Poisson::new(fitness * self.simulation_settings.basic_reproductive_number) {
                     Ok(dist) => Some((*infectant, dist.sample(&mut rng))),
                     // if fitness is 0 => no offspring
@@ -280,7 +314,7 @@ impl Simulation {
         let (replicate_sender, replicate_receiver) = channel();
 
         host_map
-            .into_par_iter()
+            .par_iter()
             .for_each_with(replicate_sender, |sender, host| {
                 let infectants = host.1;
                 self._replicate_infectants(infectants)
@@ -318,7 +352,7 @@ impl Simulation {
             return Vec::new();
         }
 
-        let offspring_size: usize = offspring_map.into_par_iter().sum();
+        let offspring_size: usize = offspring_map.par_iter().sum();
         let sample_size = (factor
             * min(
                 (offspring_size as f64 * self.simulation_settings.dilution) as usize,
@@ -329,7 +363,7 @@ impl Simulation {
         (0..sample_size)
             .into_par_iter()
             .map_init(rand::thread_rng, |rng, _| {
-                self.population[sampler.sample(rng)].get_clone()
+                self.population[sampler.sample(rng)]
             })
             .collect()
     }
@@ -351,7 +385,7 @@ impl Simulation {
 
         let mut rng = rand::thread_rng();
         (0..sample_size)
-            .map(|_| self.population[sampler.sample(&mut rng)].get_clone())
+            .map(|_| self.population[sampler.sample(&mut rng)])
             .collect()
     }
 
@@ -371,13 +405,13 @@ impl Simulation {
 
         // subsample population
         let population = self.subsample_population(&offspring, 1.);
-        self.set_population(population);
+        self.set_population(population, self.genotypes.clone());
     }
 
     pub fn print_population(&self) -> Vec<String> {
         self.population
             .iter()
-            .map(|hap| hap.get_string())
+            .map(|genotype| self.genotypes[genotype].get_string())
             .collect::<Vec<String>>()
     }
 }
@@ -424,9 +458,15 @@ mod tests {
         let fitness_table = FitnessTable::new(&sequence, 4, DISTRIBUTION);
 
         let wt = Wildtype::new(sequence);
-        let init_population: Population = (0..10).map(|_| wt.get_clone()).collect();
-        let mut simulation =
-            Simulation::new(wt, init_population, fitness_table, SIMULATION_SETTINGS);
+        let genotypes = HashMap::from_iter([(wt.get_id(), wt.get_clone())].iter().cloned());
+        let init_population: Population = (0..10).map(|_| wt.get_id()).collect();
+        let mut simulation = Simulation::new(
+            wt,
+            init_population,
+            genotypes,
+            fitness_table,
+            SIMULATION_SETTINGS,
+        );
         simulation.next_generation()
     }
 
@@ -437,9 +477,15 @@ mod tests {
         let fitness_table = FitnessTable::new(&sequence, 4, DISTRIBUTION);
 
         let wt = Wildtype::new(sequence);
-        let init_population: Population = (0..0).map(|_| wt.get_clone()).collect();
-        let mut simulation =
-            Simulation::new(wt, init_population, fitness_table, SIMULATION_SETTINGS);
+        let genotypes = HashMap::from_iter([(wt.get_id(), wt.get_clone())].iter().cloned());
+        let init_population: Population = (0..0).map(|_| wt.get_id()).collect();
+        let mut simulation = Simulation::new(
+            wt,
+            init_population,
+            genotypes,
+            fitness_table,
+            SIMULATION_SETTINGS,
+        );
 
         simulation.next_generation()
     }

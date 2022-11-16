@@ -34,6 +34,11 @@ impl HaplotypeRef {
     }
 
     #[inline]
+    pub fn get_id(&self) -> usize {
+        Arc::as_ptr(&self.0) as usize
+    }
+
+    #[inline]
     pub fn get_clone(&self) -> HaplotypeRef {
         HaplotypeRef(self.0.clone())
     }
@@ -75,6 +80,11 @@ impl HaplotypeWeak {
     pub fn get_block_id(&self) -> String {
         let reference_ptr = Weak::as_ptr(&self.0) as u64;
         BLOCK_ID.with(|generator| generator.encode_string(reference_ptr))
+    }
+
+    #[inline]
+    pub fn get_id(&self) -> usize {
+        Weak::as_ptr(&self.0) as usize
     }
 }
 
