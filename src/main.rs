@@ -218,6 +218,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
                 target_populations.concat()
             })
             .collect();
+
         let genotypes: HashMap<usize, HaplotypeRef> = simulations
             .iter()
             .map(|simulation| simulation.get_genotypes())
@@ -226,7 +227,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
 
         // update populations
         for (idx, simulation) in simulations.iter_mut().enumerate() {
-            simulation.set_population(populations[idx].clone(), genotypes.clone());
+            simulation.set_population(populations[idx].clone(), Some(&genotypes));
         }
 
         // logging
@@ -295,6 +296,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
                 target_populations.concat()
             })
             .collect();
+
         let genotypes: HashMap<usize, HaplotypeRef> = simulations
             .iter()
             .map(|simulation| simulation.get_genotypes())
@@ -303,7 +305,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
 
         // update populations
         for (idx, simulation) in simulations.iter_mut().enumerate() {
-            simulation.set_population(populations[idx].clone(), genotypes.clone());
+            simulation.set_population(populations[idx].clone(), Some(&genotypes));
         }
 
         // logging

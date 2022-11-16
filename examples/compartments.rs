@@ -86,7 +86,7 @@ fn main() {
         }
 
         for (idx, simulation) in compartment_simulations.iter_mut().enumerate() {
-            simulation.set_population(populations[idx].clone(), genotypes[idx].clone());
+            simulation.set_population(populations[idx].clone(), Some(&genotypes[idx]));
         }
     }
 }

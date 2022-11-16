@@ -59,13 +59,14 @@ impl Simulation {
         self.population.clone()
     }
 
-    pub fn set_population(&mut self, population: Population, genotypes: Genotypes) {
+    pub fn set_population(&mut self, population: Population, genotypes: Option<&Genotypes>) {
         self.population = population;
-        self.genotypes.extend(
+        let genotypes = genotypes.unwrap_or(&self.genotypes);
+        self.genotypes = HashMap::from_iter(
             self.population
                 .iter()
                 .unique()
-                .map(|id| (*id, genotypes[id].clone())),
+                .map(|&id| (id, genotypes[&id].clone())),
         );
     }
 
@@ -405,7 +406,7 @@ impl Simulation {
 
         // subsample population
         let population = self.subsample_population(&offspring, 1.);
-        self.set_population(population, self.genotypes.clone());
+        self.set_population(population, None);
     }
 
     pub fn print_population(&self) -> Vec<String> {
