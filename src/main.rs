@@ -118,7 +118,7 @@ fn create_simulations(
         .collect()
 }
 
-fn sample(simulations: &Vec<Simulation>, sample_size: usize, generation: usize, args: &Args) {
+fn sample(simulations: &[Simulation], sample_size: usize, generation: usize, args: &Args) {
     log::info!("Sampling {} individuals...", sample_size);
     for (compartment_id, compartment) in simulations.iter().enumerate() {
         let barcode = format!("sample_{generation}_{compartment_id}");
@@ -221,8 +221,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
 
         let genotypes: HashMap<usize, HaplotypeRef> = simulations
             .iter()
-            .map(|simulation| simulation.get_genotypes())
-            .flatten()
+            .flat_map(|simulation| simulation.get_genotypes())
             .collect();
 
         // update populations
@@ -299,8 +298,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
 
         let genotypes: HashMap<usize, HaplotypeRef> = simulations
             .iter()
-            .map(|simulation| simulation.get_genotypes())
-            .flatten()
+            .flat_map(|simulation| simulation.get_genotypes())
             .collect();
 
         // update populations

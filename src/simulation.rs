@@ -8,7 +8,6 @@ use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::cmp::min;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
@@ -115,7 +114,7 @@ impl Simulation {
             if let Some(host_id) = *host {
                 host_map
                     .entry(host_id)
-                    .or_insert(Vec::with_capacity(capacity))
+                    .or_insert_with(|| Vec::with_capacity(capacity))
                     .push(infectant);
             }
         }
@@ -146,14 +145,12 @@ impl Simulation {
                     rand::seq::index::sample(&mut rng, sequence_length, 2).into_vec();
                 recombination_sites.sort();
                 let recombinant = Haplotype::create_recombinant(
-                    &self
-                        .genotypes
+                    self.genotypes
                         .get(infectant_a)
-                        .expect(format!("Infectant {} not found", infectant_a).as_str()),
-                    &self
-                        .genotypes
+                        .unwrap_or_else(|| panic!("Infectant {} not found", infectant_a)),
+                    self.genotypes
                         .get(infectant_b)
-                        .expect(format!("Infectant {} not found", infectant_b).as_str()),
+                        .unwrap_or_else(|| panic!("Infectant {} not found", infectant_b)),
                     recombination_sites[0],
                     recombination_sites[1],
                 );
@@ -165,7 +162,7 @@ impl Simulation {
     fn _mutate_infectants(
         &self,
         sequence_length: usize,
-        infectants: &Vec<usize>,
+        infectants: &[usize],
     ) -> Vec<(usize, HaplotypeRef)> {
         infectants
             .iter()
@@ -289,7 +286,7 @@ impl Simulation {
         }
     }
 
-    fn _replicate_infectants(&self, infectants: &Vec<usize>) -> Vec<(usize, f64)> {
+    fn _replicate_infectants(&self, infectants: &[usize]) -> Vec<(usize, f64)> {
         infectants
             .iter()
             .filter_map(|infectant| {
