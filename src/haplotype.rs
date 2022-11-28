@@ -460,13 +460,13 @@ impl Recombinant {
         };
         if inner.is_empty() {
             format!(
-                "#R'{}r{}'",
+                "#R'{}_{}'",
                 self.reference.upgrade().unwrap().get_string(),
                 self.reference.get_block_id(),
             )
         } else {
             format!(
-                "({})#R'{}r{}'",
+                "({})#R'{}_{}'",
                 inner,
                 self.reference.upgrade().unwrap().get_string(),
                 self.reference.get_block_id(),
