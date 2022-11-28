@@ -587,7 +587,7 @@ mod tests {
         let rc_id = rc.get_block_id();
         assert_eq!(
             wt.get_tree(),
-            format!("((#R'0:0->3r{rc_id}')'0:0->3m{ht_id}',#R'0:0->3r{rc_id}')wt;")
+            format!("((#R'0:0->3_{rc_id}')'0:0->3m{ht_id}',#R'0:0->3_{rc_id}')wt;")
         );
     }
 }
