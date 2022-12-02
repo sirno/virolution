@@ -24,7 +24,7 @@ fn main() {
         utility: UtilityFunction::Linear,
     };
 
-    let fitness_table = FitnessTable::new(&sequence, 4, fitness_model);
+    let fitness_table = FitnessTable::new(&sequence, 4, fitness_model.clone());
 
     let wt = Wildtype::new(sequence);
     let ht = wt.create_descendant(vec![2], vec![Some(0x01)]);
@@ -55,7 +55,7 @@ fn main() {
         basic_reproductive_number: 100.,
         max_population: 1_000_000,
         dilution: 0.02,
-        fitness_distribution: distribution,
+        fitness_model: fitness_model,
     };
     simulation_settings
         .write_to_file("settings_example.yaml")

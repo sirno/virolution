@@ -413,7 +413,10 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fitness::{ExponentialParameters, FitnessDistribution, MutationCategoryWeights};
+    use crate::fitness::{
+        ExponentialParameters, FitnessDistribution, FitnessModel, MutationCategoryWeights,
+        UtilityFunction,
+    };
     use crate::haplotype::Wildtype;
 
     const DISTRIBUTION: FitnessDistribution =
@@ -427,6 +430,11 @@ mod tests {
             lambda_beneficial: 0.03,
             lambda_deleterious: 0.21,
         });
+
+    const FITNESS_MODEL: FitnessModel = FitnessModel {
+        distribution: DISTRIBUTION,
+        utility: UtilityFunction::Linear,
+    };
 
     const SIMULATION_SETTINGS: SimulationSettings = SimulationSettings {
         mutation_rate: 1e-3,
@@ -442,14 +450,14 @@ mod tests {
         basic_reproductive_number: 100.,
         max_population: 100000000,
         dilution: 0.17,
-        fitness_distribution: DISTRIBUTION,
+        fitness_model: FITNESS_MODEL,
     };
 
     #[test]
     fn next_generation() {
         let sequence = vec![Some(0x00); 100];
 
-        let fitness_table = FitnessTable::new(&sequence, 4, DISTRIBUTION);
+        let fitness_table = FitnessTable::new(&sequence, 4, FITNESS_MODEL);
 
         let wt = Wildtype::new(sequence);
         let genotypes = HashMap::from_iter([(wt.get_id(), wt.get_clone())].iter().cloned());
@@ -468,7 +476,7 @@ mod tests {
     fn next_generation_without_population() {
         let sequence = vec![Some(0x00); 100];
 
-        let fitness_table = FitnessTable::new(&sequence, 4, DISTRIBUTION);
+        let fitness_table = FitnessTable::new(&sequence, 4, FITNESS_MODEL);
 
         let wt = Wildtype::new(sequence);
         let genotypes = HashMap::from_iter([(wt.get_id(), wt.get_clone())].iter().cloned());

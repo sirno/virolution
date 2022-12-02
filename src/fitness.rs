@@ -53,8 +53,8 @@ impl MutationCategoryWeights {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct FitnessModel {
-    distribution: FitnessDistribution,
-    utility: UtilityFunction,
+    pub distribution: FitnessDistribution,
+    pub utility: UtilityFunction,
 }
 
 impl FitnessModel {

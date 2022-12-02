@@ -387,12 +387,8 @@ mod tests {
             lambda_beneficial: 0.03,
             lambda_deleterious: 0.21,
         });
-
-        let fitness_table = FitnessTable::new(
-            &sequence,
-            4,
-            FitnessModel::new(distribution, UtilityFunction::Linear),
-        );
+        let fitness_model = FitnessModel::new(distribution, UtilityFunction::Linear);
+        let fitness_table = FitnessTable::new(&sequence, 4, fitness_model.clone());
 
         let wt = Wildtype::new(sequence);
         let genotypes = HashMap::from_iter([(wt.get_id(), wt.get_clone())]);
@@ -411,7 +407,7 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100000000,
             dilution: 0.17,
-            fitness_distribution: distribution,
+            fitness_model,
         };
         let mut simulation =
             Simulation::new(wt, init_population, genotypes, fitness_table, settings);
