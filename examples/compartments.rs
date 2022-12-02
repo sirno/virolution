@@ -24,7 +24,7 @@ fn main() {
     });
     let fitness_model = FitnessModel {
         distribution: distribution.clone(),
-        utility_function: UtilityFunction::Linear,
+        utility: UtilityFunction::Linear,
     };
 
     let fitness_table = FitnessTable::new(&sequence, 4, fitness_model);

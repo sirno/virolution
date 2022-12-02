@@ -54,14 +54,14 @@ impl MutationCategoryWeights {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct FitnessModel {
     distribution: FitnessDistribution,
-    utility_function: UtilityFunction,
+    utility: UtilityFunction,
 }
 
 impl FitnessModel {
-    pub fn new(distribution: FitnessDistribution, utility_function: UtilityFunction) -> Self {
+    pub fn new(distribution: FitnessDistribution, utility: UtilityFunction) -> Self {
         Self {
             distribution,
-            utility_function,
+            utility,
         }
     }
 }
@@ -149,7 +149,7 @@ impl FitnessTable {
     }
 
     pub fn utility(&self, fitness: f64) -> f64 {
-        match self.fitness_model.utility_function {
+        match self.fitness_model.utility {
             UtilityFunction::Linear => fitness,
             UtilityFunction::Algebraic { upper } => 2. * fitness * upper / (2. * fitness + upper),
         }
@@ -168,7 +168,7 @@ mod tests {
             4,
             FitnessModel {
                 distribution: FitnessDistribution::Neutral,
-                utility_function: UtilityFunction::Linear,
+                utility: UtilityFunction::Linear,
             },
         );
         for val in fitness.table {
@@ -195,7 +195,7 @@ mod tests {
             4,
             FitnessModel {
                 distribution,
-                utility_function: UtilityFunction::Linear,
+                utility: UtilityFunction::Linear,
             },
         );
         for (idx, val) in fitness.table.into_iter().enumerate() {
@@ -215,7 +215,7 @@ mod tests {
             4,
             FitnessModel {
                 distribution: FitnessDistribution::Neutral,
-                utility_function: UtilityFunction::Linear,
+                utility: UtilityFunction::Linear,
             },
         );
         for position in 0..100 {
@@ -234,7 +234,7 @@ mod tests {
             4,
             FitnessModel {
                 distribution: FitnessDistribution::Neutral,
-                utility_function: UtilityFunction::Linear,
+                utility: UtilityFunction::Linear,
             },
         );
         let mut buffer = Vec::new();

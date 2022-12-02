@@ -71,7 +71,7 @@ mod tests {
             dilution: 0.17,
             fitness_model: FitnessModel {
                 distribution: FitnessDistribution::Neutral,
-                utility_function: UtilityFunction::Linear,
+                utility: UtilityFunction::Linear,
             },
         };
         settings.write(&mut buffer).unwrap();
@@ -107,7 +107,7 @@ mod tests {
                     lambda_beneficial: 0.03,
                     lambda_deleterious: 0.21,
                 }),
-                utility_function: UtilityFunction::Linear,
+                utility: UtilityFunction::Linear,
             },
         };
         settings.write(&mut buffer).unwrap();
@@ -133,7 +133,7 @@ mod tests {
             dilution: 0.17,
             fitness_model: FitnessModel {
                 distribution: FitnessDistribution::Neutral,
-                utility_function: UtilityFunction::Linear,
+                utility: UtilityFunction::Linear,
             },
         };
         settings.write_to_file("test_settings.yaml").unwrap();
