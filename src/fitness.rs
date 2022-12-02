@@ -151,7 +151,10 @@ impl FitnessTable {
     pub fn utility(&self, fitness: f64) -> f64 {
         match self.fitness_model.utility {
             UtilityFunction::Linear => fitness,
-            UtilityFunction::Algebraic { upper } => 2. * fitness * upper / (2. * fitness + upper),
+            UtilityFunction::Algebraic { upper } => {
+                let factor = 1. / (upper - 1.);
+                upper * factor * fitness / (1. + factor * fitness)
+            }
         }
     }
 }
