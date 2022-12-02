@@ -206,7 +206,7 @@ impl Haplotype {
                 fitness *= fitness_table.get_fitness(&position, &to);
             }
 
-            fitness
+            fitness_table.utility(fitness)
         };
 
         match self {

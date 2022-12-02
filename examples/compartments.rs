@@ -22,8 +22,12 @@ fn main() {
         lambda_beneficial: 0.03,
         lambda_deleterious: 0.21,
     });
+    let fitness_model = FitnessModel {
+        distribution: distribution.clone(),
+        utility_function: UtilityFunction::Linear,
+    };
 
-    let fitness_table = FitnessTable::new(&sequence, 4, distribution.clone());
+    let fitness_table = FitnessTable::new(&sequence, 4, fitness_model);
 
     let wt = Wildtype::new(sequence);
     let settings = SimulationSettings {

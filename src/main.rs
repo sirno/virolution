@@ -345,7 +345,7 @@ fn main() {
     log::info!("Loaded settings\n{}", settings);
 
     // create and write fitness table
-    let fitness_table = FitnessTable::new(&sequence, 4, settings.fitness_distribution.clone());
+    let fitness_table = FitnessTable::new(&sequence, 4, settings.fitness_model.clone());
     let mut fitness_file =
         io::BufWriter::new(fs::File::create(args.fitness_table.clone()).unwrap());
     fitness_table.write(&mut fitness_file).unwrap();
@@ -388,7 +388,11 @@ mod tests {
             lambda_deleterious: 0.21,
         });
 
-        let fitness_table = FitnessTable::new(&sequence, 4, distribution.clone());
+        let fitness_table = FitnessTable::new(
+            &sequence,
+            4,
+            FitnessModel::new(distribution, UtilityFunction::Linear),
+        );
 
         let wt = Wildtype::new(sequence);
         let genotypes = HashMap::from_iter([(wt.get_id(), wt.get_clone())]);

@@ -1,4 +1,4 @@
-use super::fitness::FitnessDistribution;
+use super::fitness::FitnessModel;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
@@ -12,7 +12,7 @@ pub struct SimulationSettings {
     pub max_population: usize,
     pub dilution: f64,
     pub substitution_matrix: [[f64; 4]; 4],
-    pub fitness_distribution: FitnessDistribution,
+    pub fitness_model: FitnessModel,
 }
 
 impl std::fmt::Display for SimulationSettings {
@@ -69,7 +69,10 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_distribution: FitnessDistribution::Neutral,
+            fitness_model: FitnessModel {
+                distribution: FitnessDistribution::Neutral,
+                utility_function: UtilityFunction::Linear,
+            },
         };
         settings.write(&mut buffer).unwrap();
         let read_settings = SimulationSettings::read(&mut buffer.as_slice()).unwrap();
@@ -93,16 +96,19 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_distribution: FitnessDistribution::Exponential(ExponentialParameters {
-                weights: MutationCategoryWeights {
-                    beneficial: 0.29,
-                    deleterious: 0.51,
-                    lethal: 0.2,
-                    neutral: 0.,
-                },
-                lambda_beneficial: 0.03,
-                lambda_deleterious: 0.21,
-            }),
+            fitness_model: FitnessModel {
+                distribution: FitnessDistribution::Exponential(ExponentialParameters {
+                    weights: MutationCategoryWeights {
+                        beneficial: 0.29,
+                        deleterious: 0.51,
+                        lethal: 0.2,
+                        neutral: 0.,
+                    },
+                    lambda_beneficial: 0.03,
+                    lambda_deleterious: 0.21,
+                }),
+                utility_function: UtilityFunction::Linear,
+            },
         };
         settings.write(&mut buffer).unwrap();
         let read_settings = SimulationSettings::read(&mut buffer.as_slice()).unwrap();
@@ -125,7 +131,10 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_distribution: FitnessDistribution::Neutral,
+            fitness_model: FitnessModel {
+                distribution: FitnessDistribution::Neutral,
+                utility_function: UtilityFunction::Linear,
+            },
         };
         settings.write_to_file("test_settings.yaml").unwrap();
         let read_settings = SimulationSettings::read_from_file("test_settings.yaml").unwrap();
