@@ -247,7 +247,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
 }
 
 #[cfg(not(feature = "parallel"))]
-fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
+fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
     // init progress bar
     let bar = ProgressBar::new(args.generations as u64);
     bar.set_style(

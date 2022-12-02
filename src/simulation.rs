@@ -369,7 +369,7 @@ impl Simulation {
             return Vec::new();
         }
 
-        let offspring_size: usize = offspring_map.into_iter().sum();
+        let offspring_size: usize = offspring_map.iter().sum();
         let sample_size = (factor
             * min(
                 (offspring_size as f64 * self.simulation_settings.dilution) as usize,
