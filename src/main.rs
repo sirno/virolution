@@ -141,6 +141,22 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
     );
 
     for generation in 0..=args.generations {
+        // logging
+        let population_sizes: Vec<usize> = simulations
+            .iter()
+            .map(|sim| sim.get_population().len())
+            .collect();
+
+        log::info!(
+            r###"
+    generation={generation}
+    population_sizes={population_sizes:?}"###
+        );
+
+        // update progress bar
+        bar.set_position(generation.try_into().unwrap());
+        bar.set_message(format!("{population_sizes:?}"));
+
         // write to output when sampling
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
@@ -182,22 +198,6 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
         for (simulation, population) in simulations.iter_mut().zip(populations) {
             simulation.set_population(population);
         }
-
-        // logging
-        let population_sizes: Vec<usize> = simulations
-            .iter()
-            .map(|sim| sim.get_population().len())
-            .collect();
-
-        log::info!(
-            r###"
-    generation={generation}
-    population_sizes={population_sizes:?}"###
-        );
-
-        // update progress bar
-        bar.set_position(generation.try_into().unwrap());
-        bar.set_message(format!("{population_sizes:?}"));
     }
     bar.finish_with_message("Done.");
     log::info!("Finished simulation.");
