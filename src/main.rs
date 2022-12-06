@@ -6,12 +6,10 @@ extern crate test;
 
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
-use rand::prelude::*;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use seq_io::fasta;
 use seq_io::fasta::Record;
-use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::panic::catch_unwind;
@@ -20,6 +18,7 @@ use virolution::args::*;
 use virolution::barcode::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
+use virolution::population::Population;
 use virolution::references::HaplotypeRef;
 use virolution::simulation::*;
 use virolution::simulation_settings::*;
@@ -68,7 +67,7 @@ fn create_simulations(
         .into_par_iter()
         .map(|compartment_idx| {
             let wildtype_id = wildtype.get_id();
-            let genotypes = HashMap::from_iter([(wildtype_id, wildtype.get_clone())]);
+            let haplotypes = HashMap::from_iter([(wildtype_id, wildtype.get_clone())]);
             let init_population: Population = if compartment_idx == 0 {
                 (0..args.initial_population_size)
                     .into_par_iter()
@@ -80,7 +79,7 @@ fn create_simulations(
             Simulation::new(
                 wildtype.get_clone(),
                 init_population,
-                genotypes,
+                haplotypes,
                 fitness_table.clone(),
                 settings.clone(),
             )
@@ -98,19 +97,14 @@ fn create_simulations(
     (0..args.n_compartments)
         .into_iter()
         .map(|compartment_idx| {
-            let wildtype_id = wildtype.get_id();
-            let genotypes = HashMap::from_iter([(wildtype_id, wildtype.get_clone())]);
             let init_population: Population = if compartment_idx == 0 {
-                (0..args.initial_population_size)
-                    .map(|_| wildtype_id)
-                    .collect()
+                Population::with_size(args.initial_population_size, wildtype.get_clone())
             } else {
-                Vec::new()
+                Population::new()
             };
             Simulation::new(
                 wildtype.get_clone(),
                 init_population,
-                genotypes,
                 fitness_table.clone(),
                 settings.clone(),
             )
@@ -139,9 +133,10 @@ fn sample(simulations: &[Simulation], sample_size: usize, generation: usize, arg
         for (sequence_id, sequence) in compartment
             .get_population()
             .choose_multiple(&mut rand::thread_rng(), sample_size)
+            .into_iter()
             .enumerate()
         {
-            let record = compartment.get_genotype(sequence).get_record(
+            let record = sequence.get_record(
                 format!(
                     "compartment_id={};sequence_id={};generation={}",
                     compartment_id, sequence_id, generation
@@ -219,14 +214,14 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
             })
             .collect();
 
-        let genotypes: HashMap<usize, HaplotypeRef> = simulations
+        let haplotypes: Haplotypes = simulations
             .iter()
-            .flat_map(|simulation| simulation.get_genotypes())
+            .flat_map(|simulation| simulation.get_population().get_haplotypes())
             .collect();
 
         // update populations
         for (idx, simulation) in simulations.iter_mut().enumerate() {
-            simulation.set_population(populations[idx].clone(), Some(&genotypes));
+            simulation.set_population(populations[idx].clone(), Some(&haplotypes));
         }
 
         // logging
@@ -284,30 +279,23 @@ fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
         let populations: Vec<Population> = (0..args.n_compartments)
             .into_iter()
             .map(|target| {
-                let target_populations: Vec<Population> = (0..args.n_compartments)
-                    .into_iter()
-                    .map(|origin| {
-                        simulations[origin]
-                            .subsample_population(&offsprings[origin], transfer[target][origin])
-                    })
-                    .collect();
-
-                target_populations.concat()
+                Population::from_iter((0..args.n_compartments).map(|origin| {
+                    simulations[origin]
+                        .subsample_population(&offsprings[origin], transfer[target][origin])
+                }))
             })
             .collect();
 
-        let genotypes: HashMap<usize, HaplotypeRef> = simulations
-            .iter()
-            .flat_map(|simulation| simulation.get_genotypes())
-            .collect();
-
         // update populations
-        for (idx, simulation) in simulations.iter_mut().enumerate() {
-            simulation.set_population(populations[idx].clone(), Some(&genotypes));
+        for (simulation, population) in simulations.iter_mut().zip(populations) {
+            simulation.set_population(population);
         }
 
         // logging
-        let population_sizes: Vec<usize> = populations.iter().map(|pop| pop.len()).collect();
+        let population_sizes: Vec<usize> = simulations
+            .iter()
+            .map(|sim| sim.get_population().len())
+            .collect();
 
         log::info!(
             r###"
@@ -369,8 +357,6 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use super::*;
     use test::Bencher;
 
@@ -391,8 +377,7 @@ mod tests {
         let fitness_table = FitnessTable::new(&sequence, 4, fitness_model.clone());
 
         let wt = Wildtype::new(sequence);
-        let genotypes = HashMap::from_iter([(wt.get_id(), wt.get_clone())]);
-        let init_population: Population = (0..10).map(|_| wt.get_id()).collect();
+        let population: Population = Population::with_size(10, wt.get_clone());
         let settings = SimulationSettings {
             mutation_rate: 1e-3,
             recombination_rate: 1e-5,
@@ -409,8 +394,7 @@ mod tests {
             dilution: 0.17,
             fitness_model,
         };
-        let mut simulation =
-            Simulation::new(wt, init_population, genotypes, fitness_table, settings);
+        let mut simulation = Simulation::new(wt, population, fitness_table, settings);
         b.iter(|| {
             simulation.next_generation();
         })

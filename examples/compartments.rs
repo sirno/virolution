@@ -1,9 +1,9 @@
 extern crate virolution;
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use virolution::fitness::*;
 use virolution::haplotype::*;
+use virolution::population::*;
 use virolution::simulation::*;
 use virolution::simulation_settings::*;
 use virolution::transfers::*;
@@ -50,12 +50,10 @@ fn main() {
     let n_compartments = 3;
     let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
         .map(|_| {
-            let genotypes = HashMap::from_iter([(wt.get_id(), wt.get_clone())]);
-            let init_population = (0..1_000_000).map(|_| wt.get_id()).collect();
+            let population = Population::with_size(1_000_000, wt.get_clone());
             Simulation::new(
                 wt.get_clone(),
-                init_population,
-                genotypes,
+                population,
                 fitness_table.clone(),
                 settings.clone(),
             )
@@ -74,23 +72,20 @@ fn main() {
             })
             .collect();
 
-        let mut populations: Vec<Population> = vec![Vec::new(); n_compartments];
-        let mut genotypes: Vec<Genotypes> = vec![HashMap::new(); n_compartments];
         let transfers = plan.get_transfer_matrix(gen);
-        for origin in 0..n_compartments {
-            for target in 0..n_compartments {
-                if transfers[origin][target] == 0. {
-                    continue;
-                }
-                let mut population = compartment_simulations[origin]
-                    .subsample_population(&offsprings[origin], transfers[origin][target]);
-                populations[target].append(&mut population);
-                genotypes[target].extend(compartment_simulations[origin].get_genotypes());
-            }
-        }
+
+        let populations: Vec<Population> = (0..n_compartments)
+            .into_iter()
+            .map(|target| {
+                Population::from_iter((0..n_compartments).map(|origin| {
+                    compartment_simulations[origin]
+                        .subsample_population(&offsprings[origin], transfers[target][origin])
+                }))
+            })
+            .collect();
 
         for (idx, simulation) in compartment_simulations.iter_mut().enumerate() {
-            simulation.set_population(populations[idx].clone(), Some(&genotypes[idx]));
+            simulation.set_population(populations[idx].clone());
         }
     }
 }

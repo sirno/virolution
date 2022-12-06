@@ -9,21 +9,44 @@ use std::ops::Index;
 
 use crate::references::HaplotypeRef;
 
-pub type Genotypes = HashMap<usize, HaplotypeRef>;
+pub type Haplotypes = HashMap<usize, HaplotypeRef>;
 
 #[derive(Clone)]
 pub struct Population {
     population: Vec<usize>,
-    genotypes: Genotypes,
+    haplotypes: Haplotypes,
+}
+
+pub struct PopulationIterator<'a> {
+    population: &'a Population,
+    index: usize,
 }
 
 impl Index<&usize> for Population {
     type Output = HaplotypeRef;
 
     fn index(&self, index: &usize) -> &Self::Output {
-        self.genotypes
-            .get(index)
-            .unwrap_or_else(|| panic!("No genotype with index {}", index))
+        let ref_id = &self.population[*index];
+        self.haplotypes
+            .get(ref_id)
+            .unwrap_or_else(|| panic!("No haplotype with index {}", index))
+    }
+}
+
+impl<'a> Iterator for PopulationIterator<'a> {
+    type Item = &'a HaplotypeRef;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index > self.population.len() {
+            return None;
+        }
+
+        self.index += 1;
+        let ref_id = self.population.population[self.index];
+        self.population
+            .haplotypes
+            .get(&ref_id)
+            .or_else(|| panic!("No haplotype with index {}", ref_id))
     }
 }
 
@@ -31,34 +54,40 @@ impl Population {
     pub fn new() -> Self {
         Self {
             population: Vec::new(),
-            genotypes: Genotypes::new(),
+            haplotypes: Haplotypes::new(),
         }
     }
 
-    pub fn with_size(size: usize, genotype: HaplotypeRef) -> Self {
-        let ref_id = genotype.get_id();
+    pub fn with_size(size: usize, haplotype: HaplotypeRef) -> Self {
+        let ref_id = haplotype.get_id();
         let population = vec![ref_id; size];
-        let mut genotypes = Genotypes::new();
-        genotypes.insert(genotype.get_id(), genotype);
+        let mut haplotypes = Haplotypes::new();
+        haplotypes.insert(haplotype.get_id(), haplotype);
         Self {
             population,
-            genotypes,
+            haplotypes,
         }
     }
 
-    pub fn from(population: Vec<usize>, ancestors: &[Genotypes]) -> Self {
-        let genotypes = HashMap::from_iter(population.iter().unique().map(|&id| {
-            for ancestor in ancestors {
-                match ancestor.get(&id) {
-                    Some(haplotype) => return (id, haplotype.clone()),
-                    None => continue,
-                };
-            }
-            panic!("No haplotype with id {}", id);
-        }));
+    pub fn from_iter(populations: impl Iterator<Item = Self>) -> Self {
+        let mut population = Vec::new();
+        let mut haplotypes = Haplotypes::new();
+        for pop in populations {
+            pop.population.iter().unique().for_each(|&ref_id| {
+                haplotypes.insert(ref_id, pop.haplotypes[&ref_id].clone());
+            });
+            population.extend(pop.population);
+        }
         Self {
             population,
-            genotypes,
+            haplotypes,
+        }
+    }
+
+    pub fn iter(&self) -> PopulationIterator {
+        PopulationIterator {
+            population: self,
+            index: 0,
         }
     }
 
@@ -66,10 +95,14 @@ impl Population {
         self.population.is_empty()
     }
 
+    pub fn len(&self) -> usize {
+        self.population.len()
+    }
+
     pub fn insert(&mut self, position: usize, haplotype: &HaplotypeRef) {
         let ref_id = haplotype.get_id();
         self.population[position] = ref_id;
-        self.genotypes
+        self.haplotypes
             .entry(ref_id)
             .or_insert_with(|| haplotype.clone());
     }
@@ -77,13 +110,24 @@ impl Population {
     pub fn push(&mut self, haplotype: &HaplotypeRef) {
         let ref_id = haplotype.get_id();
         self.population.push(ref_id);
-        self.genotypes
+        self.haplotypes
             .entry(ref_id)
             .or_insert_with(|| haplotype.clone());
     }
 
-    pub fn get_genotypes(&self) -> Genotypes {
-        self.genotypes.clone()
+    pub fn get_haplotypes(&self) -> Haplotypes {
+        self.haplotypes.clone()
+    }
+
+    pub fn choose_multiple(&self, rng: &mut ThreadRng, amount: usize) -> Vec<&HaplotypeRef> {
+        self.population
+            .choose_multiple(rng, amount)
+            .map(|&id| {
+                self.haplotypes
+                    .get(&id)
+                    .unwrap_or_else(|| panic!("No haplotype with index {}", id))
+            })
+            .collect()
     }
 
     #[cfg(feature = "parallel")]
@@ -111,13 +155,13 @@ impl Population {
             })
             .collect();
 
-        Self::from(population, &[self.genotypes])
+        Self::from(population, &[self.haplotypes])
     }
 
     #[cfg(not(feature = "parallel"))]
     pub fn subsample_population(
         &self,
-        offspring_map: &Vec<usize>,
+        offspring_map: &[usize],
         factor: f64,
         dilution: f64,
         max: usize,
@@ -137,6 +181,9 @@ impl Population {
             .map(|_| self.population[sampler.sample(&mut rng)])
             .collect();
 
-        Self::from(population, &[self.genotypes])
+        Self {
+            population,
+            haplotypes: self.haplotypes.clone(),
+        }
     }
 }

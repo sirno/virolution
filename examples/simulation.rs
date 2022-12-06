@@ -1,9 +1,9 @@
 extern crate virolution;
 
-use std::collections::HashMap;
 use std::fs;
 use virolution::fitness::*;
 use virolution::haplotype::*;
+use virolution::population::Population;
 use virolution::simulation::*;
 use virolution::simulation_settings::*;
 
@@ -39,8 +39,7 @@ fn main() {
     println!("ht3: {}", ht3.get_fitness(&fitness_table));
     println!("ht4: {}", ht4.get_fitness(&fitness_table));
 
-    let genotypes = HashMap::from_iter([(wt.get_id(), wt.get_clone())]);
-    let population = (0..10).map(|_| wt.get_id()).collect();
+    let population = Population::with_size(10, wt.get_clone());
     let simulation_settings = SimulationSettings {
         mutation_rate: 1e-6,
         recombination_rate: 0.,
@@ -64,8 +63,7 @@ fn main() {
     let settings = SimulationSettings::read_from_file("settings_example.yaml")
         .expect("Failed to read settings from file");
     fs::remove_file("settings_example.yaml").expect("Unable to remove file.");
-    let mut simulation =
-        Simulation::new(wt, population, genotypes, fitness_table, settings.clone());
+    let mut simulation = Simulation::new(wt, population, fitness_table, settings.clone());
     let infectant_map = simulation.get_infectant_map();
     let host_map = simulation.get_host_map(&infectant_map);
     simulation.mutate_infectants(&host_map);
@@ -82,7 +80,7 @@ fn main() {
         simulation
             .get_population()
             .iter()
-            .map(|haplotype_id| simulation.get_genotype(haplotype_id).get_string())
+            .map(|haplotype| haplotype.get_string())
             .collect::<Vec<String>>()
     );
     println!("offspring: {:?}", offspring);
@@ -90,7 +88,7 @@ fn main() {
         "subsample: {:?}",
         population2
             .iter()
-            .map(|haplotype_id| simulation.get_genotype(haplotype_id).get_string())
+            .map(|haplotype| haplotype.get_string())
             .collect::<Vec<String>>()
     );
 }
