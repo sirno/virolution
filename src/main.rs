@@ -163,6 +163,11 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
             sample(simulations, sample_size, generation, args);
         }
 
+        // abort on last generation after sampling
+        if generation == args.generations {
+            break;
+        }
+
         // simulate compartmentalized population in parallel
         let infectant_maps: Vec<Vec<Option<usize>>> = simulations
             .par_iter()
