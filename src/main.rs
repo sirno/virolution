@@ -56,38 +56,6 @@ fn load_sequence(path: &str) -> Vec<Symbol> {
         .collect()
 }
 
-#[cfg(feature = "parallel")]
-fn create_simulations(
-    args: &Args,
-    wildtype: &HaplotypeRef,
-    fitness_table: FitnessTable,
-    settings: SimulationSettings,
-) -> Vec<Simulation> {
-    (0..args.n_compartments)
-        .into_par_iter()
-        .map(|compartment_idx| {
-            let wildtype_id = wildtype.get_id();
-            let haplotypes = HashMap::from_iter([(wildtype_id, wildtype.get_clone())]);
-            let init_population: Population = if compartment_idx == 0 {
-                (0..args.initial_population_size)
-                    .into_par_iter()
-                    .map(|_| wildtype_id)
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            Simulation::new(
-                wildtype.get_clone(),
-                init_population,
-                haplotypes,
-                fitness_table.clone(),
-                settings.clone(),
-            )
-        })
-        .collect()
-}
-
-#[cfg(not(feature = "parallel"))]
 fn create_simulations(
     args: &Args,
     wildtype: &HaplotypeRef,
@@ -195,37 +163,26 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
 
         // transfer between compartments
         let transfer = plan.get_transfer_matrix(generation);
-
         let populations: Vec<Population> = (0..args.n_compartments)
             .into_par_iter()
             .map(|target| {
-                let target_populations: Vec<Population> = (0..args.n_compartments)
-                    .into_iter()
-                    .filter_map(|origin| {
-                        let factor = transfer[target][origin];
-                        if factor == 0. {
-                            return None;
-                        }
-                        Some(simulations[origin].subsample_population(&offsprings[origin], factor))
-                    })
-                    .collect();
-
-                target_populations.concat()
+                Population::from_iter((0..args.n_compartments).map(|origin| {
+                    simulations[origin]
+                        .subsample_population(&offsprings[origin], transfer[target][origin])
+                }))
             })
             .collect();
 
-        let haplotypes: Haplotypes = simulations
-            .iter()
-            .flat_map(|simulation| simulation.get_population().get_haplotypes())
-            .collect();
-
         // update populations
-        for (idx, simulation) in simulations.iter_mut().enumerate() {
-            simulation.set_population(populations[idx].clone(), Some(&haplotypes));
+        for (simulation, population) in simulations.iter_mut().zip(populations) {
+            simulation.set_population(population);
         }
 
         // logging
-        let population_sizes: Vec<usize> = populations.iter().map(|pop| pop.len()).collect();
+        let population_sizes: Vec<usize> = simulations
+            .iter()
+            .map(|sim| sim.get_population().len())
+            .collect();
 
         log::info!(
             r###"

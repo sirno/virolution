@@ -155,7 +155,10 @@ impl Population {
             })
             .collect();
 
-        Self::from(population, &[self.haplotypes])
+        Self {
+            population,
+            haplotypes: self.haplotypes.clone(),
+        }
     }
 
     #[cfg(not(feature = "parallel"))]

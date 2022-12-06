@@ -198,7 +198,7 @@ impl Simulation {
 
             // collect recominants
             for (position, recombinant) in recombination_receiver.iter() {
-                self.population.insert(position, recombinant);
+                self.population.insert(position, &recombinant);
             }
         }
 
@@ -219,7 +219,7 @@ impl Simulation {
 
         // collect mutants
         for (position, mutant) in mutation_receiver.iter() {
-            self.population.insert(position, mutant);
+            self.population.insert(position, &mutant);
         }
     }
 
