@@ -8,9 +8,9 @@ use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
-use std::collections::HashMap;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
+use std::{cmp::min, collections::HashMap};
 
 pub type HostMap = HashMap<usize, Vec<usize>>;
 
@@ -318,21 +318,23 @@ impl Simulation {
         let offspring_map = self.replicate_infectants(&host_map);
 
         // subsample population
-        self.population = self.population.subsample_population(
-            &offspring_map,
-            1.,
-            self.simulation_settings.dilution,
-            self.simulation_settings.max_population,
-        );
+        self.population = self.subsample_population(&offspring_map, 1.);
     }
 
     pub fn subsample_population(&self, offspring_map: &[usize], factor: f64) -> Population {
-        self.population.subsample_population(
-            offspring_map,
-            factor,
-            self.simulation_settings.dilution,
-            self.simulation_settings.max_population,
-        )
+        // if there is no offspring, return empty population
+        if offspring_map.is_empty() {
+            return Population::new();
+        }
+
+        let offspring_size: usize = offspring_map.iter().sum();
+        let sample_size = (factor
+            * min(
+                (offspring_size as f64 * self.simulation_settings.dilution) as usize,
+                self.simulation_settings.max_population,
+            ) as f64) as usize;
+
+        self.population.sample(sample_size, offspring_map)
     }
 
     pub fn print_population(&self) -> Vec<String> {

@@ -3,7 +3,6 @@ use rand::prelude::*;
 use rand_distr::WeightedIndex;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
-use std::cmp::min;
 use std::collections::HashMap;
 use std::ops::Index;
 
@@ -131,13 +130,7 @@ impl Population {
     }
 
     #[cfg(feature = "parallel")]
-    pub fn subsample_population(
-        &self,
-        offspring_map: &[usize],
-        factor: f64,
-        dilution: f64,
-        max: usize,
-    ) -> Self {
+    pub fn sample(&self, offspring_map: &[usize], factor: f64, dilution: f64, max: usize) -> Self {
         // if there is no offspring, return empty population
         if offspring_map.is_empty() {
             return Self::new();
@@ -162,31 +155,22 @@ impl Population {
     }
 
     #[cfg(not(feature = "parallel"))]
-    pub fn subsample_population(
-        &self,
-        offspring_map: &[usize],
-        factor: f64,
-        dilution: f64,
-        max: usize,
-    ) -> Self {
-        // if there is no offspring, return empty population
-        if offspring_map.is_empty() {
-            return Self::new();
-        }
-
-        let offspring_size: usize = offspring_map.iter().sum();
-        let sample_size =
-            (factor * min((offspring_size as f64 * dilution) as usize, max) as f64) as usize;
-        let sampler = WeightedIndex::new(offspring_map).unwrap();
+    pub fn sample(&self, size: usize, weights: &[usize]) -> Self {
+        let sampler = WeightedIndex::new(weights).unwrap();
 
         let mut rng = rand::thread_rng();
-        let population = (0..sample_size)
+        let population: Vec<usize> = (0..size)
             .map(|_| self.population[sampler.sample(&mut rng)])
+            .collect();
+        let haplotypes: Haplotypes = population
+            .iter()
+            .unique()
+            .map(|&id| (id, self.haplotypes[&id].clone()))
             .collect();
 
         Self {
             population,
-            haplotypes: self.haplotypes.clone(),
+            haplotypes,
         }
     }
 }
