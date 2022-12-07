@@ -37,12 +37,12 @@ impl<'a> Iterator for PopulationIterator<'a> {
     type Item = &'a HaplotypeRef;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index > self.population.len() {
+        if self.index >= self.population.len() {
             return None;
         }
 
-        self.index += 1;
         let ref_id = self.population.population[self.index];
+        self.index += 1;
         self.population
             .haplotypes
             .get(&ref_id)
@@ -188,5 +188,75 @@ impl Population {
             population,
             haplotypes: self.haplotypes.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::haplotype::Wildtype;
+
+    #[test]
+    fn is_empty() {
+        let mut population = Population::new();
+        assert!(population.is_empty());
+
+        let wt = Wildtype::new(vec![Some(0x00); 10]);
+        population.push(&wt);
+        assert!(!population.is_empty());
+    }
+
+    #[test]
+    fn len() {
+        let mut population = Population::new();
+        assert_eq!(population.len(), 0);
+
+        let wt = Wildtype::new(vec![Some(0x00); 10]);
+        population.push(&wt);
+        assert_eq!(population.len(), 1);
+    }
+
+    #[test]
+    fn insert() {
+        let mut population = Population::new();
+        let wt = Wildtype::new(vec![Some(0x00); 10]);
+        population.push(&wt);
+        assert_eq!(population.len(), 1);
+        assert_eq!(population[&0], wt);
+
+        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+        population.insert(0, &wt2);
+        assert_eq!(population.len(), 1);
+        assert_ne!(population[&0], wt);
+        assert_eq!(population[&0], wt2);
+    }
+
+    #[test]
+    fn push() {
+        let mut population = Population::new();
+        let wt = Wildtype::new(vec![Some(0x00); 10]);
+        population.push(&wt);
+        assert_eq!(population.len(), 1);
+        assert_eq!(population[&0], wt);
+
+        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+        population.push(&wt2);
+        assert_eq!(population.len(), 2);
+        assert_eq!(population[&1], wt2);
+    }
+
+    #[test]
+    fn iterate() {
+        let mut population = Population::new();
+        let wt = Wildtype::new(vec![Some(0x00); 10]);
+        population.push(&wt);
+        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+        population.push(&wt2);
+
+        let mut iter = population.iter();
+        assert_eq!(iter.next().unwrap().get_id(), wt.get_id());
+        assert_eq!(iter.next().unwrap().get_id(), wt2.get_id());
+        assert_eq!(iter.next(), None);
     }
 }
