@@ -69,14 +69,14 @@ impl Population {
     }
 
     pub fn from_iter(populations: impl Iterator<Item = Self>) -> Self {
-        let mut population = Vec::new();
-        let mut haplotypes = Haplotypes::new();
+        let mut population: Vec<usize> = Vec::new();
+        let mut haplotypes: Haplotypes = Haplotypes::new();
+
         for pop in populations {
-            pop.population.iter().unique().for_each(|&ref_id| {
-                haplotypes.insert(ref_id, pop.haplotypes[&ref_id].clone());
-            });
             population.extend(pop.population);
+            haplotypes.extend(pop.haplotypes);
         }
+
         Self {
             population,
             haplotypes,
