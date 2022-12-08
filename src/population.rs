@@ -130,27 +130,25 @@ impl Population {
     }
 
     #[cfg(feature = "parallel")]
-    pub fn sample(&self, offspring_map: &[usize], factor: f64, dilution: f64, max: usize) -> Self {
-        // if there is no offspring, return empty population
-        if offspring_map.is_empty() {
-            return Self::new();
-        }
+    pub fn sample(&self, size: usize, weights: &[usize]) -> Self {
+        let sampler = WeightedIndex::new(weights).unwrap();
 
-        let offspring_size: usize = offspring_map.par_iter().sum();
-        let sample_size =
-            (factor * min((offspring_size as f64 * dilution) as usize, max) as f64) as usize;
-        let sampler = WeightedIndex::new(offspring_map).unwrap();
-
-        let population = (0..sample_size)
+        let population: Vec<usize> = (0..size)
             .into_par_iter()
-            .map_init(rand::thread_rng, |rng, _| {
-                self.population[sampler.sample(rng)]
-            })
+            .map_init(
+                || rand::thread_rng(),
+                |rng, _| self.population[sampler.sample(rng)],
+            )
+            .collect();
+        let haplotypes: Haplotypes = population
+            .iter()
+            .unique()
+            .map(|&id| (id, self.haplotypes[&id].clone()))
             .collect();
 
         Self {
             population,
-            haplotypes: self.haplotypes.clone(),
+            haplotypes,
         }
     }
 
