@@ -20,7 +20,7 @@ macro_rules! population {
     };
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Population {
     population: Vec<usize>,
     haplotypes: Haplotypes,
@@ -59,6 +59,23 @@ impl<'a> Iterator for PopulationIterator<'a> {
     }
 }
 
+impl FromIterator<Population> for Population {
+    fn from_iter<I: IntoIterator<Item = Self>>(iter: I) -> Self {
+        let mut population: Vec<usize> = Vec::new();
+        let mut haplotypes: Haplotypes = Haplotypes::new();
+
+        for pop in iter {
+            population.extend(pop.population);
+            haplotypes.extend(pop.haplotypes);
+        }
+
+        Self {
+            population,
+            haplotypes,
+        }
+    }
+}
+
 impl Population {
     pub fn new() -> Self {
         Self {
@@ -72,21 +89,6 @@ impl Population {
         let population = vec![ref_id; size];
         let mut haplotypes = Haplotypes::new();
         haplotypes.insert(haplotype.get_id(), haplotype);
-        Self {
-            population,
-            haplotypes,
-        }
-    }
-
-    pub fn from_iter(populations: impl Iterator<Item = Self>) -> Self {
-        let mut population: Vec<usize> = Vec::new();
-        let mut haplotypes: Haplotypes = Haplotypes::new();
-
-        for pop in populations {
-            population.extend(pop.population);
-            haplotypes.extend(pop.haplotypes);
-        }
-
         Self {
             population,
             haplotypes,
@@ -145,10 +147,9 @@ impl Population {
 
         let population: Vec<usize> = (0..size)
             .into_par_iter()
-            .map_init(
-                || rand::thread_rng(),
-                |rng, _| self.population[sampler.sample(rng)],
-            )
+            .map_init(rand::thread_rng, |rng, _| {
+                self.population[sampler.sample(rng)]
+            })
             .collect();
         let haplotypes: Haplotypes = population
             .iter()
@@ -250,5 +251,21 @@ mod tests {
         assert_eq!(iter.next().unwrap().get_id(), wt.get_id());
         assert_eq!(iter.next().unwrap().get_id(), wt2.get_id());
         assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn from_iter() {
+        let wt1 = Wildtype::new(vec![Some(0x00); 10]);
+        let mut population1 = Population::new();
+        population1.push(&wt1);
+
+        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+        let mut population2 = Population::new();
+        population2.push(&wt2);
+
+        let population = Population::from_iter(vec![population1, population2]);
+        assert_eq!(population.len(), 2);
+        assert_eq!(population[&0], wt1);
+        assert_eq!(population[&1], wt2);
     }
 }
