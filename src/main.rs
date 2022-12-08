@@ -169,14 +169,13 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
         }
 
         // simulate compartmentalized population in parallel
-        let infectant_maps: Vec<Vec<Option<usize>>> = simulations
-            .par_iter()
-            .map(|simulation| simulation.get_infectant_map())
-            .collect();
+        // let infectant_maps: Vec<Vec<Option<usize>>> = simulations
+        //     .par_iter()
+        //     .map(|simulation| simulation.get_infectant_map())
+        //     .collect();
         let host_maps: Vec<HostMap> = simulations
             .iter()
-            .zip(infectant_maps)
-            .map(|(simulation, infectant_map)| simulation.get_host_map(&infectant_map))
+            .map(|simulation| simulation.get_host_map())
             .collect();
         let offsprings: Vec<Vec<usize>> = simulations
             .par_iter_mut()
@@ -233,8 +232,7 @@ fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
                 if simulation.get_population().is_empty() {
                     return Vec::new();
                 }
-                let infectant_map = simulation.get_infectant_map();
-                let host_map = simulation.get_host_map(&infectant_map);
+                let host_map = simulation.get_host_map();
                 simulation.mutate_infectants(&host_map);
                 simulation.replicate_infectants(&host_map)
             })

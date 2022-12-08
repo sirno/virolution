@@ -58,46 +58,36 @@ impl Simulation {
     }
 
     #[cfg(feature = "parallel")]
-    pub fn get_infectant_map(&self) -> Vec<Option<usize>> {
-        (0..self.population.len())
-            .into_par_iter()
-            .map_init(rand::thread_rng, |rng, _| {
-                if self.infection_sampler.sample(rng) {
-                    Some(rng.gen_range(0..self.simulation_settings.host_population_size))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
-    #[cfg(not(feature = "parallel"))]
-    pub fn get_infectant_map(&self) -> Vec<Option<usize>> {
-        let mut rng = rand::thread_rng();
-        let infectant_map: Vec<Option<usize>> = (0..self.population.len())
-            .into_iter()
-            .map(|_| {
-                if self.infection_sampler.sample(&mut rng) {
-                    Some(rng.gen_range(0..self.simulation_settings.host_population_size))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        infectant_map
-    }
-
-    pub fn get_host_map(&self, infectant_map: &[Option<usize>]) -> HostMap {
+    pub fn get_host_map(&self) -> HostMap {
         let mut host_map: HostMap = HashMap::new();
-        let capacity = infectant_map.len() / self.simulation_settings.host_population_size + 1;
-        for (infectant, host) in infectant_map.iter().enumerate() {
-            if let Some(host_id) = *host {
+        let capacity = self.population.len() / self.simulation_settings.host_population_size + 1;
+        let mut rng = rand::thread_rng();
+        (0..self.population.len()).for_each(|infectant| {
+            if self.infection_sampler.sample(&mut rng) {
+                let host_id = rng.gen_range(0..self.simulation_settings.host_population_size);
                 host_map
                     .entry(host_id)
                     .or_insert_with(|| Vec::with_capacity(capacity))
                     .push(infectant);
             }
-        }
+        });
+        host_map
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    pub fn get_host_map(&self) -> HostMap {
+        let mut host_map: HostMap = HashMap::new();
+        let capacity = self.population.len() / self.simulation_settings.host_population_size + 1;
+        let mut rng = rand::thread_rng();
+        (0..self.population.len()).for_each(|infectant| {
+            if self.infection_sampler.sample(&mut rng) {
+                let host_id = rng.gen_range(0..self.simulation_settings.host_population_size);
+                host_map
+                    .entry(host_id)
+                    .or_insert_with(|| Vec::with_capacity(capacity))
+                    .push(infectant);
+            }
+        });
         host_map
     }
 
@@ -310,8 +300,7 @@ impl Simulation {
         }
 
         // simulate infection
-        let infectant_map = self.get_infectant_map();
-        let host_map = self.get_host_map(&infectant_map);
+        let host_map = self.get_host_map();
 
         // simulate replication and mutation
         self.mutate_infectants(&host_map);

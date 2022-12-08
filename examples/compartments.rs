@@ -65,8 +65,7 @@ fn main() {
         let offsprings: Vec<Vec<usize>> = compartment_simulations
             .iter_mut()
             .map(|simulation| {
-                let infectant_map = simulation.get_infectant_map();
-                let host_map = simulation.get_host_map(&infectant_map);
+                let host_map = simulation.get_host_map();
                 simulation.mutate_infectants(&host_map);
                 simulation.replicate_infectants(&host_map)
             })
