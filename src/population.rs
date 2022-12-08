@@ -10,6 +10,16 @@ use crate::references::HaplotypeRef;
 
 pub type Haplotypes = HashMap<usize, HaplotypeRef>;
 
+#[macro_export]
+macro_rules! population {
+    () => {
+        $crate::population::Population::new()
+    };
+    ($size:expr; $haplotype:expr) => {
+        $crate::population::Population::from_haplotype($size, $haplotype)
+    };
+}
+
 #[derive(Clone)]
 pub struct Population {
     population: Vec<usize>,
@@ -57,7 +67,7 @@ impl Population {
         }
     }
 
-    pub fn with_size(size: usize, haplotype: HaplotypeRef) -> Self {
+    pub fn from_haplotype(haplotype: HaplotypeRef, size: usize) -> Self {
         let ref_id = haplotype.get_id();
         let population = vec![ref_id; size];
         let mut haplotypes = Haplotypes::new();

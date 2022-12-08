@@ -5,6 +5,7 @@ pub mod args;
 pub mod barcode;
 pub mod fitness;
 pub mod haplotype;
+#[macro_use]
 pub mod population;
 pub mod references;
 pub mod simulation;

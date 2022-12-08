@@ -3,6 +3,7 @@ extern crate virolution;
 use std::fs;
 use virolution::fitness::*;
 use virolution::haplotype::*;
+use virolution::population;
 use virolution::population::Population;
 use virolution::simulation::*;
 use virolution::simulation_settings::*;
@@ -39,7 +40,7 @@ fn main() {
     println!("ht3: {}", ht3.get_fitness(&fitness_table));
     println!("ht4: {}", ht4.get_fitness(&fitness_table));
 
-    let population = Population::with_size(10, wt.get_clone());
+    let population: Population = population![wt.clone(); 10];
     let simulation_settings = SimulationSettings {
         mutation_rate: 1e-6,
         recombination_rate: 0.,

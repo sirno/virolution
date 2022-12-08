@@ -3,7 +3,8 @@ extern crate virolution;
 use std::path::PathBuf;
 use virolution::fitness::*;
 use virolution::haplotype::*;
-use virolution::population::*;
+use virolution::population;
+use virolution::population::Population;
 use virolution::simulation::*;
 use virolution::simulation_settings::*;
 use virolution::transfers::*;
@@ -50,7 +51,7 @@ fn main() {
     let n_compartments = 3;
     let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
         .map(|_| {
-            let population = Population::with_size(1_000_000, wt.get_clone());
+            let population = population![wt.clone(); 1_000_000];
             Simulation::new(
                 wt.get_clone(),
                 population,

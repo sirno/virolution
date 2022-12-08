@@ -18,6 +18,7 @@ use virolution::args::*;
 use virolution::barcode::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
+use virolution::population;
 use virolution::population::Population;
 use virolution::references::HaplotypeRef;
 use virolution::simulation::*;
@@ -66,7 +67,7 @@ fn create_simulations(
         .into_iter()
         .map(|compartment_idx| {
             let init_population: Population = if compartment_idx == 0 {
-                Population::with_size(args.initial_population_size, wildtype.get_clone())
+                population![wildtype.clone(); args.initial_population_size]
             } else {
                 Population::new()
             };
@@ -324,6 +325,7 @@ fn main() {
 mod tests {
     use super::*;
     use test::Bencher;
+    use virolution::population;
 
     #[bench]
     fn bench_next_generation(b: &mut Bencher) {
@@ -342,7 +344,7 @@ mod tests {
         let fitness_table = FitnessTable::new(&sequence, 4, fitness_model.clone());
 
         let wt = Wildtype::new(sequence);
-        let population: Population = Population::with_size(10, wt.get_clone());
+        let population: Population = population![wt.clone(); 10];
         let settings = SimulationSettings {
             mutation_rate: 1e-3,
             recombination_rate: 1e-5,

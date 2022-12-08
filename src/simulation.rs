@@ -366,7 +366,7 @@ mod tests {
         let fitness_table = FitnessTable::new(&sequence, 4, FITNESS_MODEL);
 
         let wt = Wildtype::new(sequence);
-        let population = Population::with_size(10, wt.get_clone());
+        let population: Population = crate::population![wt.clone(); 10];
         let mut simulation = Simulation::new(wt, population, fitness_table, SIMULATION_SETTINGS);
         simulation.next_generation()
     }
