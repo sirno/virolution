@@ -72,7 +72,6 @@ fn main() {
     println!("---simulation_settings---");
     println!("{:#?}", settings);
     println!("---infection-mapping---");
-    println!("infectant_map: {:?}", infectant_map);
     println!("host_map: {:?}", host_map);
     println!(
         "population: {:?}",
