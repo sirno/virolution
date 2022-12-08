@@ -15,8 +15,20 @@ macro_rules! population {
     () => {
         $crate::population::Population::new()
     };
-    ($size:expr; $haplotype:expr) => {
-        $crate::population::Population::from_haplotype($size, $haplotype)
+    ($haplotype:expr, $size:expr) => {
+        $crate::population::Population::from_haplotype($haplotype, $size)
+    };
+    ($( $haplotype:expr ),+) => {
+        {
+        let mut population = $crate::population::Population::new();
+        $(
+            population.push($haplotype);
+        )+
+        population
+    }
+    };
+    ($( $haplotype:expr ; $size:expr ),+) => {
+        $crate::population::Population::from_iter(vec![$( $crate::population::Population::from_haplotype($haplotype, $size) ),+])
     };
 }
 
@@ -267,5 +279,50 @@ mod tests {
         assert_eq!(population.len(), 2);
         assert_eq!(population[&0], wt1);
         assert_eq!(population[&1], wt2);
+    }
+
+    #[test]
+    fn macro_empty() {
+        let population = population![];
+        assert_eq!(population.len(), 0);
+        assert!(population.is_empty());
+    }
+
+    #[test]
+    fn macro_from_haplotype() {
+        let wt1 = Wildtype::new(vec![Some(0x00); 10]);
+        assert_eq!(population![wt1.clone(); 1].len(), 1);
+        assert_eq!(population![wt1.clone(); 2].len(), 2);
+        assert_eq!(population![wt1.clone(); 10].len(), 10);
+        assert_eq!(population![wt1.clone(); 1_000_000].len(), 1_000_000);
+    }
+
+    #[test]
+    fn macro_from_haplotypes() {
+        let wt1 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt3 = Wildtype::new(vec![Some(0x00); 10]);
+        let population = population![&wt1, &wt2, &wt3];
+
+        assert_eq!(population.len(), 3);
+        assert_eq!(population[&0], wt1);
+        assert_eq!(population[&1], wt2);
+        assert_eq!(population[&2], wt3);
+    }
+
+    #[test]
+    fn macro_from_haplotypes_variable_lengths() {
+        let wt1 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt3 = Wildtype::new(vec![Some(0x00); 10]);
+        let population = population![wt1.clone(); 2, wt2.clone(); 1, wt3.clone(); 3];
+
+        assert_eq!(population.len(), 6);
+        assert_eq!(population[&0], wt1);
+        assert_eq!(population[&1], wt1);
+        assert_eq!(population[&2], wt2);
+        assert_eq!(population[&3], wt3);
+        assert_eq!(population[&4], wt3);
+        assert_eq!(population[&5], wt3);
     }
 }
