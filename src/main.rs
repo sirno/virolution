@@ -182,8 +182,8 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
             .par_iter_mut()
             .zip(host_maps.par_iter())
             .map(|(simulation, host_map)| {
-                simulation.mutate_infectants(&host_map);
-                simulation.replicate_infectants(&host_map)
+                simulation.mutate_infectants(host_map);
+                simulation.replicate_infectants(host_map)
             })
             .collect();
 
