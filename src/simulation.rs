@@ -57,24 +57,6 @@ impl Simulation {
         self.population = population;
     }
 
-    #[cfg(feature = "parallel")]
-    pub fn get_host_map(&self) -> HostMap {
-        let mut host_map: HostMap = HashMap::new();
-        let capacity = self.population.len() / self.simulation_settings.host_population_size + 1;
-        let mut rng = rand::thread_rng();
-        (0..self.population.len()).for_each(|infectant| {
-            if self.infection_sampler.sample(&mut rng) {
-                let host_id = rng.gen_range(0..self.simulation_settings.host_population_size);
-                host_map
-                    .entry(host_id)
-                    .or_insert_with(|| Vec::with_capacity(capacity))
-                    .push(infectant);
-            }
-        });
-        host_map
-    }
-
-    #[cfg(not(feature = "parallel"))]
     pub fn get_host_map(&self) -> HostMap {
         let mut host_map: HostMap = HashMap::new();
         let capacity = self.population.len() / self.simulation_settings.host_population_size + 1;
