@@ -44,13 +44,31 @@ fn setup(args: &Args) {
     BarcodeEntry::write_header(&mut barcode_file).expect("Unable to write barcode header.");
 }
 
+fn read_transfer_plan(path: &str) -> Plan {
+    match Plan::read(path) {
+        Ok(plan) => plan,
+        Err(err) => match err {
+            PlanReadError::IoError(err) => {
+                eprintln!("Unable to open transfer plan from file '{path}'.");
+                eprintln!("Reason: {err}");
+                std::process::exit(1);
+            }
+            PlanReadError::CsvError(err) => {
+                eprintln!("Unable to load transfer plan from file '{path}'.");
+                eprintln!("Reason: {err}");
+                std::process::exit(1);
+            }
+        },
+    }
+}
+
 fn load_sequence(path: &str) -> Vec<Symbol> {
     let mut reader = fasta::Reader::from_path(path).unwrap_or_else(|err| match err.kind() {
         io::ErrorKind::NotFound => {
-            eprintln!("Unable to find file {}.", path);
+            eprintln!("Unable to find file {path}.");
             std::process::exit(1);
         }
-        err => panic!("Unable to open file: {}.", err),
+        err => panic!("Unable to open file: {err}."),
     });
     reader
         .next()
@@ -297,7 +315,7 @@ fn main() {
 
     setup(&args);
 
-    let plan = Plan::read(args.transfer_plan.as_str());
+    let plan = read_transfer_plan(args.transfer_plan.as_str());
     let sequence = load_sequence(args.sequence.as_str());
 
     // create wildtype
@@ -308,12 +326,12 @@ fn main() {
         |err| match err {
             SimulationSettingsError::IoError(err) => {
                 eprintln!("Unable to open settings from file '{}'.", args.settings);
-                eprintln!("Reason: {}", err);
+                eprintln!("Reason: {err}");
                 std::process::exit(1);
             }
             SimulationSettingsError::YamlError(err) => {
                 eprintln!("Unable to load settings from file '{}'.", args.settings);
-                eprintln!("Reason: {}", err);
+                eprintln!("Reason: {err}");
                 std::process::exit(1);
             }
         },

@@ -50,7 +50,7 @@ impl Index<&usize> for Population {
         let ref_id = &self.population[*index];
         self.haplotypes
             .get(ref_id)
-            .unwrap_or_else(|| panic!("No haplotype with index {}", index))
+            .unwrap_or_else(|| panic!("No haplotype with index {index}"))
     }
 }
 
@@ -67,7 +67,7 @@ impl<'a> Iterator for PopulationIterator<'a> {
         self.population
             .haplotypes
             .get(&ref_id)
-            .or_else(|| panic!("No haplotype with index {}", ref_id))
+            .or_else(|| panic!("No haplotype with index {ref_id}"))
     }
 }
 
@@ -148,7 +148,7 @@ impl Population {
             .map(|&id| {
                 self.haplotypes
                     .get(&id)
-                    .unwrap_or_else(|| panic!("No haplotype with index {}", id))
+                    .unwrap_or_else(|| panic!("No haplotype with index {id}"))
             })
             .collect()
     }

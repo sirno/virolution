@@ -31,24 +31,23 @@ impl std::fmt::Display for SimulationSettings {
 
 impl SimulationSettings {
     pub fn write(&self, writer: &mut dyn std::io::Write) -> Result<(), SimulationSettingsError> {
-        serde_yaml::to_writer(writer, self).map_err(|err| SimulationSettingsError::YamlError(err))
+        serde_yaml::to_writer(writer, self).map_err(SimulationSettingsError::YamlError)
     }
 
     pub fn read(
         reader: &mut dyn std::io::Read,
     ) -> Result<SimulationSettings, SimulationSettingsError> {
-        serde_yaml::from_reader(reader).map_err(|err| SimulationSettingsError::YamlError(err))
+        serde_yaml::from_reader(reader).map_err(SimulationSettingsError::YamlError)
     }
 
     pub fn write_to_file(&self, filename: &str) -> Result<(), SimulationSettingsError> {
-        let file =
-            fs::File::create(filename).map_err(|err| SimulationSettingsError::IoError(err))?;
+        let file = fs::File::create(filename).map_err(SimulationSettingsError::IoError)?;
         let mut writer = std::io::BufWriter::new(file);
         self.write(&mut writer)
     }
 
     pub fn read_from_file(filename: &str) -> Result<SimulationSettings, SimulationSettingsError> {
-        let file = fs::File::open(filename).map_err(|err| SimulationSettingsError::IoError(err))?;
+        let file = fs::File::open(filename).map_err(SimulationSettingsError::IoError)?;
         let mut reader = std::io::BufReader::new(file);
         Self::read(&mut reader)
     }

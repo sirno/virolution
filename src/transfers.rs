@@ -63,19 +63,25 @@ pub struct PlanRecord {
     value: String,
 }
 
+#[derive(Debug)]
+pub enum PlanReadError {
+    IoError(std::io::Error),
+    CsvError(csv::Error),
+}
+
 impl Plan {
-    pub fn read(filename: &str) -> Self {
-        let mut reader = BufReader::new(File::open(filename).expect("File not found."));
+    pub fn read(filename: &str) -> Result<Self, PlanReadError> {
+        let mut reader = BufReader::new(File::open(filename).map_err(PlanReadError::IoError)?);
         Plan::from_reader(&mut reader)
     }
 
-    pub fn from_reader(reader: &mut dyn std::io::Read) -> Self {
+    pub fn from_reader(reader: &mut dyn std::io::Read) -> Result<Self, PlanReadError> {
         let mut reader = csv::Reader::from_reader(reader);
         let table: Vec<PlanRecord> = reader
             .deserialize()
-            .map(|record| record.expect("Unable to deserialize record."))
-            .collect();
-        Self(table)
+            .collect::<Result<Vec<PlanRecord>, csv::Error>>()
+            .map_err(PlanReadError::CsvError)?;
+        Ok(Self(table))
     }
 
     pub fn get_sample_size(&self, generation: usize) -> usize {
@@ -138,7 +144,7 @@ mod tests {
 4,transmission,root_bc
 5,transmission,root_cd"#;
 
-        let plan = Plan::from_reader(&mut plan_content.as_bytes());
+        let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
 
         assert_eq!(plan.get_transfer_matrix(0), &DEFAULT);
         assert_eq!(plan.get_transfer_matrix(1), &MIGRATION_FWD);
@@ -155,7 +161,7 @@ mod tests {
 2,sample,200
 3,sample,300"#;
 
-        let plan = Plan::from_reader(&mut plan_content.as_bytes());
+        let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
 
         assert_eq!(plan.get_sample_size(0), 0);
         assert_eq!(plan.get_sample_size(1), 100);
@@ -170,7 +176,7 @@ mod tests {
 {} % 10,transmission,migration_fwd
 (5 + {}) % 10,transmission,migration_rev"#;
 
-        let plan = Plan::from_reader(&mut plan_content.as_bytes());
+        let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
 
         for i in 0..=1000 {
             if i % 200 == 0 {

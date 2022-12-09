@@ -11,7 +11,7 @@ use virolution::transfers::*;
 
 fn main() {
     let plan_path = PathBuf::from_iter([env!("CARGO_MANIFEST_DIR"), "data/plan.csv"]);
-    let plan = Plan::read(plan_path.to_str().unwrap());
+    let plan = Plan::read(plan_path.to_str().unwrap()).expect("Failed to read plan");
     let sequence = vec![Some(0x00); 5386];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
