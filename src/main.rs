@@ -32,7 +32,10 @@ fn setup(args: &Args) {
 
     // setup barcode file
     let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
-    std::fs::create_dir_all(barcode_path.parent().unwrap()).expect("Unable to create output path.");
+    std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
+        println!("Unable to create output path.");
+        std::process::exit(1);
+    });
     let mut barcode_file = fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -42,7 +45,13 @@ fn setup(args: &Args) {
 }
 
 fn load_sequence(path: &str) -> Vec<Symbol> {
-    let mut reader = fasta::Reader::from_path(path).expect("Unable to open sequence file.");
+    let mut reader = fasta::Reader::from_path(path).unwrap_or_else(|err| match err.kind() {
+        io::ErrorKind::NotFound => {
+            println!("Unable to find file {}.", path);
+            std::process::exit(1);
+        }
+        err => panic!("Unable to open file: {}.", err),
+    });
     reader
         .next()
         .unwrap()
