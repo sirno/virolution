@@ -15,6 +15,12 @@ pub struct SimulationSettings {
     pub fitness_model: FitnessModel,
 }
 
+#[derive(Debug)]
+pub enum SimulationSettingsError {
+    IoError(std::io::Error),
+    YamlError(serde_yaml::Error),
+}
+
 impl std::fmt::Display for SimulationSettings {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut output = vec![];
@@ -24,24 +30,25 @@ impl std::fmt::Display for SimulationSettings {
 }
 
 impl SimulationSettings {
-    pub fn write(&self, writer: &mut dyn std::io::Write) -> std::io::Result<()> {
-        serde_yaml::to_writer(writer, self)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    pub fn write(&self, writer: &mut dyn std::io::Write) -> Result<(), SimulationSettingsError> {
+        serde_yaml::to_writer(writer, self).map_err(|err| SimulationSettingsError::YamlError(err))
     }
 
-    pub fn read(reader: &mut dyn std::io::Read) -> std::io::Result<Self> {
-        serde_yaml::from_reader(reader)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    pub fn read(
+        reader: &mut dyn std::io::Read,
+    ) -> Result<SimulationSettings, SimulationSettingsError> {
+        serde_yaml::from_reader(reader).map_err(|err| SimulationSettingsError::YamlError(err))
     }
 
-    pub fn write_to_file(&self, filename: &str) -> std::io::Result<()> {
-        let file = fs::File::create(filename)?;
+    pub fn write_to_file(&self, filename: &str) -> Result<(), SimulationSettingsError> {
+        let file =
+            fs::File::create(filename).map_err(|err| SimulationSettingsError::IoError(err))?;
         let mut writer = std::io::BufWriter::new(file);
         self.write(&mut writer)
     }
 
-    pub fn read_from_file(filename: &str) -> std::io::Result<Self> {
-        let file = fs::File::open(filename)?;
+    pub fn read_from_file(filename: &str) -> Result<SimulationSettings, SimulationSettingsError> {
+        let file = fs::File::open(filename).map_err(|err| SimulationSettingsError::IoError(err))?;
         let mut reader = std::io::BufReader::new(file);
         Self::read(&mut reader)
     }

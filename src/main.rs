@@ -33,7 +33,7 @@ fn setup(args: &Args) {
     // setup barcode file
     let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
     std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
-        println!("Unable to create output path.");
+        eprintln!("Unable to create output path.");
         std::process::exit(1);
     });
     let mut barcode_file = fs::OpenOptions::new()
@@ -47,7 +47,7 @@ fn setup(args: &Args) {
 fn load_sequence(path: &str) -> Vec<Symbol> {
     let mut reader = fasta::Reader::from_path(path).unwrap_or_else(|err| match err.kind() {
         io::ErrorKind::NotFound => {
-            println!("Unable to find file {}.", path);
+            eprintln!("Unable to find file {}.", path);
             std::process::exit(1);
         }
         err => panic!("Unable to open file: {}.", err),
@@ -304,7 +304,20 @@ fn main() {
     let wildtype = Wildtype::new(sequence.clone());
 
     // load simulation settings
-    let settings = SimulationSettings::read_from_file(args.settings.as_str()).unwrap();
+    let settings = SimulationSettings::read_from_file(args.settings.as_str()).unwrap_or_else(
+        |err| match err {
+            SimulationSettingsError::IoError(err) => {
+                eprintln!("Unable to open settings from file '{}'.", args.settings);
+                eprintln!("Reason: {}", err);
+                std::process::exit(1);
+            }
+            SimulationSettingsError::YamlError(err) => {
+                eprintln!("Unable to load settings from file '{}'.", args.settings);
+                eprintln!("Reason: {}", err);
+                std::process::exit(1);
+            }
+        },
+    );
     log::info!("Loaded settings\n{}", settings);
 
     // create and write fitness table
