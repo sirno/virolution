@@ -22,6 +22,7 @@ pub struct Simulation {
     mutation_sampler: Binomial,
     recombination_sampler: Bernoulli,
     infection_sampler: Bernoulli,
+    generation: usize,
 }
 
 impl Simulation {
@@ -30,6 +31,7 @@ impl Simulation {
         population: Population,
         fitness_table: FitnessTable,
         simulation_settings: SimulationSettings,
+        generation: usize,
     ) -> Self {
         let mutation_sampler = Binomial::new(
             wildtype.get_length() as u64,
@@ -46,6 +48,7 @@ impl Simulation {
             mutation_sampler,
             recombination_sampler,
             infection_sampler,
+            generation,
         }
     }
 
@@ -55,6 +58,10 @@ impl Simulation {
 
     pub fn set_population(&mut self, population: Population) {
         self.population = population;
+    }
+
+    pub fn increment_generation(&mut self) {
+        self.generation += 1;
     }
 
     pub fn get_host_map(&self) -> HostMap {
@@ -99,6 +106,7 @@ impl Simulation {
                     &self.population[infectant_pair[1]],
                     recombination_sites[0],
                     recombination_sites[1],
+                    self.generation,
                 );
                 (**infectant_pair.choose(&mut rng).unwrap(), recombinant)
             })
@@ -139,7 +147,12 @@ impl Simulation {
                     })
                     .collect();
 
-                let descendant = Haplotype::create_descendant(infectant_ref, mutation_sites, bases);
+                let descendant = Haplotype::create_descendant(
+                    infectant_ref,
+                    mutation_sites,
+                    bases,
+                    self.generation,
+                );
                 Some((*infectant, descendant))
             })
             .collect()
@@ -276,6 +289,9 @@ impl Simulation {
     }
 
     pub fn next_generation(&mut self) {
+        // increment generation counter
+        self.increment_generation();
+
         // do nothing if there is no population
         if self.population.is_empty() {
             return;
@@ -367,7 +383,7 @@ mod tests {
 
         let wt = Wildtype::new(sequence);
         let population: Population = crate::population![wt.clone(); 10];
-        let mut simulation = Simulation::new(wt, population, fitness_table, SIMULATION_SETTINGS);
+        let mut simulation = Simulation::new(wt, population, fitness_table, SIMULATION_SETTINGS, 0);
         simulation.next_generation()
     }
 
@@ -380,7 +396,7 @@ mod tests {
         let wt = Wildtype::new(sequence);
         let mut population = Population::new();
         (0..10).for_each(|_| population.push(&wt));
-        let mut simulation = Simulation::new(wt, population, fitness_table, SIMULATION_SETTINGS);
+        let mut simulation = Simulation::new(wt, population, fitness_table, SIMULATION_SETTINGS, 0);
 
         simulation.next_generation()
     }

@@ -5,10 +5,10 @@ use virolution::haplotype::*;
 fn main() {
     let bytes = vec![Some(0x00); 4];
     let wt = Wildtype::new(bytes);
-    let ht = wt.create_descendant(vec![2], vec![Some(0x01)]);
-    let ht2 = ht.create_descendant(vec![1], vec![Some(0x02)]);
-    let ht3 = ht2.create_descendant(vec![2], vec![Some(0x03)]);
-    let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2);
+    let ht = wt.create_descendant(vec![2], vec![Some(0x01)], 0);
+    let ht2 = ht.create_descendant(vec![1], vec![Some(0x02)], 0);
+    let ht3 = ht2.create_descendant(vec![2], vec![Some(0x03)], 0);
+    let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2, 0);
     println!("---debug---");
     println!("wt: {:?}", *wt);
     println!("ht: {:?}", *ht);

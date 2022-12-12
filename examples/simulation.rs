@@ -28,10 +28,10 @@ fn main() {
     let fitness_table = FitnessTable::new(&sequence, 4, fitness_model.clone());
 
     let wt = Wildtype::new(sequence);
-    let ht = wt.create_descendant(vec![2], vec![Some(0x01)]);
-    let ht2 = ht.create_descendant(vec![1], vec![Some(0x02)]);
-    let ht3 = ht2.create_descendant(vec![2], vec![Some(0x03)]);
-    let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2);
+    let ht = wt.create_descendant(vec![2], vec![Some(0x01)], 0);
+    let ht2 = ht.create_descendant(vec![1], vec![Some(0x02)], 0);
+    let ht3 = ht2.create_descendant(vec![2], vec![Some(0x03)], 0);
+    let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2, 0);
 
     println!("---fitnesses---");
     println!("wt: {}", wt.get_fitness(&fitness_table));
@@ -64,7 +64,7 @@ fn main() {
     let settings = SimulationSettings::read_from_file("settings_example.yaml")
         .expect("Failed to read settings from file");
     fs::remove_file("settings_example.yaml").expect("Unable to remove file.");
-    let mut simulation = Simulation::new(wt, population, fitness_table, settings.clone());
+    let mut simulation = Simulation::new(wt, population, fitness_table, settings.clone(), 0);
     let host_map = simulation.get_host_map();
     simulation.mutate_infectants(&host_map);
     let offspring = simulation.replicate_infectants(&host_map);

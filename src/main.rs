@@ -103,6 +103,7 @@ fn create_simulations(
                 init_population,
                 fitness_table.clone(),
                 settings.clone(),
+                0,
             )
         })
         .collect()
@@ -197,10 +198,9 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
         }
 
         // simulate compartmentalized population in parallel
-        // let infectant_maps: Vec<Vec<Option<usize>>> = simulations
-        //     .par_iter()
-        //     .map(|simulation| simulation.get_infectant_map())
-        //     .collect();
+        simulations.iter_mut().for_each(|simulation| {
+            simulation.increment_generation();
+        });
         let host_maps: Vec<HostMap> = simulations
             .iter()
             .map(|simulation| simulation.get_host_map())
@@ -255,10 +255,11 @@ fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
             sample(simulations, sample_size, generation, args);
         }
 
-        // simulate compartmentalized population in parallel
+        // simulate compartmentalized population
         let offsprings: Vec<Vec<usize>> = simulations
             .iter_mut()
             .map(|simulation| {
+                simulation.increment_generation();
                 if simulation.get_population().is_empty() {
                     return Vec::new();
                 }
@@ -403,7 +404,7 @@ mod tests {
             dilution: 0.17,
             fitness_model,
         };
-        let mut simulation = Simulation::new(wt, population, fitness_table, settings);
+        let mut simulation = Simulation::new(wt, population, fitness_table, settings, 0);
         b.iter(|| {
             simulation.next_generation();
         })

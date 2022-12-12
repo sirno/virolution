@@ -57,6 +57,7 @@ fn main() {
                 population,
                 fitness_table.clone(),
                 settings.clone(),
+                0,
             )
         })
         .collect();
