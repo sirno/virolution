@@ -219,10 +219,12 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
         let populations: Vec<Population> = (0..args.n_compartments)
             .into_par_iter()
             .map(|target| {
-                Population::from_iter((0..args.n_compartments).map(|origin| {
-                    simulations[origin]
-                        .subsample_population(&offsprings[origin], transfer[target][origin])
-                }))
+                (0..args.n_compartments)
+                    .map(|origin| {
+                        simulations[origin]
+                            .subsample_population(&offsprings[origin], transfer[target][origin])
+                    })
+                    .collect()
             })
             .collect();
 
