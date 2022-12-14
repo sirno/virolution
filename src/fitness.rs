@@ -104,7 +104,9 @@ impl ExponentialParameters {
 
             match categories[category_distr.sample(&mut rng)] {
                 MutationCategory::Beneficial => *el = 1. + beneficial_distr.sample(&mut rng),
-                MutationCategory::Deleterious => *el = 1. - deleterious_distr.sample(&mut rng),
+                MutationCategory::Deleterious => {
+                    *el = f64::max(1. - deleterious_distr.sample(&mut rng), 0.)
+                }
                 MutationCategory::Lethal => *el = 0.,
                 MutationCategory::Neutral => *el = 1.,
             }
@@ -139,12 +141,14 @@ impl FitnessTable {
     }
 
     pub fn write(&self, writer: &mut impl std::io::Write) -> Result<(), std::io::Error> {
+        let shape = &[self.n_symbols as u64, self.n_sites as u64];
         let mut npy_writer = npyz::WriteOptions::new()
             .default_dtype()
-            .shape(&[self.n_symbols as u64, self.n_sites as u64])
+            .shape(shape)
             .writer(writer)
             .begin_nd()?;
-        npy_writer.extend(&self.table)?;
+        npy_writer.extend(self.table.clone().into_iter())?;
+        npy_writer.finish()?;
         Ok(())
     }
 
@@ -231,7 +235,7 @@ mod tests {
 
     #[test]
     fn write_fitness() {
-        let sequence = vec![Some(0x00); 100];
+        let sequence = vec![Some(0x00); 100000];
         let fitness = FitnessTable::new(
             &sequence,
             4,
@@ -245,7 +249,7 @@ mod tests {
         fitness.write(&mut buffer).unwrap();
 
         let npy_data = npyz::NpyFile::new(buffer.as_slice()).unwrap();
-        assert_eq!(npy_data.shape(), &[4, 100]);
+        assert_eq!(npy_data.shape(), &[4, 100000]);
         let data: Vec<f64> = npy_data
             .data::<f64>()
             .unwrap()
