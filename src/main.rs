@@ -202,7 +202,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
             simulation.increment_generation();
         });
         let host_maps: Vec<HostMap> = simulations
-            .iter()
+            .par_iter()
             .map(|simulation| simulation.get_host_map())
             .collect();
         let offsprings: Vec<Vec<usize>> = simulations

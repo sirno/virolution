@@ -8,11 +8,11 @@ use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
+use std::cmp::min;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
-use std::{cmp::min, collections::HashMap};
 
-pub type HostMap = HashMap<usize, Vec<usize>>;
+pub type HostMap = Vec<Vec<usize>>;
 
 pub struct Simulation {
     wildtype: HaplotypeRef,
@@ -65,16 +65,14 @@ impl Simulation {
     }
 
     pub fn get_host_map(&self) -> HostMap {
-        let mut host_map: HostMap = HashMap::new();
         let capacity = self.population.len() / self.simulation_settings.host_population_size + 1;
+        let mut host_map: HostMap =
+            vec![Vec::with_capacity(capacity); self.simulation_settings.host_population_size];
         let mut rng = rand::thread_rng();
         (0..self.population.len()).for_each(|infectant| {
             if self.infection_sampler.sample(&mut rng) {
                 let host_id = rng.gen_range(0..self.simulation_settings.host_population_size);
-                host_map
-                    .entry(host_id)
-                    .or_insert_with(|| Vec::with_capacity(capacity))
-                    .push(infectant);
+                host_map[host_id].push(infectant);
             }
         });
         host_map
@@ -170,9 +168,7 @@ impl Simulation {
             // recombine infectants
             host_map
                 .par_iter()
-                .for_each_with(recombination_sender, |sender, host| {
-                    let infectants = host.1;
-
+                .for_each_with(recombination_sender, |sender, infectants| {
                     // Recombine
                     self._recombine_infectants(sequence_length, infectants)
                         .into_iter()
@@ -190,11 +186,10 @@ impl Simulation {
         // create mutation channel
         let (mutation_sender, mutation_receiver) = channel();
 
-        // mutate infectants
+        // mutate infectant
         host_map
             .par_iter()
-            .for_each_with(mutation_sender, |sender, entry| {
-                let infectants = entry.1;
+            .for_each_with(mutation_sender, |sender, infectants| {
                 self._mutate_infectants(sequence_length, infectants)
                     .into_iter()
                     .for_each(|mutation| {
@@ -215,25 +210,23 @@ impl Simulation {
 
         if self.simulation_settings.recombination_rate > 0. {
             // recombine infectants
-            for host in host_map {
-                let infectants = host.1;
+            host_map.iter().for_each(|infectants: &Vec<usize>| {
                 self._recombine_infectants(sequence_length, infectants)
                     .into_iter()
                     .for_each(|(position, recombinant)| {
                         self.population.insert(position, &recombinant);
                     });
-            }
+            });
         }
 
         // mutate infectants
-        for host in host_map {
-            let infectants = host.1;
+        host_map.iter().for_each(|infectants: &Vec<usize>| {
             self._mutate_infectants(sequence_length, infectants)
                 .into_iter()
                 .for_each(|(position, mutant)| {
                     self.population.insert(position, &mutant);
                 });
-        }
+        });
     }
 
     fn _replicate_infectants(&self, infectants: &[usize]) -> Vec<(usize, f64)> {
@@ -258,8 +251,7 @@ impl Simulation {
 
         host_map
             .par_iter()
-            .for_each_with(replicate_sender, |sender, host| {
-                let infectants = host.1;
+            .for_each_with(replicate_sender, |sender, infectants| {
                 self._replicate_infectants(infectants)
                     .into_iter()
                     .for_each(|replication| {
@@ -277,8 +269,7 @@ impl Simulation {
     #[cfg(not(feature = "parallel"))]
     pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
-        host_map.iter().for_each(|host| {
-            let infectants = host.1;
+        host_map.iter().for_each(|infectants| {
             self._replicate_infectants(infectants)
                 .into_iter()
                 .for_each(|replication| {
