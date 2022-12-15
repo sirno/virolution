@@ -1,5 +1,5 @@
 use super::haplotype::Symbol;
-use npyz::WriterBuilder;
+use npyz::{NpyFile, WriterBuilder};
 use rand::prelude::*;
 use rand_distr::{Exp, WeightedIndex};
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,7 @@ pub struct FitnessTable {
 pub enum FitnessDistribution {
     Neutral,
     Exponential(ExponentialParameters),
+    File(FileParameters),
     // Spikes,
     // Lognormal,
     // Beta,
@@ -43,6 +44,11 @@ pub struct ExponentialParameters {
     pub weights: MutationCategoryWeights,
     pub lambda_beneficial: f64,
     pub lambda_deleterious: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct FileParameters {
+    pub path: String,
 }
 
 impl MutationCategoryWeights {
@@ -122,6 +128,14 @@ impl FitnessTable {
         let table = match fitness_model.distribution {
             FitnessDistribution::Exponential(ref params) => {
                 params.create_table(n_symbols, sequence)
+            }
+            FitnessDistribution::File(ref params) => {
+                let reader = NpyFile::new(std::fs::File::open(&params.path).unwrap()).unwrap();
+                reader
+                    .data::<f64>()
+                    .unwrap()
+                    .map(|entry| entry.unwrap())
+                    .collect()
             }
             FitnessDistribution::Neutral => vec![1.; n_sites * n_symbols],
         };
