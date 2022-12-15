@@ -342,7 +342,12 @@ fn main() {
     log::info!("Loaded settings\n{}", settings);
 
     // create and write fitness table
-    let fitness_table = FitnessTable::new(&sequence, 4, settings.fitness_model.clone());
+    let fitness_table = FitnessTable::from_model(&sequence, 4, settings.fitness_model.clone())
+        .unwrap_or_else(|err| {
+            eprintln!("Unable to create fitness table.");
+            eprintln!("Reason: {}", err.message);
+            std::process::exit(1);
+        });
     let mut fitness_file =
         io::BufWriter::new(fs::File::create(args.fitness_table.clone()).unwrap());
     fitness_table.write(&mut fitness_file).unwrap();
@@ -384,7 +389,7 @@ mod tests {
             lambda_deleterious: 0.21,
         });
         let fitness_model = FitnessModel::new(distribution, UtilityFunction::Linear);
-        let fitness_table = FitnessTable::new(&sequence, 4, fitness_model.clone());
+        let fitness_table = FitnessTable::from_model(&sequence, 4, fitness_model.clone()).unwrap();
 
         let wt = Wildtype::new(sequence);
         let population: Population = population![wt.clone(); 10];

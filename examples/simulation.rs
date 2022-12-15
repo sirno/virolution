@@ -25,7 +25,7 @@ fn main() {
         utility: UtilityFunction::Linear,
     };
 
-    let fitness_table = FitnessTable::new(&sequence, 4, fitness_model.clone());
+    let fitness_table = FitnessTable::from_model(&sequence, 4, fitness_model.clone()).unwrap();
 
     let wt = Wildtype::new(sequence);
     let ht = wt.create_descendant(vec![2], vec![Some(0x01)], 0);
