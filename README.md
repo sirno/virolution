@@ -1,4 +1,4 @@
-# Virolation2000
+# Virolution
 
 This tool simulates a virus population under static selective pressure with
 single-nucleotide polymorphism and recombination in discrete generations.  The
@@ -23,14 +23,14 @@ basic reproductive number, divided by the number of infectants in their host.
 
 ```rust
 pub struct SimulationSettings {
-    pub basic_reproductive_number: f64,
     pub mutation_rate: f64,
-    pub substitution_matrix: [[f64; 4]; 4],
     pub recombination_rate: f64,
     pub host_population_size: usize,
-    pub max_population: usize,
     pub infection_fraction: f64,
+    pub basic_reproductive_number: f64,
+    pub max_population: usize,
     pub dilution: f64,
-    pub fitness_distribution: FitnessDistribution
+    pub substitution_matrix: [[f64; 4]; 4],
+    pub fitness_model: FitnessModel,
 }
 ```
