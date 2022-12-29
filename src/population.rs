@@ -89,6 +89,7 @@ impl FromIterator<Population> for Population {
 }
 
 impl Population {
+    /// Construct a new, empty `Population`.
     pub fn new() -> Self {
         Self {
             population: Vec::new(),
@@ -96,11 +97,29 @@ impl Population {
         }
     }
 
+    /// Construct a new `Population` from a `HaplotypeRef` and a size.
     pub fn from_haplotype(haplotype: HaplotypeRef, size: usize) -> Self {
         let ref_id = haplotype.get_id();
         let population = vec![ref_id; size];
         let mut haplotypes = Haplotypes::new();
         haplotypes.insert(haplotype.get_id(), haplotype);
+        Self {
+            population,
+            haplotypes,
+        }
+    }
+
+    /// Construct a new `Population` from a `Vec` of `HaplotypeRef`s.
+    pub fn from_references(references: Vec<HaplotypeRef>) -> Self {
+        let mut population = Vec::new();
+        let mut haplotypes = Haplotypes::new();
+
+        for reference in references {
+            let ref_id = reference.get_id();
+            population.push(ref_id);
+            haplotypes.insert(ref_id, reference);
+        }
+
         Self {
             population,
             haplotypes,
