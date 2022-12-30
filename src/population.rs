@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use rand::prelude::*;
-use rand_distr::WeightedIndex;
+use rand_distr::WeightedAliasIndex;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -174,7 +174,7 @@ impl Population {
 
     #[cfg(feature = "parallel")]
     pub fn sample(&self, size: usize, weights: &[usize]) -> Self {
-        let sampler = WeightedIndex::new(weights).unwrap();
+        let sampler = WeightedAliasIndex::new(weights.to_vec()).unwrap();
 
         let population: Vec<usize> = (0..size)
             .into_par_iter()
@@ -196,7 +196,7 @@ impl Population {
 
     #[cfg(not(feature = "parallel"))]
     pub fn sample(&self, size: usize, weights: &[usize]) -> Self {
-        let sampler = WeightedIndex::new(weights).unwrap();
+        let sampler = WeightedAliasIndex::new(weights.to_vec()).unwrap();
 
         let mut rng = rand::thread_rng();
         let population: Vec<usize> = (0..size)
