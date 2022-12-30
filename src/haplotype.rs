@@ -36,6 +36,7 @@ pub struct Wildtype {
     reference: HaplotypeWeak,
     sequence: Vec<Symbol>,
     descendants: Arc<Mutex<Vec<HaplotypeWeak>>>,
+    mutations: HashMap<usize, (Symbol, Symbol)>,
 }
 
 #[derive(Debug)]
@@ -165,7 +166,7 @@ impl Haplotype {
         let mut sequence = self.get_wildtype_sequence();
 
         for (position, (_, to)) in mutations {
-            sequence[position] = to;
+            sequence[*position] = *to;
         }
 
         sequence
@@ -206,11 +207,11 @@ impl Haplotype {
         out
     }
 
-    pub fn get_mutations(&self) -> HashMap<usize, (Symbol, Symbol)> {
+    pub fn get_mutations(&self) -> &HashMap<usize, (Symbol, Symbol)> {
         match self {
-            Haplotype::Wildtype(_wt) => HashMap::new(),
-            Haplotype::Descendant(ht) => ht.get_mutations().clone(),
-            Haplotype::Recombinant(rc) => rc.get_mutations().clone(),
+            Haplotype::Wildtype(wt) => &wt.mutations,
+            Haplotype::Descendant(ht) => ht.get_mutations(),
+            Haplotype::Recombinant(rc) => rc.get_mutations(),
         }
     }
 
@@ -286,6 +287,7 @@ impl Wildtype {
                 reference: reference.clone(),
                 sequence: sequence.clone(),
                 descendants: Arc::new(Mutex::new(Vec::new())),
+                mutations: HashMap::new(),
             })
         })
     }
@@ -365,22 +367,18 @@ impl Descendant {
 
     pub fn get_mutations(&self) -> &HashMap<usize, (Symbol, Symbol)> {
         self.mutations.get_or_init(|| {
-            let mut mutations = self.ancestor.get_mutations();
+            let wt_ref = self.wildtype.upgrade().unwrap();
+            let mut mutations = self.ancestor.get_mutations().clone();
             self.positions
                 .iter()
                 .enumerate()
-                .map(|(idx, position)| {
-                    (
-                        position,
-                        self.changes[idx],
-                        self.wildtype.upgrade().unwrap().get_base(position),
-                    )
-                })
-                .for_each(|(position, change, wt_base)| {
+                .for_each(|(idx, position)| {
+                    let change = self.changes[idx];
+                    let wt_base = wt_ref.get_base(position);
                     if change.1 == wt_base {
                         mutations.remove(position);
                     } else {
-                        mutations.insert(*position, (wt_base, change.1));
+                        mutations.insert(*position, change);
                     }
                 });
             mutations
@@ -462,13 +460,13 @@ impl Recombinant {
 
             let mut mutations = HashMap::new();
 
-            for (position, change) in left_mutations {
+            for (&position, &change) in left_mutations {
                 if position >= self.left_position && position < self.right_position {
                     mutations.insert(position, change);
                 }
             }
 
-            for (position, change) in right_mutations {
+            for (&position, &change) in right_mutations {
                 if position < self.left_position || position >= self.right_position {
                     mutations.insert(position, change);
                 }
