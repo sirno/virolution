@@ -34,3 +34,31 @@ pub struct SimulationSettings {
     pub fitness_model: FitnessModel,
 }
 ```
+
+### Example
+
+```yaml
+---
+mutation_rate: 1e-6
+recombination_rate: 1e-4
+host_population_size: 100000000
+infection_fraction: 0.7
+basic_reproductive_number: 100.0
+max_population: 100000000
+dilution: 0.02
+substitution_matrix:
+  - [0.0, 1.0, 1.0, 1.0]
+  - [1.0, 0.0, 1.0, 1.0]
+  - [1.0, 1.0, 0.0, 1.0]
+  - [1.0, 1.0, 1.0, 0.0]
+fitness_model:
+  distribution: !Exponential
+      weights:
+        beneficial: 0.29
+        deleterious: 0.51
+        lethal: 0.2
+        neutral: 0.0
+      lambda_beneficial: 0.03
+      lambda_deleterious: 0.21
+  utility: Linear
+```
