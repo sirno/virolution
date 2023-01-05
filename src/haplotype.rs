@@ -140,9 +140,9 @@ impl Haplotype {
 
     fn add_descendant(&self, descendant: HaplotypeWeak) {
         match self {
-            Haplotype::Wildtype(wt) => wt.descendants.lock().unwrap().push(descendant),
-            Haplotype::Descendant(ht) => ht.descendants.lock().unwrap().push(descendant),
-            Haplotype::Recombinant(rc) => rc.descendants.lock().unwrap().push(descendant),
+            Haplotype::Wildtype(wt) => wt.descendants.lock().push(descendant),
+            Haplotype::Descendant(ht) => ht.descendants.lock().push(descendant),
+            Haplotype::Recombinant(rc) => rc.descendants.lock().push(descendant),
         };
     }
 
@@ -312,7 +312,6 @@ impl Wildtype {
         let inner = self
             .descendants
             .lock()
-            .unwrap()
             .iter()
             .filter(|x| x.exists())
             .map(|x| x.upgrade().unwrap().get_subtree(self.reference.clone()))
@@ -397,7 +396,6 @@ impl Descendant {
         let descendants = self
             .descendants
             .lock()
-            .unwrap()
             .iter()
             .filter(|x| x.exists())
             .map(|x| x.upgrade().unwrap().get_subtree(self.reference.clone()))
@@ -488,7 +486,6 @@ impl Recombinant {
         let descendants = if self.left_ancestor.get_weak() == ancestor {
             self.descendants
                 .lock()
-                .unwrap()
                 .iter()
                 .filter(|x| x.exists())
                 .map(|x| x.upgrade().unwrap().get_subtree(self.reference.clone()))
@@ -544,7 +541,7 @@ mod tests {
         let _hts: Vec<HaplotypeRef> = (0..100)
             .map(|i| wt.create_descendant(vec![0], vec![Some(i)], 0))
             .collect();
-        for (position, descendant) in wt.get_descendants().lock().unwrap().iter().enumerate() {
+        for (position, descendant) in wt.get_descendants().lock().iter().enumerate() {
             if let Some(d) = descendant.upgrade() {
                 assert_eq!(d.get_base(&0), Some(position as u8));
             } else {
