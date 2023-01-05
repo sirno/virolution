@@ -1,11 +1,12 @@
 use super::fitness::FitnessTable;
 use super::references::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
+use parking_lot::Mutex;
 use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 
 // #[derive(Clone, Debug, Deref)]
 pub type Symbol = Option<u8>;
