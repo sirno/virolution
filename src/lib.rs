@@ -7,7 +7,7 @@ pub mod fitness;
 pub mod haplotype;
 #[macro_use]
 pub mod population;
+pub mod plan;
 pub mod references;
 pub mod simulation;
 pub mod simulation_settings;
-pub mod transfers;

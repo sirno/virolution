@@ -18,12 +18,12 @@ use virolution::args::*;
 use virolution::barcode::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
+use virolution::plan::*;
 use virolution::population;
 use virolution::population::Population;
 use virolution::references::HaplotypeRef;
 use virolution::simulation::*;
 use virolution::simulation_settings::*;
-use virolution::transfers::*;
 
 fn setup(args: &Args) {
     // setup logger
