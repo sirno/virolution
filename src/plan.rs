@@ -6,6 +6,8 @@ use serde::Deserialize;
 use std::fs::File;
 use std::io::BufReader;
 
+use crate::simulation_settings::SimulationSettings;
+
 pub static TRANSFERS: phf::Map<&'static str, &[[f64; 4]; 4]> = phf_map! {
     "migration_fwd" => &MIGRATION_FWD,
     "migration_rev" => &MIGRATION_REV,
@@ -85,27 +87,28 @@ impl Plan {
     }
 
     pub fn get_sample_size(&self, generation: usize) -> usize {
-        match self
-            .iter()
-            .find(|record| match_generation(record, generation) && record.event == "sample")
-        {
-            Some(record) => record.value.parse().expect("Invalid value for sample"),
+        match self.get_event_value("sample", generation) {
+            Some(sample_size) => sample_size.parse().expect("Invalid value for sample"),
             None => 0,
         }
     }
 
     pub fn get_transfer_matrix(&self, generation: usize) -> &[[f64; 4]; 4] {
-        match self.get_transfer_name(generation) {
+        match self.get_event_value("transmission", generation) {
             Some(transfer_name) => TRANSFERS[transfer_name],
             None => &DEFAULT,
         }
     }
 
-    #[inline]
-    pub fn get_transfer_name(&self, generation: usize) -> Option<&str> {
+    pub fn get_settings(&self, generation: usize) -> Option<SimulationSettings> {
+        self.get_event_value("settings", generation)
+            .and_then(|settings_path| SimulationSettings::read_from_file(settings_path).ok())
+    }
+
+    pub fn get_event_value(&self, event: &str, generation: usize) -> Option<&str> {
         match self
             .iter()
-            .find(|record| match_generation(record, generation) && record.event == "transmission")
+            .find(|record| match_generation(record, generation) && record.event == event)
         {
             Some(record) => Some(record.value.as_str()),
             None => None,

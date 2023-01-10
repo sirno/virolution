@@ -255,6 +255,14 @@ fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
             sample(simulations, sample_size, generation, args);
         }
 
+        // adjust settings if needed
+        plan.get_settings(generation).and_then(|settings| {
+            for simulation in simulations.iter_mut() {
+                simulation.set_settings(settings.clone());
+            }
+            Some(())
+        });
+
         // simulate compartmentalized population
         let offsprings: Vec<Vec<usize>> = simulations
             .iter_mut()

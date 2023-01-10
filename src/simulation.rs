@@ -52,6 +52,19 @@ impl Simulation {
         }
     }
 
+    pub fn set_settings(&mut self, simulation_settings: SimulationSettings) {
+        self.simulation_settings = simulation_settings;
+        self.mutation_sampler = Binomial::new(
+            self.wildtype.get_length() as u64,
+            self.simulation_settings.mutation_rate,
+        )
+        .unwrap();
+        self.recombination_sampler =
+            Bernoulli::new(self.simulation_settings.recombination_rate).unwrap();
+        self.infection_sampler =
+            Bernoulli::new(self.simulation_settings.infection_fraction).unwrap();
+    }
+
     pub fn get_population(&self) -> &Population {
         &self.population
     }
