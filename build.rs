@@ -18,10 +18,7 @@ fn main() -> Result<(), Error> {
     let fish_completions_dir = Path::new(&home_dir).join(".config/fish/completions");
     if fish_completions_dir.exists() {
         let fish_command_path = generate_to(Fish, &mut cmd, "virolution", fish_completions_dir)?;
-        println!(
-            "cargo:warning=completion file is generated for fish: {:?}",
-            fish_command_path
-        );
+        println!("cargo:warning=completion file is generated for fish: {fish_command_path:?}",);
     }
 
     Ok(())

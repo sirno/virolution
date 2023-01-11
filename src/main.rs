@@ -91,7 +91,6 @@ fn create_simulations(
     settings: SimulationSettings,
 ) -> Vec<Simulation> {
     (0..args.n_compartments)
-        .into_iter()
         .map(|compartment_idx| {
             let init_population: Population = if compartment_idx == 0 {
                 population![wildtype.clone(); args.initial_population_size]
@@ -160,14 +159,21 @@ fn sample(simulations: &[Simulation], sample_size: usize, generation: usize, arg
 
 #[cfg(feature = "parallel")]
 fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
-    // init progress bar
-    let bar = ProgressBar::new(args.generations as u64);
-    bar.set_style(
-        ProgressStyle::default_bar()
-            .template("[{bar:40}] {pos:>7}/{len:7} [{elapsed_precise} / {duration_precise}] {msg}")
-            .expect("Unable to create template.")
-            .progress_chars("=> "),
-    );
+    let bar = match args.disable_progress_bar {
+        true => None,
+        false => {
+            let bar = ProgressBar::new(args.generations as u64);
+            bar.set_style(
+            ProgressStyle::default_bar()
+                .template(
+                    "[{bar:40}] {pos:>7}/{len:7} [{elapsed_precise} / {duration_precise}] {msg}",
+                )
+                .expect("Unable to create template.")
+                .progress_chars("=> "),
+        );
+            Some(bar)
+        }
+    };
 
     for generation in 0..=args.generations {
         // logging
@@ -182,9 +188,10 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
     population_sizes={population_sizes:?}"###
         );
 
-        // update progress bar
-        bar.set_position(generation.try_into().unwrap());
-        bar.set_message(format!("{population_sizes:?}"));
+        if let Some(bar) = bar.as_ref() {
+            bar.set_position(generation.try_into().unwrap());
+            bar.set_message(format!("{population_sizes:?}"));
+        }
 
         // write to output when sampling
         let sample_size = plan.get_sample_size(generation);
@@ -192,18 +199,17 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
             sample(simulations, sample_size, generation, args);
         }
 
-        // adjust settings if needed
-        plan.get_settings(generation).and_then(|settings| {
-            log::info!("Adjusting settings to:\n{}", settings.clone());
-            simulations.iter_mut().for_each(|simulation| {
-                simulation.set_settings(settings.clone());
-            });
-            Some(())
-        });
-
         // abort on last generation after sampling
         if generation == args.generations {
             break;
+        }
+
+        // adjust settings if needed
+        if let Some(settings) = plan.get_settings(generation) {
+            log::info!("Adjusting settings to:\n{}", settings);
+            simulations.iter_mut().for_each(|simulation| {
+                simulation.set_settings(settings.clone());
+            });
         }
 
         // simulate compartmentalized population in parallel
@@ -242,36 +248,67 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
             simulation.set_population(population);
         }
     }
-    bar.finish_with_message("Done.");
+
+    if let Some(bar) = bar {
+        bar.finish_with_message("Done.");
+    }
     log::info!("Finished simulation.");
 }
 
 #[cfg(not(feature = "parallel"))]
 fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
-    // init progress bar
-    let bar = ProgressBar::new(args.generations as u64);
-    bar.set_style(
-        ProgressStyle::default_bar()
-            .template("[{bar:40}] {pos:>7}/{len:7} [{elapsed_precise} / {duration_precise}] {msg}")
-            .expect("Unable to create template.")
-            .progress_chars("=> "),
-    );
+    let bar = match args.disable_progress_bar {
+        true => None,
+        false => {
+            let bar = ProgressBar::new(args.generations as u64);
+            bar.set_style(
+            ProgressStyle::default_bar()
+                .template(
+                    "[{bar:40}] {pos:>7}/{len:7} [{elapsed_precise} / {duration_precise}] {msg}",
+                )
+                .expect("Unable to create template.")
+                .progress_chars("=> "),
+        );
+            Some(bar)
+        }
+    };
 
     for generation in 0..=args.generations {
+        // logging
+        let population_sizes: Vec<usize> = simulations
+            .iter()
+            .map(|sim| sim.get_population().len())
+            .collect();
+
+        log::info!(
+            r###"
+    generation={generation}
+    population_sizes={population_sizes:?}"###
+        );
+
+        if let Some(bar) = bar.as_ref() {
+            bar.set_position(generation.try_into().unwrap());
+            bar.set_message(format!("{population_sizes:?}"));
+        }
+
         // write to output when sampling
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
             sample(simulations, sample_size, generation, args);
         }
 
+        // abort on last generation after sampling
+        if generation == args.generations {
+            break;
+        }
+
         // adjust settings if needed
-        plan.get_settings(generation).and_then(|settings| {
-            log::info!("Adjusting settings to:\n{}", settings.clone());
+        if let Some(settings) = plan.get_settings(generation) {
+            log::info!("Adjusting settings to:\n{}", settings);
             simulations.iter_mut().for_each(|simulation| {
                 simulation.set_settings(settings.clone());
             });
-            Some(())
-        });
+        }
 
         // simulate compartmentalized population
         let offsprings: Vec<Vec<usize>> = simulations
@@ -291,7 +328,6 @@ fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
         let transfer = plan.get_transfer_matrix(generation);
 
         let populations: Vec<Population> = (0..args.n_compartments)
-            .into_iter()
             .map(|target| {
                 Population::from_iter((0..args.n_compartments).map(|origin| {
                     simulations[origin]
@@ -304,24 +340,11 @@ fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
         for (simulation, population) in simulations.iter_mut().zip(populations) {
             simulation.set_population(population);
         }
-
-        // logging
-        let population_sizes: Vec<usize> = simulations
-            .iter()
-            .map(|sim| sim.get_population().len())
-            .collect();
-
-        log::info!(
-            r###"
-    generation={generation}
-    population_sizes={population_sizes:?}"###
-        );
-
-        // update progress bar
-        bar.set_position(generation.try_into().unwrap());
-        bar.set_message(format!("{population_sizes:?}"));
     }
-    bar.finish_with_message("Done.");
+
+    if let Some(bar) = bar {
+        bar.finish_with_message("Done.");
+    }
     log::info!("Finished simulation.");
 }
 

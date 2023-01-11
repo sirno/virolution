@@ -53,4 +53,8 @@ pub struct Args {
     /// Initial population size
     #[clap(long, default_value = "10000000")]
     pub initial_population_size: usize,
+
+    /// Disable progress bar
+    #[clap(long)]
+    pub disable_progress_bar: bool,
 }

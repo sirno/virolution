@@ -222,7 +222,7 @@ impl Haplotype {
             let mut fitness = 1.;
 
             for (position, (_from, to)) in mutations {
-                fitness *= fitness_table.get_fitness(&position, &to);
+                fitness *= fitness_table.get_fitness(position, to);
             }
 
             fitness_table.utility(fitness)
