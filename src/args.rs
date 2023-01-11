@@ -57,4 +57,8 @@ pub struct Args {
     /// Disable progress bar
     #[clap(long)]
     pub disable_progress_bar: bool,
+
+    /// Verbosity
+    #[clap(long, short, action = clap::ArgAction::Count, default_value = "0")]
+    pub verbose: u8,
 }

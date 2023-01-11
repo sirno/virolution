@@ -27,8 +27,15 @@ use virolution::simulation_settings::*;
 
 fn setup(args: &Args) {
     // setup logger
-    simple_logging::log_to_file(args.log_file.as_str(), log::LevelFilter::Info)
-        .expect("Failed to init logging.");
+    let log_level = match args.verbose {
+        0 => log::LevelFilter::Info,
+        1 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::Trace,
+    };
+    simple_logging::log_to_file(args.log_file.as_str(), log_level).unwrap_or_else(|_| {
+        eprintln!("Unable to open log file.");
+        std::process::exit(1);
+    });
 
     // setup barcode file
     let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
@@ -177,6 +184,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
 
     for generation in 0..=args.generations {
         // logging
+        log::debug!("Generate logging message for generation {generation}...");
         let population_sizes: Vec<usize> = simulations
             .iter()
             .map(|sim| sim.get_population().len())
@@ -194,6 +202,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
         }
 
         // write to output when sampling
+        log::debug!("Process sampling...");
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
             sample(simulations, sample_size, generation, args);
@@ -212,14 +221,18 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
             });
         }
 
-        // simulate compartmentalized population in parallel
+        // increment generation
         simulations.iter_mut().for_each(|simulation| {
             simulation.increment_generation();
         });
+
+        // simulate compartmentalized population in parallel
+        log::debug!("Generate host maps...");
         let host_maps: Vec<HostMap> = simulations
             .par_iter()
             .map(|simulation| simulation.get_host_map())
             .collect();
+        log::debug!("Generate offsprings...");
         let offsprings: Vec<Vec<usize>> = simulations
             .par_iter_mut()
             .zip(host_maps.par_iter())
@@ -230,6 +243,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
             .collect();
 
         // transfer between compartments
+        log::debug!("Transfer between compartments...");
         let transfer = plan.get_transfer_matrix(generation);
         let populations: Vec<Population> = (0..args.n_compartments)
             .into_par_iter()
@@ -244,6 +258,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
             .collect();
 
         // update populations
+        log::debug!("Update populations...");
         for (simulation, population) in simulations.iter_mut().zip(populations) {
             simulation.set_population(population);
         }
@@ -275,6 +290,7 @@ fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
 
     for generation in 0..=args.generations {
         // logging
+        log::debug!("Generate logging message for generation {generation}...");
         let population_sizes: Vec<usize> = simulations
             .iter()
             .map(|sim| sim.get_population().len())
@@ -292,6 +308,7 @@ fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
         }
 
         // write to output when sampling
+        log::debug!("Process sampling...");
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
             sample(simulations, sample_size, generation, args);
@@ -311,6 +328,7 @@ fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
         }
 
         // simulate compartmentalized population
+        log::debug!("Generate offsprings...");
         let offsprings: Vec<Vec<usize>> = simulations
             .iter_mut()
             .map(|simulation| {
@@ -325,6 +343,7 @@ fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
             .collect();
 
         // transfer between compartments
+        log::debug!("Transfer between compartments...");
         let transfer = plan.get_transfer_matrix(generation);
 
         let populations: Vec<Population> = (0..args.n_compartments)
