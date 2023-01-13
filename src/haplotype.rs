@@ -37,7 +37,6 @@ pub enum Haplotype {
 pub struct Wildtype {
     reference: HaplotypeWeak,
     sequence: Vec<Symbol>,
-    mutations: HashMap<usize, (Symbol, Symbol)>,
     descendants: Mutex<Vec<HaplotypeWeak>>,
     dirty_descendants: AtomicUsize,
 }
@@ -50,7 +49,6 @@ pub struct Descendant {
     positions: Vec<usize>,
     changes: Vec<(Symbol, Symbol)>,
     generation: usize,
-    mutations: OnceLock<HashMap<usize, (Symbol, Symbol)>>,
     fitness: OnceLock<f64>,
     descendants: Mutex<Vec<HaplotypeWeak>>,
     dirty_descendants: AtomicUsize,
@@ -65,7 +63,6 @@ pub struct Recombinant {
     left_position: usize,
     right_position: usize,
     generation: usize,
-    mutations: OnceLock<HashMap<usize, (Symbol, Symbol)>>,
     fitness: OnceLock<f64>,
     descendants: Mutex<Vec<HaplotypeWeak>>,
     dirty_descendants: AtomicUsize,
@@ -75,9 +72,7 @@ impl Drop for Haplotype {
     fn drop(&mut self) {
         match self {
             Haplotype::Wildtype(_wt) => {}
-            Haplotype::Descendant(ht) => {
-                ht.ancestor.increment_dirty_descendants();
-            }
+            Haplotype::Descendant(ht) => ht.ancestor.increment_dirty_descendants(),
             Haplotype::Recombinant(rc) => {
                 rc.left_ancestor.increment_dirty_descendants();
                 rc.right_ancestor.increment_dirty_descendants();
@@ -210,7 +205,7 @@ impl Haplotype {
         let mut sequence = self.get_wildtype_sequence();
 
         for (position, (_, to)) in mutations {
-            sequence[*position] = *to;
+            sequence[position] = to;
         }
 
         sequence
@@ -251,9 +246,9 @@ impl Haplotype {
         out
     }
 
-    pub fn get_mutations(&self) -> &HashMap<usize, (Symbol, Symbol)> {
+    pub fn get_mutations(&self) -> HashMap<usize, (Symbol, Symbol)> {
         match self {
-            Haplotype::Wildtype(wt) => &wt.mutations,
+            Haplotype::Wildtype(_wt) => HashMap::new(),
             Haplotype::Descendant(ht) => ht.get_mutations(),
             Haplotype::Recombinant(rc) => rc.get_mutations(),
         }
@@ -265,7 +260,7 @@ impl Haplotype {
             let mut fitness = 1.;
 
             for (position, (_from, to)) in mutations {
-                fitness *= fitness_table.get_fitness(position, to);
+                fitness *= fitness_table.get_fitness(&position, &to);
             }
 
             fitness_table.utility(fitness)
@@ -330,7 +325,6 @@ impl Wildtype {
             Haplotype::Wildtype(Self {
                 reference: reference.clone(),
                 sequence: sequence.clone(),
-                mutations: HashMap::new(),
                 descendants: Mutex::new(Vec::new()),
                 dirty_descendants: AtomicUsize::new(0),
             })
@@ -381,7 +375,6 @@ impl Descendant {
                 positions: positions.clone(),
                 changes: changes.clone(),
                 generation,
-                mutations: OnceLock::new(),
                 fitness: OnceLock::new(),
                 descendants: Mutex::new(Vec::new()),
                 dirty_descendants: AtomicUsize::new(0),
@@ -409,24 +402,22 @@ impl Descendant {
         self.wildtype.upgrade().unwrap().get_length()
     }
 
-    pub fn get_mutations(&self) -> &HashMap<usize, (Symbol, Symbol)> {
-        self.mutations.get_or_init(|| {
-            let wt_ref = self.wildtype.upgrade().unwrap();
-            let mut mutations = self.ancestor.get_mutations().clone();
-            self.positions
-                .iter()
-                .enumerate()
-                .for_each(|(idx, position)| {
-                    let change = self.changes[idx];
-                    let wt_base = wt_ref.get_base(position);
-                    if change.1 == wt_base {
-                        mutations.remove(position);
-                    } else {
-                        mutations.insert(*position, change);
-                    }
-                });
-            mutations
-        })
+    pub fn get_mutations(&self) -> HashMap<usize, (Symbol, Symbol)> {
+        let wt_ref = self.wildtype.upgrade().unwrap();
+        let mut mutations = self.ancestor.get_mutations();
+        self.positions
+            .iter()
+            .enumerate()
+            .for_each(|(idx, position)| {
+                let change = self.changes[idx];
+                let wt_base = wt_ref.get_base(position);
+                if change.1 == wt_base {
+                    mutations.remove(position);
+                } else {
+                    mutations.insert(*position, change);
+                }
+            });
+        mutations
     }
 
     pub fn get_subtree(&self) -> String {
@@ -472,7 +463,6 @@ impl Recombinant {
                 left_position,
                 right_position,
                 generation,
-                mutations: OnceLock::new(),
                 fitness: OnceLock::new(),
                 descendants: Mutex::new(Vec::new()),
                 dirty_descendants: AtomicUsize::new(0),
@@ -496,27 +486,25 @@ impl Recombinant {
         self.wildtype.upgrade().unwrap().get_length()
     }
 
-    pub fn get_mutations(&self) -> &HashMap<usize, (Symbol, Symbol)> {
-        self.mutations.get_or_init(|| {
-            let left_mutations = self.left_ancestor.get_mutations();
-            let right_mutations = self.right_ancestor.get_mutations();
+    pub fn get_mutations(&self) -> HashMap<usize, (Symbol, Symbol)> {
+        let left_mutations = self.left_ancestor.get_mutations();
+        let right_mutations = self.right_ancestor.get_mutations();
 
-            let mut mutations = HashMap::new();
+        let mut mutations = HashMap::new();
 
-            for (&position, &change) in left_mutations {
-                if position >= self.left_position && position < self.right_position {
-                    mutations.insert(position, change);
-                }
+        for (position, change) in left_mutations {
+            if position >= self.left_position && position < self.right_position {
+                mutations.insert(position, change);
             }
+        }
 
-            for (&position, &change) in right_mutations {
-                if position < self.left_position || position >= self.right_position {
-                    mutations.insert(position, change);
-                }
+        for (position, change) in right_mutations {
+            if position < self.left_position || position >= self.right_position {
+                mutations.insert(position, change);
             }
+        }
 
-            mutations
-        })
+        mutations
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
