@@ -6,7 +6,8 @@ use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::{Arc, OnceLock};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 
 // #[derive(Clone, Debug, Deref)]
 pub type Symbol = Option<u8>;
@@ -36,8 +37,9 @@ pub enum Haplotype {
 pub struct Wildtype {
     reference: HaplotypeWeak,
     sequence: Vec<Symbol>,
-    descendants: Arc<Mutex<Vec<HaplotypeWeak>>>,
     mutations: HashMap<usize, (Symbol, Symbol)>,
+    descendants: Mutex<Vec<HaplotypeWeak>>,
+    dirty_descendants: AtomicUsize,
 }
 
 #[derive(Debug)]
@@ -45,12 +47,13 @@ pub struct Descendant {
     reference: HaplotypeWeak,
     wildtype: HaplotypeWeak,
     ancestor: HaplotypeRef,
-    descendants: Arc<Mutex<Vec<HaplotypeWeak>>>,
     positions: Vec<usize>,
     changes: Vec<(Symbol, Symbol)>,
     generation: usize,
     mutations: OnceLock<HashMap<usize, (Symbol, Symbol)>>,
     fitness: OnceLock<f64>,
+    descendants: Mutex<Vec<HaplotypeWeak>>,
+    dirty_descendants: AtomicUsize,
 }
 
 #[derive(Debug)]
@@ -59,12 +62,28 @@ pub struct Recombinant {
     wildtype: HaplotypeWeak,
     left_ancestor: HaplotypeRef,
     right_ancestor: HaplotypeRef,
-    descendants: Arc<Mutex<Vec<HaplotypeWeak>>>,
     left_position: usize,
     right_position: usize,
     generation: usize,
     mutations: OnceLock<HashMap<usize, (Symbol, Symbol)>>,
     fitness: OnceLock<f64>,
+    descendants: Mutex<Vec<HaplotypeWeak>>,
+    dirty_descendants: AtomicUsize,
+}
+
+impl Drop for Haplotype {
+    fn drop(&mut self) {
+        match self {
+            Haplotype::Wildtype(_wt) => {}
+            Haplotype::Descendant(ht) => {
+                ht.ancestor.increment_dirty_descendants();
+            }
+            Haplotype::Recombinant(rc) => {
+                rc.left_ancestor.increment_dirty_descendants();
+                rc.right_ancestor.increment_dirty_descendants();
+            }
+        }
+    }
 }
 
 impl Haplotype {
@@ -130,20 +149,44 @@ impl Haplotype {
         }
     }
 
-    pub fn get_descendants(&self) -> Arc<Mutex<Vec<HaplotypeWeak>>> {
+    pub fn get_descendants(&self) -> &Mutex<Vec<HaplotypeWeak>> {
         match self {
-            Haplotype::Wildtype(wt) => wt.descendants.clone(),
-            Haplotype::Descendant(ht) => ht.descendants.clone(),
-            Haplotype::Recombinant(rc) => rc.descendants.clone(),
+            Haplotype::Wildtype(wt) => &wt.descendants,
+            Haplotype::Descendant(ht) => &ht.descendants,
+            Haplotype::Recombinant(rc) => &rc.descendants,
         }
     }
 
     fn add_descendant(&self, descendant: HaplotypeWeak) {
-        match self {
-            Haplotype::Wildtype(wt) => wt.descendants.lock().push(descendant),
-            Haplotype::Descendant(ht) => ht.descendants.lock().push(descendant),
-            Haplotype::Recombinant(rc) => rc.descendants.lock().push(descendant),
+        let (descendants, dirty_descendants) = match self {
+            Haplotype::Wildtype(wt) => (&wt.descendants, &wt.dirty_descendants),
+            Haplotype::Descendant(ht) => (&ht.descendants, &ht.dirty_descendants),
+            Haplotype::Recombinant(rc) => (&rc.descendants, &rc.dirty_descendants),
         };
+
+        let mut descendants_guard = descendants.lock();
+
+        // if there are dirty descendants, replace one of them
+        if dirty_descendants.load(Ordering::Relaxed) > 0 && let Some(idx) = descendants_guard
+            .iter()
+            .rev()
+            .position(|x| !x.exists())
+        {
+            descendants_guard[idx] = descendant;
+            dirty_descendants.fetch_sub(1, Ordering::Relaxed);
+            return;
+        }
+
+        descendants_guard.push(descendant);
+    }
+
+    fn increment_dirty_descendants(&self) {
+        let dirty_descendants = match self {
+            Haplotype::Wildtype(wt) => &wt.dirty_descendants,
+            Haplotype::Descendant(ht) => &ht.dirty_descendants,
+            Haplotype::Recombinant(rc) => &rc.dirty_descendants,
+        };
+        dirty_descendants.fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn get_base(&self, position: &usize) -> Symbol {
@@ -287,8 +330,9 @@ impl Wildtype {
             Haplotype::Wildtype(Self {
                 reference: reference.clone(),
                 sequence: sequence.clone(),
-                descendants: Arc::new(Mutex::new(Vec::new())),
                 mutations: HashMap::new(),
+                descendants: Mutex::new(Vec::new()),
+                dirty_descendants: AtomicUsize::new(0),
             })
         })
     }
@@ -307,14 +351,13 @@ impl Wildtype {
         self.sequence.len()
     }
 
-    #[inline]
     pub fn get_subtree(&self) -> String {
         let inner = self
             .descendants
             .lock()
             .iter()
-            .filter(|x| x.exists())
-            .map(|x| x.upgrade().unwrap().get_subtree(self.reference.clone()))
+            .filter_map(|x| x.upgrade())
+            .map(|x| x.get_subtree(self.reference.clone()))
             .collect::<Vec<String>>()
             .join(",");
         format!("({inner})wt")
@@ -335,12 +378,13 @@ impl Descendant {
                 reference: reference.clone(),
                 wildtype: wildtype.get_weak(),
                 ancestor: ancestor.get_clone(),
-                descendants: Arc::new(Mutex::new(Vec::new())),
                 positions: positions.clone(),
                 changes: changes.clone(),
                 generation,
                 mutations: OnceLock::new(),
                 fitness: OnceLock::new(),
+                descendants: Mutex::new(Vec::new()),
+                dirty_descendants: AtomicUsize::new(0),
             })
         })
     }
@@ -385,7 +429,6 @@ impl Descendant {
         })
     }
 
-    #[inline]
     pub fn get_subtree(&self) -> String {
         let name = self.reference.upgrade().unwrap().get_string();
         let block_id = self.reference.get_block_id();
@@ -426,12 +469,13 @@ impl Recombinant {
                 wildtype: wildtype.get_weak(),
                 left_ancestor: left_ancestor.get_clone(),
                 right_ancestor: right_ancestor.get_clone(),
-                descendants: Arc::new(Mutex::new(Vec::new())),
                 left_position,
                 right_position,
                 generation,
                 mutations: OnceLock::new(),
                 fitness: OnceLock::new(),
+                descendants: Mutex::new(Vec::new()),
+                dirty_descendants: AtomicUsize::new(0),
             })
         })
     }
@@ -475,7 +519,6 @@ impl Recombinant {
         })
     }
 
-    #[inline]
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
         let name = self.reference.upgrade().unwrap().get_string();
         let block_id = self.reference.get_block_id();
