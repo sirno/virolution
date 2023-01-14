@@ -6,10 +6,13 @@ extern crate test;
 
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
+use itertools::Itertools;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use seq_io::fasta;
+use seq_io::fasta::OwnedRecord;
 use seq_io::fasta::Record;
+use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::panic::catch_unwind;
@@ -132,20 +135,41 @@ fn sample(simulations: &[Simulation], sample_size: usize, generation: usize, arg
             .expect("Unable to open barcode file.");
         let mut samples_file = io::BufWriter::new(fs::File::create(sample_path).unwrap());
 
+        // precompute sequences
+        let population = compartment.get_population();
+        let sequences: HashMap<usize, Vec<u8>> = population
+            .iter()
+            .unique()
+            .map(|haplotype_ref| {
+                let sequence = haplotype_ref
+                    .get_sequence()
+                    .into_iter()
+                    .map(|symbol| match symbol {
+                        Some(s) => FASTA_ENCODE[&s],
+                        None => 0x2d,
+                    })
+                    .collect();
+                (haplotype_ref.get_id(), sequence)
+            })
+            .collect();
+
         // sample sequences and write to file
-        for (sequence_id, sequence) in compartment
-            .get_population()
+        for (haplotype_id, haplotype_ref) in population
             .choose_multiple(&mut rand::thread_rng(), sample_size)
             .into_iter()
             .enumerate()
         {
-            let record = sequence.get_record(
-                format!(
-                    "compartment_id={};sequence_id={};generation={}",
-                    compartment_id, sequence_id, generation
-                )
-                .as_str(),
-            );
+            let head = format!(
+                "compartment_id={};sequence_id={};generation={}",
+                compartment_id, haplotype_id, generation
+            )
+            .as_bytes()
+            .to_vec();
+            let sequence = sequences[&haplotype_ref.get_id()].clone();
+            let record = OwnedRecord {
+                head,
+                seq: sequence,
+            };
             record
                 .write(&mut samples_file)
                 .expect("Unable to write to file.");

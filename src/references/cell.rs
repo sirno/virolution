@@ -4,6 +4,7 @@ use crate::haplotype::Haplotype;
 use block_id::{Alphabet, BlockId};
 use derive_more::{Deref, DerefMut};
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::rc::{Rc, Weak};
 
 #[derive(Clone, Deref, DerefMut)]
@@ -57,6 +58,15 @@ impl PartialEq for HaplotypeRef {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(self, other)
+    }
+}
+
+impl Eq for HaplotypeRef {}
+
+impl Hash for HaplotypeRef {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Rc::as_ptr(&self.0).hash(state);
     }
 }
 
