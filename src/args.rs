@@ -58,6 +58,11 @@ pub struct Args {
     #[clap(long)]
     pub disable_progress_bar: bool,
 
+    /// Number of threads
+    /// If not set, the number of threads is set to the number of logical cores
+    #[clap(long)]
+    pub threads: Option<usize>,
+
     /// Verbosity
     #[clap(long, short, action = clap::ArgAction::Count, default_value = "0")]
     pub verbose: u8,

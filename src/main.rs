@@ -40,6 +40,19 @@ fn setup(args: &Args) {
         std::process::exit(1);
     });
 
+    // setup rayon
+    #[cfg(feature = "parallel")]
+    if let Some(n_threads) = args.threads {
+        println!("Setting number of threads to {}.", n_threads);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(n_threads)
+            .build_global()
+            .unwrap_or_else(|_| {
+                eprintln!("Unable to set number of threads.");
+                std::process::exit(1);
+            });
+    }
+
     // setup barcode file
     let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
     std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
