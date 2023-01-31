@@ -93,6 +93,7 @@ impl Simulation {
 
     fn _recombine_infectants(
         &self,
+        rng: &mut ThreadRng,
         sequence_length: usize,
         infectants: &Vec<usize>,
     ) -> Vec<(usize, HaplotypeRef)> {
@@ -108,9 +109,8 @@ impl Simulation {
             .combinations(2)
             .filter(|_| self.recombination_sampler.sample(&mut rand::thread_rng()))
             .map(|infectant_pair| {
-                let mut rng = rand::thread_rng();
                 let mut recombination_sites =
-                    rand::seq::index::sample(&mut rng, sequence_length, 2).into_vec();
+                    rand::seq::index::sample(rng, sequence_length, 2).into_vec();
                 recombination_sites.sort();
                 let recombinant = Haplotype::create_recombinant(
                     &self.population[infectant_pair[0]],
@@ -119,27 +119,27 @@ impl Simulation {
                     recombination_sites[1],
                     self.generation,
                 );
-                (**infectant_pair.choose(&mut rng).unwrap(), recombinant)
+                (**infectant_pair.choose(rng).unwrap(), recombinant)
             })
             .collect()
     }
 
     fn _mutate_infectants(
         &self,
+        rng: &mut ThreadRng,
         sequence_length: usize,
         infectants: &[usize],
     ) -> Vec<(usize, HaplotypeRef)> {
         infectants
             .iter()
             .filter_map(|infectant| {
-                let mut rng = rand::thread_rng();
                 let infectant_ref = &self.population[infectant];
-                let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
+                let n_mutations = self.mutation_sampler.sample(rng) as usize;
                 if n_mutations == 0 {
                     return None;
                 };
                 let mut mutation_sites =
-                    rand::seq::index::sample(&mut rng, sequence_length, n_mutations).into_vec();
+                    rand::seq::index::sample(rng, sequence_length, n_mutations).into_vec();
                 mutation_sites.sort();
                 let bases = mutation_sites
                     .iter()
@@ -181,13 +181,14 @@ impl Simulation {
             // recombine infectants
             host_map
                 .par_iter()
-                .for_each_with(recombination_sender, |sender, infectants| {
+                .map_init(thread_rng, |rng, infectants| {
+                    self._recombine_infectants(rng, sequence_length, infectants)
+                })
+                .for_each_with(recombination_sender, |sender, recombinations| {
                     // Recombine
-                    self._recombine_infectants(sequence_length, infectants)
-                        .into_iter()
-                        .for_each(|recombination| {
-                            sender.send(recombination).unwrap();
-                        });
+                    recombinations.into_iter().for_each(|recombination| {
+                        sender.send(recombination).unwrap();
+                    });
                 });
 
             // collect recominants
@@ -202,12 +203,13 @@ impl Simulation {
         // mutate infectant
         host_map
             .par_iter()
-            .for_each_with(mutation_sender, |sender, infectants| {
-                self._mutate_infectants(sequence_length, infectants)
-                    .into_iter()
-                    .for_each(|mutation| {
-                        sender.send(mutation).unwrap();
-                    });
+            .map_init(thread_rng, |rng, infectants| {
+                self._mutate_infectants(rng, sequence_length, infectants)
+            })
+            .for_each_with(mutation_sender, |sender, mutations| {
+                mutations.into_iter().for_each(|mutation| {
+                    sender.send(mutation).unwrap();
+                });
             });
 
         // collect mutants
