@@ -255,25 +255,10 @@ impl Haplotype {
     }
 
     pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
-        let compute_fitness = || {
-            let mutations = self.get_mutations();
-            let mut fitness = 1.;
-
-            for (position, (_from, to)) in mutations {
-                fitness *= fitness_table.get_fitness(&position, &to);
-            }
-
-            fitness_table.utility(fitness)
-        };
-
         match self {
             Haplotype::Wildtype(_wt) => 1.,
-            Haplotype::Descendant(Descendant { fitness, .. }) => {
-                *fitness.get_or_init(compute_fitness)
-            }
-            Haplotype::Recombinant(Recombinant { fitness, .. }) => {
-                *fitness.get_or_init(compute_fitness)
-            }
+            Haplotype::Descendant(ht) => *ht.get_fitness(fitness_table),
+            Haplotype::Recombinant(rc) => *rc.get_fitness(fitness_table),
         }
     }
 
@@ -420,6 +405,19 @@ impl Descendant {
         mutations
     }
 
+    pub fn get_fitness(&self, fitness_table: &FitnessTable) -> &f64 {
+        self.fitness.get_or_init(|| {
+            let mut fitness = self.ancestor.get_fitness(fitness_table);
+
+            for (position, change) in self.positions.iter().zip(self.changes.iter()) {
+                fitness /= fitness_table.get_fitness(position, &change.0);
+                fitness *= fitness_table.get_fitness(position, &change.1);
+            }
+
+            fitness_table.utility(fitness)
+        })
+    }
+
     pub fn get_subtree(&self) -> String {
         let name = self.reference.upgrade().unwrap().get_string();
         let block_id = self.reference.get_block_id();
@@ -505,6 +503,19 @@ impl Recombinant {
         }
 
         mutations
+    }
+
+    pub fn get_fitness(&self, fitness_table: &FitnessTable) -> &f64 {
+        self.fitness.get_or_init(|| {
+            let mutations = self.get_mutations();
+            let mut fitness = 1.;
+
+            for (position, (_from, to)) in mutations {
+                fitness *= fitness_table.get_fitness(&position, &to);
+            }
+
+            fitness_table.utility(fitness)
+        })
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
