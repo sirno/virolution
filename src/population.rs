@@ -141,6 +141,10 @@ impl Population {
         self.population.len()
     }
 
+    /// Insert a `HaplotypeRef` at a specific position.
+    ///
+    /// This will overwrite the haplotype at that position, but not remove its
+    /// reference from the `Haplotypes` map.
     pub fn insert(&mut self, position: usize, haplotype: &HaplotypeRef) {
         let ref_id = haplotype.get_id();
         self.population[position] = ref_id;
@@ -149,6 +153,7 @@ impl Population {
             .or_insert_with(|| haplotype.clone());
     }
 
+    /// Push a `HaplotypeRef` to the end of the `Population`.
     pub fn push(&mut self, haplotype: &HaplotypeRef) {
         let ref_id = haplotype.get_id();
         self.population.push(ref_id);
@@ -157,8 +162,8 @@ impl Population {
             .or_insert_with(|| haplotype.clone());
     }
 
-    pub fn get_haplotypes(&self) -> Haplotypes {
-        self.haplotypes.clone()
+    pub fn get_haplotypes(&self) -> &Haplotypes {
+        &self.haplotypes
     }
 
     pub fn choose_multiple(&self, rng: &mut ThreadRng, amount: usize) -> Vec<&HaplotypeRef> {
