@@ -126,6 +126,7 @@ impl Population {
         }
     }
 
+    /// Get an iterator over the `Population`.
     pub fn iter(&self) -> PopulationIterator {
         PopulationIterator {
             population: self,
@@ -133,10 +134,12 @@ impl Population {
         }
     }
 
+    /// Check if the `Population` is empty.
     pub fn is_empty(&self) -> bool {
         self.population.is_empty()
     }
 
+    /// Get the size of the `Population`.
     pub fn len(&self) -> usize {
         self.population.len()
     }
@@ -162,10 +165,12 @@ impl Population {
             .or_insert_with(|| haplotype.clone());
     }
 
+    /// Get a reference to the `Haplotypes` map.
     pub fn get_haplotypes(&self) -> &Haplotypes {
         &self.haplotypes
     }
 
+    /// Get a random sample of `HaplotypeRef` from the `Population`.
     pub fn choose_multiple(&self, rng: &mut ThreadRng, amount: usize) -> Vec<&HaplotypeRef> {
         self.population
             .choose_multiple(rng, amount)
@@ -178,6 +183,7 @@ impl Population {
     }
 
     #[cfg(feature = "parallel")]
+    /// Get a random subsample `Population` of the `Population`.
     pub fn sample(&self, size: usize, weights: &[usize]) -> Self {
         let sampler = WeightedAliasIndex::new(weights.to_vec()).unwrap();
 
@@ -200,6 +206,7 @@ impl Population {
     }
 
     #[cfg(not(feature = "parallel"))]
+    /// Get a random subsample `Population` of the `Population`.
     pub fn sample(&self, size: usize, weights: &[usize]) -> Self {
         let sampler = WeightedAliasIndex::new(weights.to_vec()).unwrap();
 
