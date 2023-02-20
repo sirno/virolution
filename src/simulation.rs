@@ -262,23 +262,17 @@ impl Simulation {
 
     #[cfg(feature = "parallel")]
     pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
-        // replicate infectants within each host
-        let (replicate_sender, replicate_receiver) = channel();
-
-        host_map
-            .par_iter()
-            .for_each_with(replicate_sender, |sender, infectants| {
-                self._replicate_infectants(infectants)
-                    .into_iter()
-                    .for_each(|replication| {
-                        sender.send(replication).unwrap();
-                    });
-            });
-
         let mut offspring = vec![0; self.population.len()];
-        for (infectant, offspring_sample) in replicate_receiver.iter() {
-            offspring[infectant] = offspring_sample as usize;
-        }
+        let offspring_ptr = offspring.as_mut_ptr() as usize;
+        host_map.par_iter().for_each(|infectants| {
+            self._replicate_infectants(infectants).into_iter().for_each(
+                |(infectant, offspring_sample)| unsafe {
+                    (offspring_ptr as *mut usize)
+                        .offset(infectant as isize)
+                        .write(offspring_sample as usize);
+                },
+            );
+        });
         offspring
     }
 
