@@ -243,12 +243,15 @@ impl Simulation {
     }
 
     fn _replicate_infectants(&self, infectants: &[usize]) -> Vec<(usize, f64)> {
+        let length = infectants.len() as f64;
         infectants
             .iter()
             .filter_map(|infectant| {
                 let mut rng = rand::thread_rng();
                 let fitness = self.population[infectant].get_fitness(&self.fitness_table);
-                match Poisson::new(fitness * self.simulation_settings.basic_reproductive_number) {
+                match Poisson::new(
+                    fitness * self.simulation_settings.basic_reproductive_number / length,
+                ) {
                     Ok(dist) => Some((*infectant, dist.sample(&mut rng))),
                     // if fitness is 0 => no offspring
                     Err(_) => None,
