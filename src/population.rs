@@ -165,6 +165,11 @@ impl Population {
             .or_insert_with(|| haplotype.clone());
     }
 
+    /// Get a reference to the `Population` vector.
+    pub fn get_population(&self) -> &Vec<usize> {
+        &self.population
+    }
+
     /// Get a reference to the `Haplotypes` map.
     pub fn get_haplotypes(&self) -> &Haplotypes {
         &self.haplotypes
@@ -180,6 +185,16 @@ impl Population {
                     .unwrap_or_else(|| panic!("No haplotype with index {id}"))
             })
             .collect()
+    }
+
+    /// Sanitize the `Population`.
+    fn sanitize(&mut self) {
+        self.haplotypes = self
+            .population
+            .iter()
+            .unique()
+            .map(|&id| (id, self.haplotypes[&id].clone()))
+            .collect();
     }
 
     #[cfg(feature = "parallel")]
