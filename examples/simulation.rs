@@ -64,7 +64,8 @@ fn main() {
     let settings = SimulationSettings::read_from_file("settings_example.yaml")
         .expect("Failed to read settings from file");
     fs::remove_file("settings_example.yaml").expect("Unable to remove file.");
-    let mut simulation = Simulation::new(wt, population, fitness_table, settings.clone(), 0);
+    let fitness_tables = vec![(0..simulation_settings.host_population_size, fitness_table)];
+    let mut simulation = BasicSimulation::new(wt, population, fitness_tables, settings.clone(), 0);
     let host_map = simulation.get_host_map();
     simulation.mutate_infectants(&host_map);
     let offspring = simulation.replicate_infectants(&host_map);

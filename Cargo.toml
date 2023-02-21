@@ -48,4 +48,3 @@ serial_test = "0.9.0"
 [features]
 default = ["parallel"]
 parallel = ["rayon"]
-multi-host = []

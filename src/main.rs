@@ -112,7 +112,7 @@ fn create_simulations(
     wildtype: &HaplotypeRef,
     fitness_table: FitnessTable,
     settings: SimulationSettings,
-) -> Vec<Simulation> {
+) -> Vec<BasicSimulation> {
     (0..args.n_compartments)
         .map(|compartment_idx| {
             let init_population: Population = if compartment_idx == 0 {
@@ -120,10 +120,11 @@ fn create_simulations(
             } else {
                 Population::new()
             };
-            Simulation::new(
+            let fitness_tables = vec![(0..settings.host_population_size, fitness_table.clone())];
+            BasicSimulation::new(
                 wildtype.get_clone(),
                 init_population,
-                fitness_table.clone(),
+                fitness_tables,
                 settings.clone(),
                 0,
             )
@@ -131,7 +132,7 @@ fn create_simulations(
         .collect()
 }
 
-fn sample(simulations: &[Simulation], sample_size: usize, generation: usize, args: &Args) {
+fn sample(simulations: &[BasicSimulation], sample_size: usize, generation: usize, args: &Args) {
     log::info!("Sampling {} individuals...", sample_size);
     for (compartment_id, compartment) in simulations.iter().enumerate() {
         let barcode = format!("sample_{generation}_{compartment_id}");
@@ -202,7 +203,7 @@ fn sample(simulations: &[Simulation], sample_size: usize, generation: usize, arg
 }
 
 #[cfg(feature = "parallel")]
-fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
+fn run(args: &Args, simulations: &mut Vec<BasicSimulation>, plan: Plan) {
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
@@ -308,7 +309,7 @@ fn run(args: &Args, simulations: &mut Vec<Simulation>, plan: Plan) {
 }
 
 #[cfg(not(feature = "parallel"))]
-fn run(args: &Args, simulations: &mut [Simulation], plan: Plan) {
+fn run(args: &Args, simulations: &mut [BasicSimulation], plan: Plan) {
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
@@ -451,7 +452,7 @@ fn main() {
 
     // create individual compartments
     println!("Creating {} compartments...", args.n_compartments);
-    let mut simulations: Vec<Simulation> =
+    let mut simulations: Vec<BasicSimulation> =
         create_simulations(&args, &wildtype, fitness_table, settings);
 
     // run simulation
@@ -487,6 +488,7 @@ mod tests {
         });
         let fitness_model = FitnessModel::new(distribution, UtilityFunction::Linear);
         let fitness_table = FitnessTable::from_model(&sequence, 4, fitness_model.clone()).unwrap();
+        let fitness_tables = vec![(0..5, fitness_table)];
 
         let wt = Wildtype::new(sequence);
         let population: Population = population![wt.clone(); 10];
@@ -506,7 +508,7 @@ mod tests {
             dilution: 0.17,
             fitness_model,
         };
-        let mut simulation = Simulation::new(wt, population, fitness_table, settings, 0);
+        let mut simulation = BasicSimulation::new(wt, population, fitness_tables, settings, 0);
         b.iter(|| {
             simulation.next_generation();
         })

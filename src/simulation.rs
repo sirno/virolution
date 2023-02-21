@@ -15,12 +15,46 @@ use std::{cmp::min, ops::Range};
 pub type HostMap = Vec<Vec<usize>>;
 pub type HostRange = (Range<usize>, FitnessTable);
 
-pub struct Simulation {
+pub trait Simulation {
+    fn increment_generation(&mut self);
+
+    fn set_settings(&mut self, settings: SimulationSettings);
+
+    fn get_population(&self) -> &Population;
+    fn set_population(&mut self, population: Population);
+
+    fn get_host_map(&self) -> HostMap;
+    fn mutate_infectants(&mut self, host_map: &HostMap);
+    fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize>;
+
+    fn subsample_population(&self, offspring_map: &[usize], dilution: f64) -> Population;
+
+    fn print_population(&self) -> Vec<String>;
+
+    fn next_generation(&mut self) {
+        // increment generation counter
+        self.increment_generation();
+
+        // do nothing if there is no population
+        if self.get_population().is_empty() {
+            return;
+        }
+
+        // simulate infection
+        let host_map = self.get_host_map();
+
+        // simulate replication and mutation
+        self.mutate_infectants(&host_map);
+        let offspring_map = self.replicate_infectants(&host_map);
+
+        // subsample population
+        self.set_population(self.subsample_population(&offspring_map, 1.));
+    }
+}
+
+pub struct BasicSimulation {
     wildtype: HaplotypeRef,
     population: Population,
-    #[cfg(not(feature = "multi-host"))]
-    fitness_table: FitnessTable,
-    #[cfg(feature = "multi-host")]
     fitness_tables: Vec<HostRange>,
     simulation_settings: SimulationSettings,
     mutation_sampler: Binomial,
@@ -29,35 +63,7 @@ pub struct Simulation {
     generation: usize,
 }
 
-impl Simulation {
-    #[cfg(not(feature = "multi-host"))]
-    pub fn new(
-        wildtype: HaplotypeRef,
-        population: Population,
-        fitness_table: FitnessTable,
-        simulation_settings: SimulationSettings,
-        generation: usize,
-    ) -> Self {
-        let mutation_sampler = Binomial::new(
-            wildtype.get_length() as u64,
-            simulation_settings.mutation_rate,
-        )
-        .unwrap();
-        let recombination_sampler = Bernoulli::new(simulation_settings.recombination_rate).unwrap();
-        let infection_sampler = Bernoulli::new(simulation_settings.infection_fraction).unwrap();
-        Self {
-            wildtype,
-            population,
-            fitness_table,
-            simulation_settings,
-            mutation_sampler,
-            recombination_sampler,
-            infection_sampler,
-            generation,
-        }
-    }
-
-    #[cfg(feature = "multi-host")]
+impl BasicSimulation {
     pub fn new(
         wildtype: HaplotypeRef,
         population: Population,
@@ -82,45 +88,6 @@ impl Simulation {
             infection_sampler,
             generation,
         }
-    }
-
-    pub fn set_settings(&mut self, simulation_settings: SimulationSettings) {
-        self.simulation_settings = simulation_settings;
-        self.mutation_sampler = Binomial::new(
-            self.wildtype.get_length() as u64,
-            self.simulation_settings.mutation_rate,
-        )
-        .unwrap();
-        self.recombination_sampler =
-            Bernoulli::new(self.simulation_settings.recombination_rate).unwrap();
-        self.infection_sampler =
-            Bernoulli::new(self.simulation_settings.infection_fraction).unwrap();
-    }
-
-    pub fn get_population(&self) -> &Population {
-        &self.population
-    }
-
-    pub fn set_population(&mut self, population: Population) {
-        self.population = population;
-    }
-
-    pub fn increment_generation(&mut self) {
-        self.generation += 1;
-    }
-
-    pub fn get_host_map(&self) -> HostMap {
-        let capacity = self.population.len() / self.simulation_settings.host_population_size + 1;
-        let mut host_map: HostMap =
-            vec![Vec::with_capacity(capacity); self.simulation_settings.host_population_size];
-        let mut rng = rand::thread_rng();
-        (0..self.population.len()).for_each(|infectant| {
-            if self.infection_sampler.sample(&mut rng) {
-                let host_id = rng.gen_range(0..self.simulation_settings.host_population_size);
-                host_map[host_id].push(infectant);
-            }
-        });
-        host_map
     }
 
     fn _recombine_infectants(
@@ -201,8 +168,71 @@ impl Simulation {
             .collect()
     }
 
+    fn _replicate_infectants(
+        &self,
+        infectants: &[usize],
+        fitness_table: &FitnessTable,
+    ) -> Vec<(usize, f64)> {
+        let length = infectants.len() as f64;
+        infectants
+            .iter()
+            .filter_map(|infectant| {
+                let mut rng = rand::thread_rng();
+                let fitness = self.population[infectant].get_fitness(fitness_table);
+                match Poisson::new(
+                    fitness * self.simulation_settings.basic_reproductive_number / length,
+                ) {
+                    Ok(dist) => Some((*infectant, dist.sample(&mut rng))),
+                    // if fitness is 0 => no offspring
+                    Err(_) => None,
+                }
+            })
+            .collect()
+    }
+}
+
+impl Simulation for BasicSimulation {
+    fn increment_generation(&mut self) {
+        self.generation += 1;
+    }
+
+    fn set_settings(&mut self, simulation_settings: SimulationSettings) {
+        self.simulation_settings = simulation_settings;
+        self.mutation_sampler = Binomial::new(
+            self.wildtype.get_length() as u64,
+            self.simulation_settings.mutation_rate,
+        )
+        .unwrap();
+        self.recombination_sampler =
+            Bernoulli::new(self.simulation_settings.recombination_rate).unwrap();
+        self.infection_sampler =
+            Bernoulli::new(self.simulation_settings.infection_fraction).unwrap();
+    }
+
+    fn get_population(&self) -> &Population {
+        &self.population
+    }
+
+    fn set_population(&mut self, population: Population) {
+        self.population = population;
+    }
+
+    fn get_host_map(&self) -> HostMap {
+        let capacity = self.population.len() / self.simulation_settings.host_population_size + 1;
+        let mut host_map: HostMap =
+            vec![Vec::with_capacity(capacity); self.simulation_settings.host_population_size];
+        let mut rng = rand::thread_rng();
+        (0..self.population.len()).for_each(|infectant| {
+            if self.infection_sampler.sample(&mut rng) {
+                let host_id = rng.gen_range(0..self.simulation_settings.host_population_size);
+                host_map[host_id].push(infectant);
+            }
+        });
+        host_map
+    }
+
     #[cfg(feature = "parallel")]
-    pub fn mutate_infectants(&mut self, host_map: &HostMap) {
+    fn mutate_infectants(&mut self, host_map: &HostMap) {
         // mutate infectants based on host cell assignment
         let sequence_length = self.wildtype.get_length();
 
@@ -249,7 +279,7 @@ impl Simulation {
     }
 
     #[cfg(not(feature = "parallel"))]
-    pub fn mutate_infectants(&mut self, host_map: &HostMap) {
+    fn mutate_infectants(&mut self, host_map: &HostMap) {
         // mutate infectants based on host cell assignment
         let sequence_length = self.wildtype.get_length();
 
@@ -274,51 +304,8 @@ impl Simulation {
         });
     }
 
-    #[cfg(feature = "multi-host")]
-    fn _replicate_infectants(
-        &self,
-        infectants: &[usize],
-        fitness_table: &FitnessTable,
-    ) -> Vec<(usize, f64)> {
-        let length = infectants.len() as f64;
-        infectants
-            .iter()
-            .filter_map(|infectant| {
-                let mut rng = rand::thread_rng();
-                let fitness = self.population[infectant].get_fitness(fitness_table);
-                match Poisson::new(
-                    fitness * self.simulation_settings.basic_reproductive_number / length,
-                ) {
-                    Ok(dist) => Some((*infectant, dist.sample(&mut rng))),
-                    // if fitness is 0 => no offspring
-                    Err(_) => None,
-                }
-            })
-            .collect()
-    }
-
-    #[cfg(not(feature = "multi-host"))]
-    fn _replicate_infectants(&self, infectants: &[usize]) -> Vec<(usize, f64)> {
-        let length = infectants.len() as f64;
-        infectants
-            .iter()
-            .filter_map(|infectant| {
-                let mut rng = rand::thread_rng();
-                let fitness = self.population[infectant].get_fitness(&self.fitness_table);
-                match Poisson::new(
-                    fitness * self.simulation_settings.basic_reproductive_number / length,
-                ) {
-                    Ok(dist) => Some((*infectant, dist.sample(&mut rng))),
-                    // if fitness is 0 => no offspring
-                    Err(_) => None,
-                }
-            })
-            .collect()
-    }
-
     #[cfg(feature = "parallel")]
-    #[cfg(feature = "multi-host")]
-    pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
+    fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
         let offspring_ptr = offspring.as_mut_ptr() as usize;
         self.fitness_tables
@@ -338,8 +325,7 @@ impl Simulation {
     }
 
     #[cfg(not(feature = "parallel"))]
-    #[cfg(feature = "multi-host")]
-    pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
+    fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
         let offspring_ptr = offspring.as_mut_ptr() as usize;
         self.fitness_tables.for_each(|range, fitness_table| {
@@ -354,58 +340,7 @@ impl Simulation {
         offspring
     }
 
-    #[cfg(feature = "parallel")]
-    #[cfg(not(feature = "multi-host"))]
-    pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
-        let mut offspring = vec![0; self.population.len()];
-        let offspring_ptr = offspring.as_mut_ptr() as usize;
-        host_map.par_iter().for_each(|infectants| {
-            self._replicate_infectants(infectants).into_iter().for_each(
-                |(infectant, offspring_sample)| unsafe {
-                    (offspring_ptr as *mut usize)
-                        .offset(infectant as isize)
-                        .write(offspring_sample as usize);
-                },
-            );
-        });
-        offspring
-    }
-
-    #[cfg(not(feature = "parallel"))]
-    #[cfg(not(feature = "multi-host"))]
-    pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
-        let mut offspring = vec![0; self.population.len()];
-        host_map.iter().for_each(|infectants| {
-            self._replicate_infectants(infectants).into_iter().for_each(
-                |(infectant, offspring_sample)| {
-                    offspring[infectant] = offspring_sample as usize;
-                },
-            );
-        });
-        offspring
-    }
-
-    pub fn next_generation(&mut self) {
-        // increment generation counter
-        self.increment_generation();
-
-        // do nothing if there is no population
-        if self.population.is_empty() {
-            return;
-        }
-
-        // simulate infection
-        let host_map = self.get_host_map();
-
-        // simulate replication and mutation
-        self.mutate_infectants(&host_map);
-        let offspring_map = self.replicate_infectants(&host_map);
-
-        // subsample population
-        self.population = self.subsample_population(&offspring_map, 1.);
-    }
-
-    pub fn subsample_population(&self, offspring_map: &[usize], factor: f64) -> Population {
+    fn subsample_population(&self, offspring_map: &[usize], factor: f64) -> Population {
         // if there is no offspring, return empty population
         if offspring_map.is_empty() {
             return Population::new();
@@ -421,7 +356,7 @@ impl Simulation {
         self.population.sample(sample_size, offspring_map)
     }
 
-    pub fn print_population(&self) -> Vec<String> {
+    fn print_population(&self) -> Vec<String> {
         self.population
             .iter()
             .map(|haplotype| haplotype.get_string())
@@ -473,7 +408,6 @@ mod tests {
     };
 
     #[test]
-    #[cfg(feature = "multi-host")]
     fn next_generation() {
         let sequence = vec![Some(0x00); 100];
 
@@ -483,12 +417,11 @@ mod tests {
         let wt = Wildtype::new(sequence);
         let population: Population = crate::population![wt.clone(); 10];
         let mut simulation =
-            Simulation::new(wt, population, fitness_tables, SIMULATION_SETTINGS, 0);
+            BasicSimulation::new(wt, population, fitness_tables, SIMULATION_SETTINGS, 0);
         simulation.next_generation()
     }
 
     #[test]
-    #[cfg(feature = "multi-host")]
     fn next_generation_without_population() {
         let sequence = vec![Some(0x00); 100];
 
@@ -499,35 +432,7 @@ mod tests {
         let mut population = Population::new();
         (0..10).for_each(|_| population.push(&wt));
         let mut simulation =
-            Simulation::new(wt, population, fitness_tables, SIMULATION_SETTINGS, 0);
-
-        simulation.next_generation()
-    }
-
-    #[test]
-    #[cfg(not(feature = "multi-host"))]
-    fn next_generation() {
-        let sequence = vec![Some(0x00); 100];
-
-        let fitness_table = FitnessTable::from_model(&sequence, 4, FITNESS_MODEL).unwrap();
-
-        let wt = Wildtype::new(sequence);
-        let population: Population = crate::population![wt.clone(); 10];
-        let mut simulation = Simulation::new(wt, population, fitness_table, SIMULATION_SETTINGS, 0);
-        simulation.next_generation()
-    }
-
-    #[test]
-    #[cfg(not(feature = "multi-host"))]
-    fn next_generation_without_population() {
-        let sequence = vec![Some(0x00); 100];
-
-        let fitness_table = FitnessTable::from_model(&sequence, 4, FITNESS_MODEL).unwrap();
-
-        let wt = Wildtype::new(sequence);
-        let mut population = Population::new();
-        (0..10).for_each(|_| population.push(&wt));
-        let mut simulation = Simulation::new(wt, population, fitness_table, SIMULATION_SETTINGS, 0);
+            BasicSimulation::new(wt, population, fitness_tables, SIMULATION_SETTINGS, 0);
 
         simulation.next_generation()
     }

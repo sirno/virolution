@@ -49,13 +49,14 @@ fn main() {
     };
 
     let n_compartments = 3;
-    let mut compartment_simulations: Vec<Simulation> = (0..n_compartments)
+    let mut compartment_simulations: Vec<BasicSimulation> = (0..n_compartments)
         .map(|_| {
             let population = population![wt.clone(); 1_000_000];
-            Simulation::new(
+            let fitness_tables = vec![(0..settings.host_population_size, fitness_table.clone())];
+            BasicSimulation::new(
                 wt.get_clone(),
                 population,
-                fitness_table.clone(),
+                fitness_tables,
                 settings.clone(),
                 0,
             )
