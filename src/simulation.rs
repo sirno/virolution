@@ -8,16 +8,20 @@ use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
-use std::cmp::min;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
+use std::{cmp::min, ops::Range};
 
 pub type HostMap = Vec<Vec<usize>>;
+pub type HostRange = (Range<usize>, FitnessTable);
 
 pub struct Simulation {
     wildtype: HaplotypeRef,
     population: Population,
+    #[cfg(not(feature = "multi-host"))]
     fitness_table: FitnessTable,
+    #[cfg(feature = "multi-host")]
+    fitness_tables: Vec<HostRange>,
     simulation_settings: SimulationSettings,
     mutation_sampler: Binomial,
     recombination_sampler: Bernoulli,
@@ -26,6 +30,7 @@ pub struct Simulation {
 }
 
 impl Simulation {
+    #[cfg(not(feature = "multi-host"))]
     pub fn new(
         wildtype: HaplotypeRef,
         population: Population,
@@ -44,6 +49,33 @@ impl Simulation {
             wildtype,
             population,
             fitness_table,
+            simulation_settings,
+            mutation_sampler,
+            recombination_sampler,
+            infection_sampler,
+            generation,
+        }
+    }
+
+    #[cfg(feature = "multi-host")]
+    pub fn new(
+        wildtype: HaplotypeRef,
+        population: Population,
+        fitness_tables: Vec<HostRange>,
+        simulation_settings: SimulationSettings,
+        generation: usize,
+    ) -> Self {
+        let mutation_sampler = Binomial::new(
+            wildtype.get_length() as u64,
+            simulation_settings.mutation_rate,
+        )
+        .unwrap();
+        let recombination_sampler = Bernoulli::new(simulation_settings.recombination_rate).unwrap();
+        let infection_sampler = Bernoulli::new(simulation_settings.infection_fraction).unwrap();
+        Self {
+            wildtype,
+            population,
+            fitness_tables,
             simulation_settings,
             mutation_sampler,
             recombination_sampler,
@@ -242,6 +274,30 @@ impl Simulation {
         });
     }
 
+    #[cfg(feature = "multi-host")]
+    fn _replicate_infectants(
+        &self,
+        infectants: &[usize],
+        fitness_table: &FitnessTable,
+    ) -> Vec<(usize, f64)> {
+        let length = infectants.len() as f64;
+        infectants
+            .iter()
+            .filter_map(|infectant| {
+                let mut rng = rand::thread_rng();
+                let fitness = self.population[infectant].get_fitness(fitness_table);
+                match Poisson::new(
+                    fitness * self.simulation_settings.basic_reproductive_number / length,
+                ) {
+                    Ok(dist) => Some((*infectant, dist.sample(&mut rng))),
+                    // if fitness is 0 => no offspring
+                    Err(_) => None,
+                }
+            })
+            .collect()
+    }
+
+    #[cfg(not(feature = "multi-host"))]
     fn _replicate_infectants(&self, infectants: &[usize]) -> Vec<(usize, f64)> {
         let length = infectants.len() as f64;
         infectants
@@ -261,6 +317,45 @@ impl Simulation {
     }
 
     #[cfg(feature = "parallel")]
+    #[cfg(feature = "multi-host")]
+    pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
+        let mut offspring = vec![0; self.population.len()];
+        let offspring_ptr = offspring.as_mut_ptr() as usize;
+        self.fitness_tables
+            .iter()
+            .for_each(|(range, fitness_table)| {
+                range.clone().for_each(|host| {
+                    self._replicate_infectants(host_map[host].as_slice(), &fitness_table)
+                        .into_iter()
+                        .for_each(|(infectant, offspring_sample)| unsafe {
+                            (offspring_ptr as *mut usize)
+                                .offset(infectant as isize)
+                                .write(offspring_sample as usize);
+                        });
+                });
+            });
+        offspring
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    #[cfg(feature = "multi-host")]
+    pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
+        let mut offspring = vec![0; self.population.len()];
+        let offspring_ptr = offspring.as_mut_ptr() as usize;
+        self.fitness_tables.for_each(|range, fitness_table| {
+            range.map(|host| {
+                self._replicate_infectants(host_map[host], &fitness_table)
+                    .into_iter()
+                    .for_each(|(infectant, offspring_sample)| {
+                        offspring[infectant] = offspring_sample as usize;
+                    });
+            })
+        });
+        offspring
+    }
+
+    #[cfg(feature = "parallel")]
+    #[cfg(not(feature = "multi-host"))]
     pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
         let offspring_ptr = offspring.as_mut_ptr() as usize;
@@ -277,14 +372,15 @@ impl Simulation {
     }
 
     #[cfg(not(feature = "parallel"))]
+    #[cfg(not(feature = "multi-host"))]
     pub fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
         host_map.iter().for_each(|infectants| {
-            self._replicate_infectants(infectants)
-                .into_iter()
-                .for_each(|replication| {
-                    offspring[replication.0] = replication.1 as usize;
-                });
+            self._replicate_infectants(infectants).into_iter().for_each(
+                |(infectant, offspring_sample)| {
+                    offspring[infectant] = offspring_sample as usize;
+                },
+            );
         });
         offspring
     }
@@ -377,6 +473,39 @@ mod tests {
     };
 
     #[test]
+    #[cfg(feature = "multi-host")]
+    fn next_generation() {
+        let sequence = vec![Some(0x00); 100];
+
+        let fitness_table = FitnessTable::from_model(&sequence, 4, FITNESS_MODEL).unwrap();
+        let fitness_tables = vec![(0..SIMULATION_SETTINGS.host_population_size, fitness_table)];
+
+        let wt = Wildtype::new(sequence);
+        let population: Population = crate::population![wt.clone(); 10];
+        let mut simulation =
+            Simulation::new(wt, population, fitness_tables, SIMULATION_SETTINGS, 0);
+        simulation.next_generation()
+    }
+
+    #[test]
+    #[cfg(feature = "multi-host")]
+    fn next_generation_without_population() {
+        let sequence = vec![Some(0x00); 100];
+
+        let fitness_table = FitnessTable::from_model(&sequence, 4, FITNESS_MODEL).unwrap();
+        let fitness_tables = vec![(0..SIMULATION_SETTINGS.host_population_size, fitness_table)];
+
+        let wt = Wildtype::new(sequence);
+        let mut population = Population::new();
+        (0..10).for_each(|_| population.push(&wt));
+        let mut simulation =
+            Simulation::new(wt, population, fitness_tables, SIMULATION_SETTINGS, 0);
+
+        simulation.next_generation()
+    }
+
+    #[test]
+    #[cfg(not(feature = "multi-host"))]
     fn next_generation() {
         let sequence = vec![Some(0x00); 100];
 
@@ -389,6 +518,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "multi-host"))]
     fn next_generation_without_population() {
         let sequence = vec![Some(0x00); 100];
 

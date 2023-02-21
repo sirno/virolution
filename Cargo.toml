@@ -12,6 +12,9 @@ path = "src/main.rs"
 name = "virolution"
 path = "src/lib.rs"
 
+[profile.release]
+debug = true
+
 [workspace]
 
 [dependencies]
@@ -43,5 +46,6 @@ clap_complete = "4.0.5"
 serial_test = "0.9.0"
 
 [features]
-# default = ["parallel"]
+default = ["parallel"]
 parallel = ["rayon"]
+multi-host = []
