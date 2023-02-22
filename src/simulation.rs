@@ -167,28 +167,6 @@ impl BasicSimulation {
             })
             .collect()
     }
-
-    fn _replicate_infectants(
-        &self,
-        infectants: &[usize],
-        fitness_table: &FitnessTable,
-    ) -> Vec<(usize, f64)> {
-        let length = infectants.len() as f64;
-        infectants
-            .iter()
-            .filter_map(|infectant| {
-                let mut rng = rand::thread_rng();
-                let fitness = self.population[infectant].get_fitness(fitness_table);
-                match Poisson::new(
-                    fitness * self.simulation_settings.basic_reproductive_number / length,
-                ) {
-                    Ok(dist) => Some((*infectant, dist.sample(&mut rng))),
-                    // if fitness is 0 => no offspring
-                    Err(_) => None,
-                }
-            })
-            .collect()
-    }
 }
 
 impl Simulation for BasicSimulation {
@@ -311,14 +289,22 @@ impl Simulation for BasicSimulation {
         self.fitness_tables
             .par_iter()
             .for_each(|(range, fitness_table)| {
-                range.clone().for_each(|host| {
-                    self._replicate_infectants(host_map[host].as_slice(), &fitness_table)
-                        .into_par_iter()
-                        .for_each(|(infectant, offspring_sample)| unsafe {
-                            (offspring_ptr as *mut usize)
-                                .offset(infectant as isize)
-                                .write(offspring_sample as usize);
-                        });
+                host_map[range.clone()].par_iter().for_each(|host| {
+                    let length = host.len();
+                    host.iter().for_each(|infectant| {
+                        let fitness = self.population[infectant].get_fitness(fitness_table);
+                        match Poisson::new(
+                            fitness * self.simulation_settings.basic_reproductive_number
+                                / length as f64,
+                        ) {
+                            Ok(dist) => unsafe {
+                                (offspring_ptr as *mut usize)
+                                    .offset(*infectant as isize)
+                                    .write(dist.sample(&mut rand::thread_rng()) as usize);
+                            },
+                            Err(_) => {}
+                        }
+                    });
                 });
             });
         offspring
@@ -327,16 +313,24 @@ impl Simulation for BasicSimulation {
     #[cfg(not(feature = "parallel"))]
     fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
-        let offspring_ptr = offspring.as_mut_ptr() as usize;
-        self.fitness_tables.for_each(|range, fitness_table| {
-            range.map(|host| {
-                self._replicate_infectants(host_map[host], &fitness_table)
-                    .into_iter()
-                    .for_each(|(infectant, offspring_sample)| {
-                        offspring[infectant] = offspring_sample as usize;
+        let mut rng = rand::thread_rng();
+        self.fitness_tables
+            .iter()
+            .for_each(|(range, fitness_table)| {
+                host_map[range.clone()].iter().for_each(|host| {
+                    let length = host.len();
+                    host.iter().for_each(|infectant| {
+                        let fitness = self.population[infectant].get_fitness(fitness_table);
+                        match Poisson::new(
+                            fitness * self.simulation_settings.basic_reproductive_number
+                                / length as f64,
+                        ) {
+                            Ok(dist) => offspring[*infectant] = dist.sample(&mut rng) as usize,
+                            Err(_) => {}
+                        }
                     });
-            })
-        });
+                });
+            });
         offspring
     }
 
