@@ -32,7 +32,7 @@ macro_rules! population {
     };
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Population {
     population: Vec<usize>,
     haplotypes: Haplotypes,
@@ -187,6 +187,7 @@ impl Population {
             .collect()
     }
 
+    #[allow(dead_code)]
     /// Sanitize the `Population`.
     fn sanitize(&mut self) {
         self.haplotypes = self

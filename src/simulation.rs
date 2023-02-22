@@ -390,7 +390,7 @@ mod tests {
         utility: UtilityFunction::Linear,
     };
 
-    const SIMULATION_SETTINGS: SimulationSettings = SimulationSettings {
+    const SETTINGS: SimulationSettings = SimulationSettings {
         mutation_rate: 1e-3,
         recombination_rate: 1e-5,
         substitution_matrix: [
@@ -400,24 +400,59 @@ mod tests {
             [1., 1., 1., 0.],
         ],
         host_population_size: 5,
-        infection_fraction: 0.7,
+        infection_fraction: 1.0,
         basic_reproductive_number: 100.,
         max_population: 100000000,
         dilution: 0.17,
         fitness_model: FITNESS_MODEL,
     };
 
-    #[test]
-    fn next_generation() {
+    fn setup_test_simulation() -> BasicSimulation {
         let sequence = vec![Some(0x00); 100];
 
         let fitness_table = FitnessTable::from_model(&sequence, 4, FITNESS_MODEL).unwrap();
-        let fitness_tables = vec![(0..SIMULATION_SETTINGS.host_population_size, fitness_table)];
+        let fitness_tables = vec![(0..SETTINGS.host_population_size, fitness_table)];
 
         let wt = Wildtype::new(sequence);
         let population: Population = crate::population![wt.clone(); 10];
-        let mut simulation =
-            BasicSimulation::new(wt, population, fitness_tables, SIMULATION_SETTINGS, 0);
+        BasicSimulation::new(wt, population, fitness_tables, SETTINGS, 0)
+    }
+
+    #[test]
+    fn increment_generation() {
+        let mut simulation = setup_test_simulation();
+        simulation.increment_generation();
+        assert_eq!(simulation.generation, 1);
+    }
+
+    #[test]
+    fn get_population() {
+        let simulation = setup_test_simulation();
+        let population = simulation.get_population().clone();
+        assert_eq!(simulation.population, population);
+    }
+
+    #[test]
+    fn set_population() {
+        let mut simulation = setup_test_simulation();
+        let population: Population = crate::population![simulation.wildtype.clone(); 42];
+        simulation.set_population(population.clone());
+        assert_eq!(simulation.population.len(), 42);
+        assert_eq!(simulation.population, population);
+    }
+
+    #[test]
+    fn get_host_map() {
+        let simulation = setup_test_simulation();
+        let host_map = simulation.get_host_map();
+        assert_eq!(host_map.len(), 5);
+        let n_infectants: usize = host_map.iter().map(|v| v.len()).sum();
+        assert_eq!(n_infectants, 10);
+    }
+
+    #[test]
+    fn next_generation() {
+        let mut simulation = setup_test_simulation();
         simulation.next_generation()
     }
 
@@ -426,13 +461,11 @@ mod tests {
         let sequence = vec![Some(0x00); 100];
 
         let fitness_table = FitnessTable::from_model(&sequence, 4, FITNESS_MODEL).unwrap();
-        let fitness_tables = vec![(0..SIMULATION_SETTINGS.host_population_size, fitness_table)];
+        let fitness_tables = vec![(0..SETTINGS.host_population_size, fitness_table)];
 
         let wt = Wildtype::new(sequence);
-        let mut population = Population::new();
-        (0..10).for_each(|_| population.push(&wt));
-        let mut simulation =
-            BasicSimulation::new(wt, population, fitness_tables, SIMULATION_SETTINGS, 0);
+        let population = Population::new();
+        let mut simulation = BasicSimulation::new(wt, population, fitness_tables, SETTINGS, 0);
 
         simulation.next_generation()
     }
