@@ -309,11 +309,11 @@ impl Simulation for BasicSimulation {
         let mut offspring = vec![0; self.population.len()];
         let offspring_ptr = offspring.as_mut_ptr() as usize;
         self.fitness_tables
-            .iter()
+            .par_iter()
             .for_each(|(range, fitness_table)| {
                 range.clone().for_each(|host| {
                     self._replicate_infectants(host_map[host].as_slice(), &fitness_table)
-                        .into_iter()
+                        .into_par_iter()
                         .for_each(|(infectant, offspring_sample)| unsafe {
                             (offspring_ptr as *mut usize)
                                 .offset(infectant as isize)
@@ -458,15 +458,8 @@ mod tests {
 
     #[test]
     fn next_generation_without_population() {
-        let sequence = vec![Some(0x00); 100];
-
-        let fitness_table = FitnessTable::from_model(&sequence, 4, FITNESS_MODEL).unwrap();
-        let fitness_tables = vec![(0..SETTINGS.host_population_size, fitness_table)];
-
-        let wt = Wildtype::new(sequence);
-        let population = Population::new();
-        let mut simulation = BasicSimulation::new(wt, population, fitness_tables, SETTINGS, 0);
-
+        let mut simulation = setup_test_simulation();
+        simulation.set_population(Population::new());
         simulation.next_generation()
     }
 }
