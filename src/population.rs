@@ -148,9 +148,9 @@ impl Population {
     ///
     /// This will overwrite the haplotype at that position, but not remove its
     /// reference from the `Haplotypes` map.
-    pub fn insert(&mut self, position: usize, haplotype: &HaplotypeRef) {
+    pub fn insert(&mut self, position: &usize, haplotype: &HaplotypeRef) {
         let ref_id = haplotype.get_id();
-        self.population[position] = ref_id;
+        self.population[*position] = ref_id;
         self.haplotypes
             .entry(ref_id)
             .or_insert_with(|| haplotype.clone());
@@ -278,7 +278,7 @@ mod tests {
         assert_eq!(population[&0], wt);
 
         let wt2 = Wildtype::new(vec![Some(0x00); 10]);
-        population.insert(0, &wt2);
+        population.insert(&0, &wt2);
         assert_eq!(population.len(), 1);
         assert_ne!(population[&0], wt);
         assert_eq!(population[&0], wt2);

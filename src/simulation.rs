@@ -1,3 +1,5 @@
+extern crate test;
+
 use crate::fitness::FitnessTable;
 use crate::haplotype::Haplotype;
 use crate::population::Population;
@@ -232,7 +234,7 @@ impl Simulation for BasicSimulation {
 
             // collect recominants
             for (position, recombinant) in recombination_receiver.iter() {
-                self.population.insert(position, &recombinant);
+                self.population.insert(&position, &recombinant);
             }
         }
 
@@ -252,7 +254,7 @@ impl Simulation for BasicSimulation {
 
         // collect mutants
         for (position, mutant) in mutation_receiver.iter() {
-            self.population.insert(position, &mutant);
+            self.population.insert(&position, &mutant);
         }
     }
 
@@ -265,9 +267,9 @@ impl Simulation for BasicSimulation {
             // recombine infectants
             host_map.iter().for_each(|infectants: &Vec<usize>| {
                 self._recombine_infectants(sequence_length, infectants)
-                    .into_iter()
+                    .iter()
                     .for_each(|(position, recombinant)| {
-                        self.population.insert(position, &recombinant);
+                        self.population.insert(position, recombinant);
                     });
             });
         }
@@ -275,9 +277,9 @@ impl Simulation for BasicSimulation {
         // mutate infectants
         host_map.iter().for_each(|infectants: &Vec<usize>| {
             self._mutate_infectants(sequence_length, infectants)
-                .into_iter()
+                .iter()
                 .for_each(|(position, mutant)| {
-                    self.population.insert(position, &mutant);
+                    self.population.insert(position, mutant);
                 });
         });
     }
@@ -366,6 +368,7 @@ mod tests {
         UtilityFunction,
     };
     use crate::haplotype::Wildtype;
+    use test::Bencher;
 
     const DISTRIBUTION: FitnessDistribution =
         FitnessDistribution::Exponential(ExponentialParameters {
@@ -384,6 +387,8 @@ mod tests {
         utility: UtilityFunction::Linear,
     };
 
+    const POPULATION_SIZE: usize = 1000;
+
     const SETTINGS: SimulationSettings = SimulationSettings {
         mutation_rate: 1e-3,
         recombination_rate: 1e-5,
@@ -396,7 +401,7 @@ mod tests {
         host_population_size: 5,
         infection_fraction: 1.0,
         basic_reproductive_number: 100.,
-        max_population: 100000000,
+        max_population: POPULATION_SIZE,
         dilution: 0.17,
         fitness_model: FITNESS_MODEL,
     };
@@ -408,7 +413,7 @@ mod tests {
         let fitness_tables = vec![(0..SETTINGS.host_population_size, fitness_table)];
 
         let wt = Wildtype::new(sequence);
-        let population: Population = crate::population![wt.clone(); 10];
+        let population: Population = crate::population![wt.clone(); POPULATION_SIZE];
         BasicSimulation::new(wt, population, fitness_tables, SETTINGS, 0)
     }
 
@@ -455,5 +460,32 @@ mod tests {
         let mut simulation = setup_test_simulation();
         simulation.set_population(Population::new());
         simulation.next_generation()
+    }
+
+    #[bench]
+    fn bench_next_generation(b: &mut Bencher) {
+        let mut simulation = setup_test_simulation();
+        b.iter(|| simulation.next_generation());
+    }
+
+    #[bench]
+    fn bench_get_host_map(b: &mut Bencher) {
+        let simulation = setup_test_simulation();
+        b.iter(|| simulation.get_host_map());
+    }
+
+    #[bench]
+    fn bench_replicate_infectants(b: &mut Bencher) {
+        let simulation = setup_test_simulation();
+        let host_map = simulation.get_host_map();
+        b.iter(|| simulation.replicate_infectants(&host_map));
+    }
+
+    #[bench]
+    fn bench_subsample_population(b: &mut Bencher) {
+        let simulation = setup_test_simulation();
+        let host_map = simulation.get_host_map();
+        let offspring_map = simulation.replicate_infectants(&host_map);
+        b.iter(|| simulation.subsample_population(&offspring_map, 1.0));
     }
 }

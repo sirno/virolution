@@ -1,5 +1,6 @@
 #![feature(let_chains)]
 #![feature(once_cell)]
+#![feature(test)]
 
 pub mod args;
 pub mod barcode;
