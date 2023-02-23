@@ -444,9 +444,9 @@ mod tests {
     fn get_host_map() {
         let simulation = setup_test_simulation();
         let host_map = simulation.get_host_map();
-        assert_eq!(host_map.len(), 5);
+        assert_eq!(host_map.len(), SETTINGS.host_population_size);
         let n_infectants: usize = host_map.iter().map(|v| v.len()).sum();
-        assert_eq!(n_infectants, 10);
+        assert_eq!(n_infectants, SETTINGS.max_population);
     }
 
     #[test]
