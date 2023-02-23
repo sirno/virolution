@@ -81,7 +81,7 @@ fn main() {
             .map(|target| {
                 Population::from_iter((0..n_compartments).map(|origin| {
                     compartment_simulations[origin]
-                        .subsample_population(&offsprings[origin], transfers[target][origin])
+                        .subsample_population(&offsprings[origin], *transfers.get(target, origin))
                 }))
             })
             .collect();

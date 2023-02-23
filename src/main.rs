@@ -388,7 +388,7 @@ fn run(args: &Args, simulations: &mut [BasicSimulation], plan: Plan) {
             .map(|target| {
                 Population::from_iter((0..args.n_compartments).map(|origin| {
                     simulations[origin]
-                        .subsample_population(&offsprings[origin], transfer[target][origin])
+                        .subsample_population(&offsprings[origin], *transfer.get(target, origin))
                 }))
             })
             .collect();

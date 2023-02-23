@@ -1,64 +1,110 @@
 use csv;
-use derive_more::{Deref, DerefMut};
 use evalexpr::context_map;
 use phf::phf_map;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 
 use crate::simulation_settings::SimulationSettings;
 
-pub static TRANSFERS: phf::Map<&'static str, &[[f64; 4]; 4]> = phf_map! {
+pub static TRANSFERS: phf::Map<&'static str, &'static [&'static [f64]]> = phf_map! {
     "migration_fwd" => &MIGRATION_FWD,
     "migration_rev" => &MIGRATION_REV,
     "root_ab" => &ROOT_AB,
     "root_bc" => &ROOT_BC,
     "root_cd" => &ROOT_CD,
+    "default" => &DEFAULT,
 };
 
-const DEFAULT: [[f64; 4]; 4] = [
-    [1., 0., 0., 0.],
-    [0., 1., 0., 0.],
-    [0., 0., 1., 0.],
-    [0., 0., 0., 1.],
+const DEFAULT: &'static [&'static [f64]] = &[
+    &[1., 0., 0., 0.],
+    &[0., 1., 0., 0.],
+    &[0., 0., 1., 0.],
+    &[0., 0., 0., 1.],
 ];
 
-const MIGRATION_FWD: [[f64; 4]; 4] = [
-    [1., 0., 0., 0.],
-    [0.2, 0.8, 0., 0.],
-    [0., 0.2, 0.8, 0.],
-    [0., 0., 0., 0.],
+const MIGRATION_FWD: &'static [&'static [f64]] = &[
+    &[1., 0., 0., 0.],
+    &[0.2, 0.8, 0., 0.],
+    &[0., 0.2, 0.8, 0.],
+    &[0., 0., 0., 0.],
 ];
-const MIGRATION_REV: [[f64; 4]; 4] = [
-    [0.8, 0.2, 0., 0.],
-    [0., 1., 0., 0.],
-    [0., 0., 1., 0.],
-    [0., 0., 0., 0.],
-];
-
-const ROOT_AB: [[f64; 4]; 4] = [
-    [1., 0., 0., 0.],
-    [1., 1., 0., 0.],
-    [0., 0., 1., 0.],
-    [0., 0., 0., 1.],
-];
-const ROOT_BC: [[f64; 4]; 4] = [
-    [1., 0., 0., 0.],
-    [0., 1., 0., 0.],
-    [0., 1., 1., 0.],
-    [0., 0., 0., 1.],
-];
-const ROOT_CD: [[f64; 4]; 4] = [
-    [1., 0., 0., 0.],
-    [0., 1., 0., 0.],
-    [0., 0., 1., 0.],
-    [0., 0., 1., 1.],
+const MIGRATION_REV: &'static [&'static [f64]] = &[
+    &[0.8, 0.2, 0., 0.],
+    &[0., 1., 0., 0.],
+    &[0., 0., 1., 0.],
+    &[0., 0., 0., 0.],
 ];
 
-#[derive(Debug, Deref, DerefMut)]
-pub struct Plan(Vec<PlanRecord>);
+const ROOT_AB: &'static [&'static [f64]] = &[
+    &[1., 0., 0., 0.],
+    &[1., 1., 0., 0.],
+    &[0., 0., 1., 0.],
+    &[0., 0., 0., 1.],
+];
+const ROOT_BC: &'static [&'static [f64]] = &[
+    &[1., 0., 0., 0.],
+    &[0., 1., 0., 0.],
+    &[0., 1., 1., 0.],
+    &[0., 0., 0., 1.],
+];
+const ROOT_CD: &'static [&'static [f64]] = &[
+    &[1., 0., 0., 0.],
+    &[0., 1., 0., 0.],
+    &[0., 0., 1., 0.],
+    &[0., 0., 1., 1.],
+];
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TransferMatrix<T> {
+    matrix: Vec<T>,
+    size: usize,
+}
+
+impl<T> TransferMatrix<T> {
+    fn from_slice(slice: &[&[T]]) -> Self
+    where
+        T: Clone,
+    {
+        // Verify if slice is square
+        slice
+            .into_iter()
+            .for_each(|row| assert_eq!(row.len(), slice.len()));
+
+        let matrix = slice.iter().map(|s| s.iter()).flatten().cloned().collect();
+        return Self {
+            matrix,
+            size: slice.len(),
+        };
+    }
+
+    fn from_vec(vec: Vec<Vec<T>>) -> Self
+    where
+        T: Clone,
+    {
+        // Verify if vec is square
+        vec.iter().for_each(|row| assert_eq!(row.len(), vec.len()));
+
+        let matrix = vec.iter().map(|s| s.iter()).flatten().cloned().collect();
+        return Self {
+            matrix,
+            size: vec.len(),
+        };
+    }
+
+    pub fn get(&self, row: usize, col: usize) -> &T {
+        &self.matrix[row * self.size + col]
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Plan {
+    table: Vec<PlanRecord>,
+    transfers: HashMap<String, TransferMatrix<f64>>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct PlanRecord {
     generation: String,
     event: String,
@@ -78,12 +124,42 @@ impl Plan {
     }
 
     pub fn from_reader(reader: &mut dyn std::io::Read) -> Result<Self, PlanReadError> {
-        let mut reader = csv::Reader::from_reader(reader);
+        // let mut reader = csv::Reader::from_reader(reader);
+        let mut reader = csv::ReaderBuilder::new()
+            .delimiter(b';')
+            .from_reader(reader);
+
+        // Parse plan table
         let table: Vec<PlanRecord> = reader
             .deserialize()
             .collect::<Result<Vec<PlanRecord>, csv::Error>>()
             .map_err(PlanReadError::CsvError)?;
-        Ok(Self(table))
+
+        // Parse transfer matrices
+        let mut transfers: HashMap<String, TransferMatrix<f64>> = table
+            .iter()
+            .filter_map(|record| {
+                if record.event != "transmission" {
+                    return None;
+                }
+
+                if TRANSFERS.contains_key(record.value.as_str()) {
+                    return Some((
+                        record.value.clone(),
+                        TransferMatrix::from_slice(TRANSFERS[record.value.as_str()]),
+                    ));
+                }
+
+                let matrix: Vec<Vec<f64>> = serde_yaml::from_str(record.value.as_str()).unwrap();
+
+                Some((record.value.clone(), TransferMatrix::from_vec(matrix)))
+            })
+            .collect();
+
+        // Add default transfer matrix
+        transfers.insert("default".to_string(), TransferMatrix::from_slice(DEFAULT));
+
+        Ok(Self { table, transfers })
     }
 
     pub fn get_sample_size(&self, generation: usize) -> usize {
@@ -93,10 +169,10 @@ impl Plan {
         }
     }
 
-    pub fn get_transfer_matrix(&self, generation: usize) -> &[[f64; 4]; 4] {
+    pub fn get_transfer_matrix(&self, generation: usize) -> &TransferMatrix<f64> {
         match self.get_event_value("transmission", generation) {
-            Some(transfer_name) => TRANSFERS[transfer_name],
-            None => &DEFAULT,
+            Some(transfer_name) => &self.transfers[transfer_name],
+            None => &self.transfers["default"],
         }
     }
 
@@ -107,6 +183,7 @@ impl Plan {
 
     pub fn get_event_value(&self, event: &str, generation: usize) -> Option<&str> {
         match self
+            .table
             .iter()
             .find(|record| match_generation(record, generation) && record.event == event)
         {
@@ -140,29 +217,59 @@ mod tests {
 
     #[test]
     fn transfer_matrix() {
-        let plan_content = r#"generation,event,value
-1,transmission,migration_fwd
-2,transmission,migration_rev
-3,transmission,root_ab
-4,transmission,root_bc
-5,transmission,root_cd"#;
+        let plan_content = r#"generation;event;value
+1;transmission;migration_fwd
+2;transmission;migration_rev
+3;transmission;root_ab
+4;transmission;root_bc
+5;transmission;root_cd"#;
 
         let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
 
-        assert_eq!(plan.get_transfer_matrix(0), &DEFAULT);
-        assert_eq!(plan.get_transfer_matrix(1), &MIGRATION_FWD);
-        assert_eq!(plan.get_transfer_matrix(2), &MIGRATION_REV);
-        assert_eq!(plan.get_transfer_matrix(3), &ROOT_AB);
-        assert_eq!(plan.get_transfer_matrix(4), &ROOT_BC);
-        assert_eq!(plan.get_transfer_matrix(5), &ROOT_CD);
+        assert_eq!(
+            plan.get_transfer_matrix(0),
+            &TransferMatrix::from_slice(TRANSFERS["default"])
+        );
+        assert_eq!(
+            plan.get_transfer_matrix(1),
+            &TransferMatrix::from_slice(TRANSFERS["migration_fwd"])
+        );
+        assert_eq!(
+            plan.get_transfer_matrix(2),
+            &TransferMatrix::from_slice(TRANSFERS["migration_rev"])
+        );
+        assert_eq!(
+            plan.get_transfer_matrix(3),
+            &TransferMatrix::from_slice(TRANSFERS["root_ab"])
+        );
+        assert_eq!(
+            plan.get_transfer_matrix(4),
+            &TransferMatrix::from_slice(TRANSFERS["root_bc"])
+        );
+        assert_eq!(
+            plan.get_transfer_matrix(5),
+            &TransferMatrix::from_slice(TRANSFERS["root_cd"])
+        );
+    }
+
+    #[test]
+    fn custom_transfer_matrix() {
+        let plan_content = r#"generation;event;value
+1;transmission;[[1, 2], [3, 4]]"#;
+
+        let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
+        assert_eq!(
+            plan.get_transfer_matrix(1),
+            &TransferMatrix::from_vec(vec![vec![1.0, 2.0], vec![3.0, 4.0]])
+        );
     }
 
     #[test]
     fn sample_size() {
-        let plan_content = r#"generation,event,value
-1,sample,100
-2,sample,200
-3,sample,300"#;
+        let plan_content = r#"generation;event;value
+1;sample;100
+2;sample;200
+3;sample;300"#;
 
         let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
 
@@ -174,10 +281,10 @@ mod tests {
 
     #[test]
     fn expressions() {
-        let plan_content = r#"generation,event,value
-{} % 200,sample,100
-{} % 10,transmission,migration_fwd
-(5 + {}) % 10,transmission,migration_rev"#;
+        let plan_content = r#"generation;event;value
+{} % 200;sample;100
+{} % 10;transmission;migration_fwd
+(5 + {}) % 10;transmission;migration_rev"#;
 
         let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
 
@@ -189,11 +296,20 @@ mod tests {
             }
 
             if i % 10 == 0 {
-                assert_eq!(plan.get_transfer_matrix(i), &MIGRATION_FWD);
+                assert_eq!(
+                    plan.get_transfer_matrix(i),
+                    &TransferMatrix::from_slice(TRANSFERS["migration_fwd"])
+                );
             } else if (5 + i) % 10 == 0 {
-                assert_eq!(plan.get_transfer_matrix(i), &MIGRATION_REV);
+                assert_eq!(
+                    plan.get_transfer_matrix(i),
+                    &TransferMatrix::from_slice(TRANSFERS["migration_rev"])
+                );
             } else {
-                assert_eq!(plan.get_transfer_matrix(i), &DEFAULT);
+                assert_eq!(
+                    plan.get_transfer_matrix(i),
+                    &TransferMatrix::from_slice(TRANSFERS["default"])
+                );
             }
         }
     }
