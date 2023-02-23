@@ -288,8 +288,10 @@ fn run(args: &Args, simulations: &mut Vec<BasicSimulation>, plan: Plan) {
             .map(|target| {
                 (0..args.n_compartments)
                     .map(|origin| {
-                        simulations[origin]
-                            .subsample_population(&offsprings[origin], transfer[target][origin])
+                        simulations[origin].subsample_population(
+                            &offsprings[origin],
+                            *transfer.get(target, origin),
+                        )
                     })
                     .collect()
             })
