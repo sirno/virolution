@@ -471,7 +471,7 @@ fn main() {
     // create individual compartments
     println!("Creating {} compartments...", args.n_compartments);
     let mut simulations: Vec<BasicSimulation> =
-        create_simulations(&args, &wildtype, fitness_table, settings);
+        create_simulations(&args, &wildtype, fitness_table, fitness_table2, settings);
 
     // run simulation
     run(&args, &mut simulations, plan);
