@@ -111,6 +111,7 @@ fn create_simulations(
     args: &Args,
     wildtype: &HaplotypeRef,
     fitness_table: FitnessTable,
+    fitness_table2: FitnessTable,
     settings: SimulationSettings,
 ) -> Vec<BasicSimulation> {
     (0..args.n_compartments)
@@ -120,7 +121,16 @@ fn create_simulations(
             } else {
                 Population::new()
             };
-            let fitness_tables = vec![(0..settings.host_population_size, fitness_table.clone())];
+            let fitness_tables = vec![
+                (
+                    0..(settings.host_population_size / 2),
+                    fitness_table.clone(),
+                ),
+                (
+                    ((settings.host_population_size / 2)..settings.host_population_size),
+                    fitness_table2.clone(),
+                ),
+            ];
             BasicSimulation::new(
                 wildtype.get_clone(),
                 init_population,
@@ -443,6 +453,12 @@ fn main() {
 
     // create and write fitness table
     let fitness_table = FitnessTable::from_model(&sequence, 4, settings.fitness_model.clone())
+        .unwrap_or_else(|err| {
+            eprintln!("Unable to create fitness table.");
+            eprintln!("Reason: {}", err.message);
+            std::process::exit(1);
+        });
+    let fitness_table2 = FitnessTable::from_model(&sequence, 4, settings.fitness_model.clone())
         .unwrap_or_else(|err| {
             eprintln!("Unable to create fitness table.");
             eprintln!("Reason: {}", err.message);
