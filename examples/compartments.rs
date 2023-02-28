@@ -3,15 +3,15 @@ extern crate virolution;
 use std::path::PathBuf;
 use virolution::fitness::*;
 use virolution::haplotype::*;
-use virolution::plan::*;
 use virolution::population;
 use virolution::population::Population;
 use virolution::simulation::*;
+use virolution::simulation_plan::*;
 use virolution::simulation_settings::*;
 
 fn main() {
     let plan_path = PathBuf::from_iter([env!("CARGO_MANIFEST_DIR"), "data/plan.csv"]);
-    let plan = Plan::read(plan_path.to_str().unwrap()).expect("Failed to read plan");
+    let plan = SimulationPlan::read(plan_path.to_str().unwrap()).expect("Failed to read plan");
     let sequence = vec![Some(0x00); 5386];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {

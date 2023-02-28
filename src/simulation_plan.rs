@@ -100,25 +100,25 @@ impl<T> TransferMatrix<T> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Plan {
-    table: Vec<PlanRecord>,
+pub struct SimulationPlan {
+    table: Vec<SimulationPlanRecord>,
     transfers: HashMap<String, TransferMatrix<f64>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-pub struct PlanRecord {
+pub struct SimulationPlanRecord {
     generation: String,
     event: String,
     value: String,
 }
 
 #[derive(Debug)]
-pub enum PlanReadError {
+pub enum SimulationPlanReadError {
     IoError(std::io::Error),
     CsvError(csv::Error),
 }
 
-impl Serialize for Plan {
+impl Serialize for SimulationPlan {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -131,38 +131,40 @@ impl Serialize for Plan {
     }
 }
 
-impl<'de> Deserialize<'de> for Plan {
+impl<'de> Deserialize<'de> for SimulationPlan {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let table: Vec<PlanRecord> = Vec::<PlanRecord>::deserialize(deserializer)?;
+        let table: Vec<SimulationPlanRecord> =
+            Vec::<SimulationPlanRecord>::deserialize(deserializer)?;
         Self::from_table(table).map_err(|e| serde::de::Error::custom(format!("{:?}", e)))
     }
 }
 
-impl Plan {
-    pub fn read(filename: &str) -> Result<Self, PlanReadError> {
-        let mut reader = BufReader::new(File::open(filename).map_err(PlanReadError::IoError)?);
-        Plan::from_reader(&mut reader)
+impl SimulationPlan {
+    pub fn read(filename: &str) -> Result<Self, SimulationPlanReadError> {
+        let mut reader =
+            BufReader::new(File::open(filename).map_err(SimulationPlanReadError::IoError)?);
+        SimulationPlan::from_reader(&mut reader)
     }
 
-    pub fn from_reader(reader: &mut dyn std::io::Read) -> Result<Self, PlanReadError> {
+    pub fn from_reader(reader: &mut dyn std::io::Read) -> Result<Self, SimulationPlanReadError> {
         // let mut reader = csv::Reader::from_reader(reader);
         let mut reader = csv::ReaderBuilder::new()
             .delimiter(b';')
             .from_reader(reader);
 
         // Parse plan table
-        let table: Vec<PlanRecord> = reader
+        let table: Vec<SimulationPlanRecord> = reader
             .deserialize()
-            .collect::<Result<Vec<PlanRecord>, csv::Error>>()
-            .map_err(PlanReadError::CsvError)?;
+            .collect::<Result<Vec<SimulationPlanRecord>, csv::Error>>()
+            .map_err(SimulationPlanReadError::CsvError)?;
 
         Self::from_table(table)
     }
 
-    pub fn from_table(table: Vec<PlanRecord>) -> Result<Self, PlanReadError> {
+    pub fn from_table(table: Vec<SimulationPlanRecord>) -> Result<Self, SimulationPlanReadError> {
         let mut transfers: HashMap<String, TransferMatrix<f64>> = table
             .iter()
             .filter_map(|record| {
@@ -220,7 +222,7 @@ impl Plan {
     }
 }
 
-fn match_generation(record: &PlanRecord, generation: usize) -> bool {
+fn match_generation(record: &SimulationPlanRecord, generation: usize) -> bool {
     match record.generation.parse::<usize>() {
         Ok(record_generation) => record_generation == generation,
         Err(_) => {
@@ -251,7 +253,7 @@ mod tests {
 4;transmission;root_bc
 5;transmission;root_cd"#;
 
-        let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
+        let plan = SimulationPlan::from_reader(&mut plan_content.as_bytes()).unwrap();
 
         assert_eq!(
             plan.get_transfer_matrix(0),
@@ -284,7 +286,7 @@ mod tests {
         let plan_content = r#"generation;event;value
 1;transmission;[[1, 2], [3, 4]]"#;
 
-        let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
+        let plan = SimulationPlan::from_reader(&mut plan_content.as_bytes()).unwrap();
         assert_eq!(
             plan.get_transfer_matrix(1),
             &TransferMatrix::from_vec(vec![vec![1.0, 2.0], vec![3.0, 4.0]])
@@ -298,7 +300,7 @@ mod tests {
 2;sample;200
 3;sample;300"#;
 
-        let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
+        let plan = SimulationPlan::from_reader(&mut plan_content.as_bytes()).unwrap();
 
         assert_eq!(plan.get_sample_size(0), 0);
         assert_eq!(plan.get_sample_size(1), 100);
@@ -313,7 +315,7 @@ mod tests {
 {} % 10;transmission;migration_fwd
 (5 + {}) % 10;transmission;migration_rev"#;
 
-        let plan = Plan::from_reader(&mut plan_content.as_bytes()).unwrap();
+        let plan = SimulationPlan::from_reader(&mut plan_content.as_bytes()).unwrap();
 
         for i in 0..=1000 {
             if i % 200 == 0 {

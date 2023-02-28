@@ -21,11 +21,11 @@ use virolution::args::*;
 use virolution::barcode::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
-use virolution::plan::*;
 use virolution::population;
 use virolution::population::Population;
 use virolution::references::HaplotypeRef;
 use virolution::simulation::*;
+use virolution::simulation_plan::*;
 use virolution::simulation_settings::*;
 
 fn setup(args: &Args) {
@@ -67,16 +67,16 @@ fn setup(args: &Args) {
     BarcodeEntry::write_header(&mut barcode_file).expect("Unable to write barcode header.");
 }
 
-fn read_transfer_plan(path: &str) -> Plan {
-    match Plan::read(path) {
+fn read_transfer_plan(path: &str) -> SimulationPlan {
+    match SimulationPlan::read(path) {
         Ok(plan) => plan,
         Err(err) => match err {
-            PlanReadError::IoError(err) => {
+            SimulationPlanReadError::IoError(err) => {
                 eprintln!("Unable to open transfer plan from file '{path}'.");
                 eprintln!("Reason: {err}");
                 std::process::exit(1);
             }
-            PlanReadError::CsvError(err) => {
+            SimulationPlanReadError::CsvError(err) => {
                 eprintln!("Unable to load transfer plan from file '{path}'.");
                 eprintln!("Reason: {err}");
                 std::process::exit(1);
@@ -203,7 +203,7 @@ fn sample(simulations: &[BasicSimulation], sample_size: usize, generation: usize
 }
 
 #[cfg(feature = "parallel")]
-fn run(args: &Args, simulations: &mut Vec<BasicSimulation>, plan: Plan) {
+fn run(args: &Args, simulations: &mut Vec<BasicSimulation>, plan: SimulationPlan) {
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
@@ -311,7 +311,7 @@ fn run(args: &Args, simulations: &mut Vec<BasicSimulation>, plan: Plan) {
 }
 
 #[cfg(not(feature = "parallel"))]
-fn run(args: &Args, simulations: &mut [BasicSimulation], plan: Plan) {
+fn run(args: &Args, simulations: &mut [BasicSimulation], plan: SimulationPlan) {
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
