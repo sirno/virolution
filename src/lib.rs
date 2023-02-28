@@ -10,5 +10,6 @@ pub mod haplotype;
 pub mod population;
 pub mod references;
 pub mod simulation;
+pub mod simulation_parameters;
 pub mod simulation_plan;
 pub mod simulation_settings;

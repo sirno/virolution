@@ -4,7 +4,7 @@ use crate::fitness::FitnessTable;
 use crate::haplotype::Haplotype;
 use crate::population::Population;
 use crate::references::HaplotypeRef;
-use crate::simulation_settings::SimulationParameters;
+use crate::simulation_parameters::SimulationParameters;
 use itertools::Itertools;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 
-use crate::simulation_settings::SimulationParameters;
+use super::simulation_parameters::SimulationParameters;
 
 pub static TRANSFERS: phf::Map<&'static str, &'static [&'static [f64]]> = phf_map! {
     "migration_fwd" => &MIGRATION_FWD,
@@ -138,7 +138,7 @@ impl<'de> Deserialize<'de> for SimulationPlan {
     {
         let table: Vec<SimulationPlanRecord> =
             Vec::<SimulationPlanRecord>::deserialize(deserializer)?;
-        Self::from_table(table).map_err(|e| serde::de::Error::custom(format!("{:?}", e)))
+        Self::from_vec(table).map_err(|e| serde::de::Error::custom(format!("{:?}", e)))
     }
 }
 
@@ -161,10 +161,10 @@ impl SimulationPlan {
             .collect::<Result<Vec<SimulationPlanRecord>, csv::Error>>()
             .map_err(SimulationPlanReadError::CsvError)?;
 
-        Self::from_table(table)
+        Self::from_vec(table)
     }
 
-    pub fn from_table(table: Vec<SimulationPlanRecord>) -> Result<Self, SimulationPlanReadError> {
+    pub fn from_vec(table: Vec<SimulationPlanRecord>) -> Result<Self, SimulationPlanReadError> {
         let mut transfers: HashMap<String, TransferMatrix<f64>> = table
             .iter()
             .filter_map(|record| {
@@ -218,6 +218,16 @@ impl SimulationPlan {
         {
             Some(record) => Some(record.value.as_str()),
             None => None,
+        }
+    }
+}
+
+impl SimulationPlanRecord {
+    pub fn new(generation: &str, event: &str, value: &str) -> Self {
+        Self {
+            generation: generation.to_string(),
+            event: event.to_string(),
+            value: value.to_string(),
         }
     }
 }

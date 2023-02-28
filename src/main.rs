@@ -25,8 +25,8 @@ use virolution::population;
 use virolution::population::Population;
 use virolution::references::HaplotypeRef;
 use virolution::simulation::*;
+use virolution::simulation_parameters::*;
 use virolution::simulation_plan::*;
-use virolution::simulation_settings::*;
 
 fn setup(args: &Args) {
     // setup logger

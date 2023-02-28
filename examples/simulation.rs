@@ -6,7 +6,7 @@ use virolution::haplotype::*;
 use virolution::population;
 use virolution::population::Population;
 use virolution::simulation::*;
-use virolution::simulation_settings::*;
+use virolution::simulation_parameters::*;
 
 fn main() {
     let sequence = vec![Some(0x00); 100];

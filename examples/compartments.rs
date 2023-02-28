@@ -6,8 +6,8 @@ use virolution::haplotype::*;
 use virolution::population;
 use virolution::population::Population;
 use virolution::simulation::*;
+use virolution::simulation_parameters::*;
 use virolution::simulation_plan::*;
-use virolution::simulation_settings::*;
 
 fn main() {
     let plan_path = PathBuf::from_iter([env!("CARGO_MANIFEST_DIR"), "data/plan.csv"]);
