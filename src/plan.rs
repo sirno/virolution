@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 
-use crate::simulation_settings::SimulationSettings;
+use crate::simulation_settings::SimulationParameters;
 
 pub static TRANSFERS: phf::Map<&'static str, &'static [&'static [f64]]> = phf_map! {
     "migration_fwd" => &MIGRATION_FWD,
@@ -203,9 +203,9 @@ impl Plan {
         }
     }
 
-    pub fn get_settings(&self, generation: usize) -> Option<SimulationSettings> {
+    pub fn get_settings(&self, generation: usize) -> Option<SimulationParameters> {
         self.get_event_value("settings", generation)
-            .and_then(|settings_path| SimulationSettings::read_from_file(settings_path).ok())
+            .and_then(|settings_path| SimulationParameters::read_from_file(settings_path).ok())
     }
 
     pub fn get_event_value(&self, event: &str, generation: usize) -> Option<&str> {

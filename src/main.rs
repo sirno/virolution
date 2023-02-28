@@ -111,7 +111,7 @@ fn create_simulations(
     args: &Args,
     wildtype: &HaplotypeRef,
     fitness_table: FitnessTable,
-    settings: SimulationSettings,
+    settings: SimulationParameters,
 ) -> Vec<BasicSimulation> {
     (0..args.n_compartments)
         .map(|compartment_idx| {
@@ -425,14 +425,14 @@ fn main() {
     let wildtype = Wildtype::new(sequence.clone());
 
     // load simulation settings
-    let settings = SimulationSettings::read_from_file(args.settings.as_str()).unwrap_or_else(
+    let settings = SimulationParameters::read_from_file(args.settings.as_str()).unwrap_or_else(
         |err| match err {
-            SimulationSettingsError::IoError(err) => {
+            SimulationParametersError::IoError(err) => {
                 eprintln!("Unable to open settings from file '{}'.", args.settings);
                 eprintln!("Reason: {err}");
                 std::process::exit(1);
             }
-            SimulationSettingsError::YamlError(err) => {
+            SimulationParametersError::YamlError(err) => {
                 eprintln!("Unable to load settings from file '{}'.", args.settings);
                 eprintln!("Reason: {err}");
                 std::process::exit(1);

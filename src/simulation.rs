@@ -4,7 +4,7 @@ use crate::fitness::FitnessTable;
 use crate::haplotype::Haplotype;
 use crate::population::Population;
 use crate::references::HaplotypeRef;
-use crate::simulation_settings::SimulationSettings;
+use crate::simulation_settings::SimulationParameters;
 use itertools::Itertools;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
@@ -20,7 +20,7 @@ pub type HostRange = (Range<usize>, FitnessTable);
 pub trait Simulation {
     fn increment_generation(&mut self);
 
-    fn set_settings(&mut self, settings: SimulationSettings);
+    fn set_settings(&mut self, settings: SimulationParameters);
 
     fn get_population(&self) -> &Population;
     fn set_population(&mut self, population: Population);
@@ -58,7 +58,7 @@ pub struct BasicSimulation {
     wildtype: HaplotypeRef,
     population: Population,
     fitness_tables: Vec<HostRange>,
-    simulation_settings: SimulationSettings,
+    simulation_settings: SimulationParameters,
     mutation_sampler: Binomial,
     recombination_sampler: Bernoulli,
     infection_sampler: Bernoulli,
@@ -70,7 +70,7 @@ impl BasicSimulation {
         wildtype: HaplotypeRef,
         population: Population,
         fitness_tables: Vec<HostRange>,
-        simulation_settings: SimulationSettings,
+        simulation_settings: SimulationParameters,
         generation: usize,
     ) -> Self {
         let mutation_sampler = Binomial::new(
@@ -176,7 +176,7 @@ impl Simulation for BasicSimulation {
         self.generation += 1;
     }
 
-    fn set_settings(&mut self, simulation_settings: SimulationSettings) {
+    fn set_settings(&mut self, simulation_settings: SimulationParameters) {
         self.simulation_settings = simulation_settings;
         self.mutation_sampler = Binomial::new(
             self.wildtype.get_length() as u64,
@@ -389,7 +389,7 @@ mod tests {
 
     const POPULATION_SIZE: usize = 1000;
 
-    const SETTINGS: SimulationSettings = SimulationSettings {
+    const SETTINGS: SimulationParameters = SimulationParameters {
         mutation_rate: 1e-3,
         recombination_rate: 1e-5,
         substitution_matrix: [

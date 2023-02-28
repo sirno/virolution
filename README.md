@@ -22,7 +22,7 @@ basic reproductive number, divided by the number of infectants in their host.
 ## Simulation Parameters
 
 ```rust
-pub struct SimulationSettings {
+pub struct SimulationParameters {
     pub mutation_rate: f64,
     pub recombination_rate: f64,
     pub host_population_size: usize,

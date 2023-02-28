@@ -31,7 +31,7 @@ fn main() {
     let fitness_table = FitnessTable::from_model(&sequence, 4, fitness_model.clone()).unwrap();
 
     let wt = Wildtype::new(sequence);
-    let settings = SimulationSettings {
+    let settings = SimulationParameters {
         mutation_rate: 1e-6,
         recombination_rate: 1e-8,
         substitution_matrix: [

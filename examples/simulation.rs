@@ -41,7 +41,7 @@ fn main() {
     println!("ht4: {}", ht4.get_fitness(&fitness_table));
 
     let population: Population = population![wt.clone(); 10];
-    let simulation_settings = SimulationSettings {
+    let simulation_settings = SimulationParameters {
         mutation_rate: 1e-6,
         recombination_rate: 0.,
         substitution_matrix: [
@@ -61,7 +61,7 @@ fn main() {
         .write_to_file("settings_example.yaml")
         .expect("Failed to write settings to file");
 
-    let settings = SimulationSettings::read_from_file("settings_example.yaml")
+    let settings = SimulationParameters::read_from_file("settings_example.yaml")
         .expect("Failed to read settings from file");
     fs::remove_file("settings_example.yaml").expect("Unable to remove file.");
     let fitness_tables = vec![(0..simulation_settings.host_population_size, fitness_table)];
