@@ -1,6 +1,13 @@
 use super::fitness::FitnessModel;
+use super::plan::Plan;
 use serde::{Deserialize, Serialize};
 use std::fs;
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct RunSettings {
+    pub simulation_settings: SimulationSettings,
+    pub simulation_plan: Plan,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct SimulationSettings {

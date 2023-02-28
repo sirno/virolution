@@ -1,7 +1,8 @@
 use csv;
 use evalexpr::context_map;
 use phf::phf_map;
-use serde::Deserialize;
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
@@ -98,13 +99,13 @@ impl<T> TransferMatrix<T> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Plan {
     table: Vec<PlanRecord>,
     transfers: HashMap<String, TransferMatrix<f64>>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct PlanRecord {
     generation: String,
     event: String,
@@ -115,6 +116,29 @@ pub struct PlanRecord {
 pub enum PlanReadError {
     IoError(std::io::Error),
     CsvError(csv::Error),
+}
+
+impl Serialize for Plan {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.table.len()))?;
+        for record in &self.table {
+            seq.serialize_element(record)?;
+        }
+        seq.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Plan {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let table: Vec<PlanRecord> = Vec::<PlanRecord>::deserialize(deserializer)?;
+        Self::from_table(table).map_err(|e| serde::de::Error::custom(format!("{:?}", e)))
+    }
 }
 
 impl Plan {
@@ -135,7 +159,10 @@ impl Plan {
             .collect::<Result<Vec<PlanRecord>, csv::Error>>()
             .map_err(PlanReadError::CsvError)?;
 
-        // Parse transfer matrices
+        Self::from_table(table)
+    }
+
+    pub fn from_table(table: Vec<PlanRecord>) -> Result<Self, PlanReadError> {
         let mut transfers: HashMap<String, TransferMatrix<f64>> = table
             .iter()
             .filter_map(|record| {
