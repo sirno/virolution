@@ -5,7 +5,7 @@ use std::fs;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct SimulationSettings {
-    pub simulation_settings: SimulationParameters,
+    pub simulation_parameters: Vec<SimulationParameters>,
     pub simulation_plan: SimulationPlan,
 }
 
@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn read_write() {
         let settings = SimulationSettings {
-            simulation_settings: SimulationParameters {
+            simulation_parameters: vec![SimulationParameters {
                 mutation_rate: 0.1,
                 recombination_rate: 0.1,
                 host_population_size: 100,
@@ -59,7 +59,7 @@ mod tests {
                     distribution: crate::fitness::FitnessDistribution::Neutral,
                     utility: crate::fitness::UtilityFunction::Linear,
                 },
-            },
+            }],
             simulation_plan: SimulationPlan::from_vec(vec![
                 SimulationPlanRecord::new("0", "transmission", "migration_fwd"),
                 SimulationPlanRecord::new("1", "transmission", "migration_rev"),
