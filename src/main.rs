@@ -27,6 +27,7 @@ use virolution::references::HaplotypeRef;
 use virolution::simulation::*;
 use virolution::simulation_parameters::*;
 use virolution::simulation_plan::*;
+use virolution::simulation_settings::*;
 
 fn setup(args: &Args) {
     // setup logger
@@ -67,24 +68,6 @@ fn setup(args: &Args) {
     BarcodeEntry::write_header(&mut barcode_file).expect("Unable to write barcode header.");
 }
 
-fn read_transfer_plan(path: &str) -> SimulationPlan {
-    match SimulationPlan::read(path) {
-        Ok(plan) => plan,
-        Err(err) => match err {
-            SimulationPlanReadError::IoError(err) => {
-                eprintln!("Unable to open transfer plan from file '{path}'.");
-                eprintln!("Reason: {err}");
-                std::process::exit(1);
-            }
-            SimulationPlanReadError::CsvError(err) => {
-                eprintln!("Unable to load transfer plan from file '{path}'.");
-                eprintln!("Reason: {err}");
-                std::process::exit(1);
-            }
-        },
-    }
-}
-
 fn load_sequence(path: &str) -> Vec<Symbol> {
     let mut reader = fasta::Reader::from_path(path).unwrap_or_else(|err| match err.kind() {
         io::ErrorKind::NotFound => {
@@ -110,8 +93,8 @@ fn load_sequence(path: &str) -> Vec<Symbol> {
 fn create_simulations(
     args: &Args,
     wildtype: &HaplotypeRef,
-    fitness_table: FitnessTable,
-    settings: SimulationParameters,
+    fitness_table: &FitnessTable,
+    parameters: &SimulationParameters,
 ) -> Vec<BasicSimulation> {
     (0..args.n_compartments)
         .map(|compartment_idx| {
@@ -120,12 +103,12 @@ fn create_simulations(
             } else {
                 Population::new()
             };
-            let fitness_tables = vec![(0..settings.host_population_size, fitness_table.clone())];
+            let fitness_tables = vec![(0..parameters.host_population_size, fitness_table.clone())];
             BasicSimulation::new(
                 wildtype.get_clone(),
                 init_population,
                 fitness_tables,
-                settings.clone(),
+                parameters.clone(),
                 0,
             )
         })
@@ -418,47 +401,54 @@ fn main() {
 
     setup(&args);
 
-    let plan = read_transfer_plan(args.transfer_plan.as_str());
+    // load simulation settings
+    let settings: SimulationSettings = SimulationSettings::read_from_file(args.settings.as_str())
+        .unwrap_or_else(|err| match err {
+            SimulationSettingsError::IoError(err) => {
+                eprintln!("Unable to open settings from file '{}'.", args.settings);
+                eprintln!("Reason: {err}");
+                std::process::exit(1);
+            }
+            SimulationSettingsError::YamlError(err) => {
+                eprintln!("Unable to load settings from file '{}'.", args.settings);
+                eprintln!("Reason: {err}");
+                std::process::exit(1);
+            }
+        });
+    log::info!("Loaded settings\n{}", settings);
+
+    // load sequence
     let sequence = load_sequence(args.sequence.as_str());
 
     // create wildtype
     let wildtype = Wildtype::new(sequence.clone());
 
-    // load simulation settings
-    let settings = SimulationParameters::read_from_file(args.settings.as_str()).unwrap_or_else(
-        |err| match err {
-            SimulationParametersError::IoError(err) => {
-                eprintln!("Unable to open settings from file '{}'.", args.settings);
-                eprintln!("Reason: {err}");
-                std::process::exit(1);
-            }
-            SimulationParametersError::YamlError(err) => {
-                eprintln!("Unable to load settings from file '{}'.", args.settings);
-                eprintln!("Reason: {err}");
-                std::process::exit(1);
-            }
-        },
-    );
-    log::info!("Loaded settings\n{}", settings);
-
     // create and write fitness table
-    let fitness_table = FitnessTable::from_model(&sequence, 4, settings.fitness_model.clone())
-        .unwrap_or_else(|err| {
-            eprintln!("Unable to create fitness table.");
-            eprintln!("Reason: {}", err.message);
-            std::process::exit(1);
-        });
+    let fitness_table = FitnessTable::from_model(
+        &sequence,
+        4,
+        settings.simulation_parameters[0].fitness_model.clone(),
+    )
+    .unwrap_or_else(|err| {
+        eprintln!("Unable to create fitness table.");
+        eprintln!("Reason: {}", err.message);
+        std::process::exit(1);
+    });
     let mut fitness_file =
         io::BufWriter::new(fs::File::create(args.fitness_table.clone()).unwrap());
     fitness_table.write(&mut fitness_file).unwrap();
 
     // create individual compartments
     println!("Creating {} compartments...", args.n_compartments);
-    let mut simulations: Vec<BasicSimulation> =
-        create_simulations(&args, &wildtype, fitness_table, settings);
+    let mut simulations: Vec<BasicSimulation> = create_simulations(
+        &args,
+        &wildtype,
+        &fitness_table,
+        &settings.simulation_parameters[0],
+    );
 
     // run simulation
-    run(&args, &mut simulations, plan);
+    run(&args, &mut simulations, settings.simulation_plan);
 
     // store tree if specified.
     log::info!("Storing tree...");

@@ -15,6 +15,14 @@ pub enum SimulationSettingsError {
     YamlError(serde_yaml::Error),
 }
 
+impl std::fmt::Display for SimulationSettings {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut output = vec![];
+        self.write(&mut output).map_err(|_| std::fmt::Error)?;
+        write!(formatter, "{}", String::from_utf8(output).unwrap())
+    }
+}
+
 impl SimulationSettings {
     pub fn write(&self, writer: &mut dyn std::io::Write) -> Result<(), SimulationSettingsError> {
         serde_yaml::to_writer(writer, self).map_err(SimulationSettingsError::YamlError)

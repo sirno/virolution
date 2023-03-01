@@ -18,10 +18,6 @@ pub struct Args {
     #[clap(long)]
     pub settings: String,
 
-    /// Path to transfer plan. Format: CSV
-    #[clap(long)]
-    pub transfer_plan: String,
-
     /// Path to sequence. Format: FASTA
     #[clap(long)]
     pub sequence: String,
