@@ -47,8 +47,8 @@ pub struct Args {
     pub n_compartments: usize,
 
     /// Initial population size
-    #[clap(long, default_value = "10000000")]
-    pub initial_population_size: usize,
+    #[clap(long)]
+    pub initial_population_size: Option<usize>,
 
     /// Disable progress bar
     #[clap(long)]

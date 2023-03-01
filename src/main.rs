@@ -99,7 +99,11 @@ fn create_simulations(
     (0..args.n_compartments)
         .map(|compartment_idx| {
             let init_population: Population = if compartment_idx == 0 {
-                population![wildtype.clone(); args.initial_population_size]
+                let initial_population_size = match args.initial_population_size {
+                    Some(size) => size,
+                    None => parameters.max_population,
+                };
+                population![wildtype.clone(); initial_population_size]
             } else {
                 Population::new()
             };
