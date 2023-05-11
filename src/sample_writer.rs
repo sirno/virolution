@@ -1,3 +1,4 @@
+use csv;
 use seq_io::fasta::{OwnedRecord, Record};
 use std::{collections::HashMap, fs, io, path::Path};
 
@@ -14,10 +15,23 @@ pub struct FastaSampleWriter<'a> {
     path: &'a str,
 }
 
-struct CsvSampleWriter {}
-
 impl<'a> FastaSampleWriter<'a> {
     pub fn new(simulation_name: &'a str, path: &'a str) -> Self {
+        Self {
+            simulation_name,
+            path,
+        }
+    }
+}
+
+pub struct CsvSampleWriter<'a> {
+    simulation_name: &'a str,
+    path: &'a str,
+}
+
+impl<'a> CsvSampleWriter<'a> {
+    pub fn new(simulation_name: &'a str, path: &'a str) -> Self {
+        // create output files
         Self {
             simulation_name,
             path,
@@ -82,6 +96,60 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
                 record
                     .write(&mut samples_file)
                     .expect("Unable to write to file.");
+            }
+
+            // write barcode to file
+            BarcodeEntry {
+                barcode: &barcode,
+                experiment: &self.simulation_name.to_string(),
+                time: generation,
+                replicate: 0,
+                compartment: compartment_id,
+            }
+            .write(&mut barcode_file)
+            .expect("Unable to write to barcode file.");
+        }
+    }
+}
+
+impl<'a> SampleWriter for CsvSampleWriter<'a> {
+    fn write(&self, simulations: &[Box<SimulationTrait>], sample_size: usize) {
+        println!("Writing csv sample to {}", self.path);
+        for (compartment_id, compartment) in simulations.iter().enumerate() {
+            let generation = compartment.get_generation();
+            let barcode = format!("sample_{generation}_{compartment_id}");
+
+            // create output files
+            let barcode_path = Path::new(self.path).join("barcodes.csv");
+            let sample_path = Path::new(self.path).join(format!("{barcode}.csv"));
+
+            // create file buffers
+            let mut barcode_file = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(barcode_path)
+                .expect("Unable to open barcode file.");
+            let mut samples_file = csv::WriterBuilder::new()
+                .from_path(sample_path)
+                .expect("Unable to open sample file.");
+
+            samples_file
+                .write_record(&["haplotype", "count"])
+                .expect("Unable to write header to samples file.");
+
+            // sample sequences and write to file
+            let population = compartment.get_population();
+            for (haplotype_ref, haplotype_count) in population
+                .choose_multiple(&mut rand::thread_rng(), sample_size)
+                .into_iter()
+                .counts()
+            {
+                samples_file
+                    .write_record(&[
+                        haplotype_ref.as_ref().get_string(),
+                        haplotype_count.to_string(),
+                    ])
+                    .expect("Unable to write to samples file.")
             }
 
             // write barcode to file
