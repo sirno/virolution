@@ -23,10 +23,7 @@ fn main() {
         lambda_beneficial: 0.03,
         lambda_deleterious: 0.21,
     });
-    let fitness_model = FitnessModel {
-        distribution: distribution.clone(),
-        utility: UtilityFunction::Linear,
-    };
+    let fitness_model = FitnessModel::new(distribution.clone(), UtilityFunction::Linear);
 
     let fitness_table = FitnessTable::from_model(&sequence, 4, fitness_model.clone()).unwrap();
 

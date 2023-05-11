@@ -46,6 +46,7 @@ impl SimulationSettings {
         Self::read(&mut reader)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -63,10 +64,10 @@ mod tests {
                 max_population: 1000,
                 dilution: 0.1,
                 substitution_matrix: [[0.0; 4]; 4],
-                fitness_model: crate::fitness::FitnessModel {
-                    distribution: crate::fitness::FitnessDistribution::Neutral,
-                    utility: crate::fitness::UtilityFunction::Linear,
-                },
+                fitness_model: crate::fitness::FitnessModel::new(
+                    crate::fitness::FitnessDistribution::Neutral,
+                    crate::fitness::UtilityFunction::Linear,
+                ),
             }],
             simulation_plan: SimulationPlan::from_vec(vec![
                 SimulationPlanRecord::new("0", "transmission", "migration_fwd"),

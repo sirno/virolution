@@ -150,7 +150,6 @@ impl SimulationPlan {
     }
 
     pub fn from_reader(reader: &mut dyn std::io::Read) -> Result<Self, SimulationPlanReadError> {
-        // let mut reader = csv::Reader::from_reader(reader);
         let mut reader = csv::ReaderBuilder::new()
             .delimiter(b';')
             .from_reader(reader);

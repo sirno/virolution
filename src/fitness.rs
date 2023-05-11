@@ -220,10 +220,7 @@ mod tests {
         let fitness = FitnessTable::from_model(
             &sequence,
             4,
-            FitnessModel {
-                distribution: FitnessDistribution::Neutral,
-                utility: UtilityFunction::Linear,
-            },
+            FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
         )
         .unwrap();
         for val in fitness.table {
@@ -248,10 +245,7 @@ mod tests {
         let fitness = FitnessTable::from_model(
             &sequence,
             4,
-            FitnessModel {
-                distribution,
-                utility: UtilityFunction::Linear,
-            },
+            FitnessModel::new(distribution, UtilityFunction::Linear),
         )
         .unwrap();
         for (idx, val) in fitness.table.into_iter().enumerate() {
@@ -269,10 +263,7 @@ mod tests {
         let fitness = FitnessTable::from_model(
             &sequence,
             4,
-            FitnessModel {
-                distribution: FitnessDistribution::Neutral,
-                utility: UtilityFunction::Linear,
-            },
+            FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
         )
         .unwrap();
         for position in 0..100 {
@@ -289,10 +280,7 @@ mod tests {
         let fitness = FitnessTable::from_model(
             &sequence,
             4,
-            FitnessModel {
-                distribution: FitnessDistribution::Neutral,
-                utility: UtilityFunction::Linear,
-            },
+            FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
         )
         .unwrap();
         let mut buffer = Vec::new();

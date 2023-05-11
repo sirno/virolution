@@ -77,10 +77,7 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: FitnessModel {
-                distribution: FitnessDistribution::Neutral,
-                utility: UtilityFunction::Linear,
-            },
+            fitness_model: FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
         };
         settings.write(&mut buffer).unwrap();
         let read_settings = SimulationParameters::read(&mut buffer.as_slice()).unwrap();
@@ -104,8 +101,8 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: FitnessModel {
-                distribution: FitnessDistribution::Exponential(ExponentialParameters {
+            fitness_model: FitnessModel::new(
+                FitnessDistribution::Exponential(ExponentialParameters {
                     weights: MutationCategoryWeights {
                         beneficial: 0.29,
                         deleterious: 0.51,
@@ -115,8 +112,8 @@ mod tests {
                     lambda_beneficial: 0.03,
                     lambda_deleterious: 0.21,
                 }),
-                utility: UtilityFunction::Linear,
-            },
+                UtilityFunction::Linear,
+            ),
         };
         settings.write(&mut buffer).unwrap();
         let read_settings = SimulationParameters::read(&mut buffer.as_slice()).unwrap();
@@ -139,10 +136,7 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: FitnessModel {
-                distribution: FitnessDistribution::Neutral,
-                utility: UtilityFunction::Linear,
-            },
+            fitness_model: FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
         };
         settings.write_to_file("test_settings.yaml").unwrap();
         let read_settings = SimulationParameters::read_from_file("test_settings.yaml").unwrap();
