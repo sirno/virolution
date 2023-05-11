@@ -52,7 +52,7 @@ fn main() {
         basic_reproductive_number: 100.,
         max_population: 1_000_000,
         dilution: 0.02,
-        fitness_model: fitness_model,
+        fitness_model: FitnessModelField::SingleHost(fitness_model),
     };
     simulation_settings
         .write_to_file("settings_example.yaml")

@@ -42,7 +42,7 @@ fn main() {
         basic_reproductive_number: 100.,
         max_population: 1_000_000,
         dilution: 0.02,
-        fitness_model,
+        fitness_model: FitnessModelField::SingleHost(fitness_model),
     };
 
     let n_compartments = 3;

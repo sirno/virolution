@@ -12,6 +12,18 @@ pub struct SimulationParameters {
     pub max_population: usize,
     pub dilution: f64,
     pub substitution_matrix: [[f64; 4]; 4],
+    pub fitness_model: FitnessModelField,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum FitnessModelField {
+    SingleHost(FitnessModel),
+    MultiHost(Vec<FitnessModelFraction>),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct FitnessModelFraction {
+    pub fraction: f64,
     pub fitness_model: FitnessModel,
 }
 
@@ -77,7 +89,10 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
+            fitness_model: FitnessModelField::SingleHost(FitnessModel::new(
+                FitnessDistribution::Neutral,
+                UtilityFunction::Linear,
+            )),
         };
         settings.write(&mut buffer).unwrap();
         let read_settings = SimulationParameters::read(&mut buffer.as_slice()).unwrap();
@@ -101,7 +116,7 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: FitnessModel::new(
+            fitness_model: FitnessModelField::SingleHost(FitnessModel::new(
                 FitnessDistribution::Exponential(ExponentialParameters {
                     weights: MutationCategoryWeights {
                         beneficial: 0.29,
@@ -113,7 +128,7 @@ mod tests {
                     lambda_deleterious: 0.21,
                 }),
                 UtilityFunction::Linear,
-            ),
+            )),
         };
         settings.write(&mut buffer).unwrap();
         let read_settings = SimulationParameters::read(&mut buffer.as_slice()).unwrap();
@@ -136,7 +151,10 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
+            fitness_model: FitnessModelField::SingleHost(FitnessModel::new(
+                FitnessDistribution::Neutral,
+                UtilityFunction::Linear,
+            )),
         };
         settings.write_to_file("test_settings.yaml").unwrap();
         let read_settings = SimulationParameters::read_from_file("test_settings.yaml").unwrap();

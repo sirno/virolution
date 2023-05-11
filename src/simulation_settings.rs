@@ -50,6 +50,8 @@ impl SimulationSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fitness::*;
+    use crate::simulation_parameters::*;
     use crate::simulation_plan::SimulationPlanRecord;
 
     #[test]
@@ -64,10 +66,10 @@ mod tests {
                 max_population: 1000,
                 dilution: 0.1,
                 substitution_matrix: [[0.0; 4]; 4],
-                fitness_model: crate::fitness::FitnessModel::new(
+                fitness_model: FitnessModelField::SingleHost(FitnessModel::new(
                     crate::fitness::FitnessDistribution::Neutral,
                     crate::fitness::UtilityFunction::Linear,
-                ),
+                )),
             }],
             simulation_plan: SimulationPlan::from_vec(vec![
                 SimulationPlanRecord::new("0", "transmission", "migration_fwd"),

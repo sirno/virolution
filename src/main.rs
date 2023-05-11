@@ -10,8 +10,10 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use seq_io::fasta;
 use seq_io::fasta::Record;
+use std::cmp::min;
 use std::fs;
 use std::io;
+use std::ops::Range;
 use std::panic::catch_unwind;
 use std::path::Path;
 use virolution::args::*;
@@ -91,7 +93,7 @@ fn load_sequence(path: &str) -> Vec<Symbol> {
 fn create_simulations(
     args: &Args,
     wildtype: &HaplotypeRef,
-    fitness_table: &FitnessTable,
+    fitness_tables: &[(Range<usize>, FitnessTable)],
     parameters: &SimulationParameters,
 ) -> Vec<Box<SimulationTrait>> {
     (0..args.n_compartments)
@@ -105,11 +107,10 @@ fn create_simulations(
             } else {
                 Population::new()
             };
-            let fitness_tables = vec![(0..parameters.host_population_size, fitness_table.clone())];
             BasicSimulation::new(
                 wildtype.get_clone(),
                 init_population,
-                fitness_tables,
+                fitness_tables.to_vec(),
                 parameters.clone(),
                 0,
             )
@@ -367,26 +368,58 @@ fn main() {
     let wildtype = Wildtype::new(sequence.clone());
 
     // create and write fitness table
-    let fitness_table = FitnessTable::from_model(
-        &sequence,
-        4,
-        settings.simulation_parameters[0].fitness_model.clone(),
-    )
-    .unwrap_or_else(|err| {
-        eprintln!("Unable to create fitness table.");
-        eprintln!("Reason: {}", err.message);
-        std::process::exit(1);
-    });
+    let fitness_tables = match &settings.simulation_parameters[0].fitness_model {
+        FitnessModelField::SingleHost(fitness_model) => {
+            vec![(
+                0..settings.simulation_parameters[0].host_population_size,
+                FitnessTable::from_model(&sequence, 4, fitness_model.clone()).unwrap_or_else(
+                    |err| {
+                        eprintln!("Unable to create fitness table.");
+                        eprintln!("Reason: {}", err.message);
+                        std::process::exit(1);
+                    },
+                ),
+            )]
+        }
+        FitnessModelField::MultiHost(fitness_models) => {
+            let mut fitness_tables = Vec::new();
+            let mut lower = 0;
+            for fitness_model_frac in fitness_models {
+                let fitness_model = fitness_model_frac.fitness_model.clone();
+                let n_hosts = (fitness_model_frac.fraction
+                    * settings.simulation_parameters[0].host_population_size as f64)
+                    .round() as usize;
+                let upper = min(
+                    lower + n_hosts,
+                    settings.simulation_parameters[0].host_population_size,
+                );
+                fitness_tables.push((
+                    lower..upper,
+                    FitnessTable::from_model(&sequence, 4, fitness_model).unwrap_or_else(|err| {
+                        eprintln!("Unable to create fitness table.");
+                        eprintln!("Reason: {}", err.message);
+                        std::process::exit(1);
+                    }),
+                ));
+                lower = upper;
+            }
+            fitness_tables
+        }
+    };
+
     let mut fitness_file =
         io::BufWriter::new(fs::File::create(args.fitness_table.clone()).unwrap());
-    fitness_table.write(&mut fitness_file).unwrap();
+
+    for (_, fitness_table) in fitness_tables.clone() {
+        fitness_table.write(&mut fitness_file).unwrap();
+    }
 
     // create individual compartments
     println!("Creating {} compartments...", args.n_compartments);
     let mut simulations: Vec<Box<SimulationTrait>> = create_simulations(
         &args,
         &wildtype,
-        &fitness_table,
+        fitness_tables.as_slice(),
         &settings.simulation_parameters[0],
     );
 

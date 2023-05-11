@@ -378,6 +378,7 @@ mod tests {
         UtilityFunction,
     };
     use crate::haplotype::Wildtype;
+    use crate::simulation_parameters::FitnessModelField;
     use test::Bencher;
 
     const DISTRIBUTION: FitnessDistribution =
@@ -413,7 +414,7 @@ mod tests {
         basic_reproductive_number: 100.,
         max_population: POPULATION_SIZE,
         dilution: 0.17,
-        fitness_model: FITNESS_MODEL,
+        fitness_model: FitnessModelField::SingleHost(FITNESS_MODEL),
     };
 
     fn setup_test_simulation() -> BasicSimulation {
