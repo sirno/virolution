@@ -9,6 +9,7 @@ pub mod haplotype;
 #[macro_use]
 pub mod population;
 pub mod references;
+pub mod sample_writer;
 pub mod simulation;
 pub mod simulation_parameters;
 pub mod simulation_plan;

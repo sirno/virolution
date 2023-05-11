@@ -6,13 +6,10 @@ extern crate test;
 
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
-use itertools::Itertools;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use seq_io::fasta;
-use seq_io::fasta::OwnedRecord;
 use seq_io::fasta::Record;
-use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::panic::catch_unwind;
@@ -24,6 +21,7 @@ use virolution::haplotype::*;
 use virolution::population;
 use virolution::population::Population;
 use virolution::references::HaplotypeRef;
+use virolution::sample_writer::*;
 use virolution::simulation::*;
 use virolution::simulation_parameters::*;
 use virolution::simulation_plan::*;
@@ -95,7 +93,7 @@ fn create_simulations(
     wildtype: &HaplotypeRef,
     fitness_table: &FitnessTable,
     parameters: &SimulationParameters,
-) -> Vec<BasicSimulation> {
+) -> Vec<Box<SimulationTrait>> {
     (0..args.n_compartments)
         .map(|compartment_idx| {
             let init_population: Population = if compartment_idx == 0 {
@@ -116,81 +114,12 @@ fn create_simulations(
                 0,
             )
         })
+        .map(|sim| Box::new(sim) as Box<SimulationTrait>)
         .collect()
 }
 
-fn sample(simulations: &[BasicSimulation], sample_size: usize, generation: usize, args: &Args) {
-    log::info!("Sampling {} individuals...", sample_size);
-    for (compartment_id, compartment) in simulations.iter().enumerate() {
-        let barcode = format!("sample_{generation}_{compartment_id}");
-
-        // create output files
-        let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
-        let sample_path = Path::new(&args.outdir).join(format!("{barcode}.fasta"));
-
-        // create file buffers
-        let mut barcode_file = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(barcode_path)
-            .expect("Unable to open barcode file.");
-        let mut samples_file = io::BufWriter::new(fs::File::create(sample_path).unwrap());
-
-        // precompute sequences
-        let population = compartment.get_population();
-        let sequences: HashMap<usize, Vec<u8>> = population
-            .iter()
-            .unique()
-            .map(|haplotype_ref| {
-                let sequence = haplotype_ref
-                    .get_sequence()
-                    .into_iter()
-                    .map(|symbol| match symbol {
-                        Some(s) => FASTA_ENCODE[&s],
-                        None => 0x2d,
-                    })
-                    .collect();
-                (haplotype_ref.get_id(), sequence)
-            })
-            .collect();
-
-        // sample sequences and write to file
-        for (haplotype_id, haplotype_ref) in population
-            .choose_multiple(&mut rand::thread_rng(), sample_size)
-            .into_iter()
-            .enumerate()
-        {
-            let head = format!(
-                "compartment_id={};sequence_id={};generation={}",
-                compartment_id, haplotype_id, generation
-            )
-            .as_bytes()
-            .to_vec();
-            let sequence = sequences[&haplotype_ref.get_id()].clone();
-            let record = OwnedRecord {
-                head,
-                seq: sequence,
-            };
-            record
-                .write(&mut samples_file)
-                .expect("Unable to write to file.");
-        }
-
-        // write barcode to file
-        BarcodeEntry {
-            barcode: &barcode,
-            experiment: &args.simulation_name,
-            time: generation,
-            replicate: 0,
-            compartment: compartment_id,
-        }
-        .write(&mut barcode_file)
-        .expect("Unable to write to barcode file.");
-    }
-}
-
 #[cfg(feature = "parallel")]
-fn run(args: &Args, simulations: &mut Vec<BasicSimulation>, plan: SimulationPlan) {
+fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: SimulationPlan) {
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
@@ -206,6 +135,11 @@ fn run(args: &Args, simulations: &mut Vec<BasicSimulation>, plan: SimulationPlan
             Some(bar)
         }
     };
+
+    let sample_writer: Box<dyn SampleWriter> = Box::new(FastaSampleWriter::new(
+        args.outdir.as_str(),
+        args.simulation_name.as_str(),
+    ));
 
     for generation in 0..=args.generations {
         // logging
@@ -230,7 +164,7 @@ fn run(args: &Args, simulations: &mut Vec<BasicSimulation>, plan: SimulationPlan
         log::debug!("Process sampling...");
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
-            sample(simulations, sample_size, generation, args);
+            sample_writer.write(simulations, sample_size);
         }
 
         // abort on last generation after sampling
@@ -254,7 +188,7 @@ fn run(args: &Args, simulations: &mut Vec<BasicSimulation>, plan: SimulationPlan
         // simulate compartmentalized population in parallel
         log::debug!("Generate host maps...");
         let host_maps: Vec<HostMap> = simulations
-            .par_iter()
+            .par_iter_mut()
             .map(|simulation| simulation.get_host_map())
             .collect();
         log::debug!("Generate offsprings...");
@@ -298,7 +232,7 @@ fn run(args: &Args, simulations: &mut Vec<BasicSimulation>, plan: SimulationPlan
 }
 
 #[cfg(not(feature = "parallel"))]
-fn run(args: &Args, simulations: &mut [BasicSimulation], plan: SimulationPlan) {
+fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPlan) {
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
@@ -314,6 +248,11 @@ fn run(args: &Args, simulations: &mut [BasicSimulation], plan: SimulationPlan) {
             Some(bar)
         }
     };
+
+    let sample_writer: Box<dyn SampleWriter> = Box::new(FastaSampleWriter::new(
+        args.outdir.as_str(),
+        args.simulation_name.as_str(),
+    ));
 
     for generation in 0..=args.generations {
         // logging
@@ -338,7 +277,7 @@ fn run(args: &Args, simulations: &mut [BasicSimulation], plan: SimulationPlan) {
         log::debug!("Process sampling...");
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
-            sample(simulations, sample_size, generation, args);
+            sample_writer.write(simulations, sample_size);
         }
 
         // abort on last generation after sampling
@@ -444,7 +383,7 @@ fn main() {
 
     // create individual compartments
     println!("Creating {} compartments...", args.n_compartments);
-    let mut simulations: Vec<BasicSimulation> = create_simulations(
+    let mut simulations: Vec<Box<SimulationTrait>> = create_simulations(
         &args,
         &wildtype,
         &fitness_table,

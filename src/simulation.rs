@@ -1,10 +1,9 @@
 extern crate test;
 
-use crate::fitness::FitnessTable;
-use crate::haplotype::Haplotype;
-use crate::population::Population;
-use crate::references::HaplotypeRef;
-use crate::simulation_parameters::SimulationParameters;
+use crate::{
+    fitness::FitnessTable, haplotype::Haplotype, population::Population, references::HaplotypeRef,
+    simulation_parameters::SimulationParameters,
+};
 use itertools::Itertools;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
@@ -17,10 +16,17 @@ use std::{cmp::min, ops::Range};
 pub type HostMap = Vec<Vec<usize>>;
 pub type HostRange = (Range<usize>, FitnessTable);
 
+#[cfg(feature = "parallel")]
+pub type SimulationTrait = dyn Simulation + Send + Sync;
+#[cfg(not(feature = "parallel"))]
+pub type SimulationTrait = dyn Simulation;
+
 pub trait Simulation {
     fn increment_generation(&mut self);
 
     fn set_settings(&mut self, settings: SimulationParameters);
+
+    fn get_generation(&self) -> usize;
 
     fn get_population(&self) -> &Population;
     fn set_population(&mut self, population: Population);
@@ -176,6 +182,18 @@ impl Simulation for BasicSimulation {
         self.generation += 1;
     }
 
+    fn get_generation(&self) -> usize {
+        self.generation
+    }
+
+    fn get_population(&self) -> &Population {
+        &self.population
+    }
+
+    fn set_population(&mut self, population: Population) {
+        self.population = population;
+    }
+
     fn set_settings(&mut self, simulation_settings: SimulationParameters) {
         self.simulation_settings = simulation_settings;
         self.mutation_sampler = Binomial::new(
@@ -187,14 +205,6 @@ impl Simulation for BasicSimulation {
             Bernoulli::new(self.simulation_settings.recombination_rate).unwrap();
         self.infection_sampler =
             Bernoulli::new(self.simulation_settings.infection_fraction).unwrap();
-    }
-
-    fn get_population(&self) -> &Population {
-        &self.population
-    }
-
-    fn set_population(&mut self, population: Population) {
-        self.population = population;
     }
 
     fn get_host_map(&self) -> HostMap {
