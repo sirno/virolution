@@ -137,6 +137,8 @@ mod tests {
 
     #[test]
     fn read_write_file() {
+        let tmp_dir = std::env::temp_dir().join("test_settings.yaml");
+        let path = tmp_dir.to_str().unwrap();
         let settings = SimulationParameters {
             mutation_rate: 1e-6,
             recombination_rate: 1e-8,
@@ -156,9 +158,9 @@ mod tests {
                 UtilityFunction::Linear,
             )),
         };
-        settings.write_to_file("test_settings.yaml").unwrap();
-        let read_settings = SimulationParameters::read_from_file("test_settings.yaml").unwrap();
+        settings.write_to_file(path).unwrap();
+        let read_settings = SimulationParameters::read_from_file(path).unwrap();
         assert_eq!(read_settings, settings);
-        std::fs::remove_file("test_settings.yaml").unwrap();
+        std::fs::remove_file(path).unwrap();
     }
 }
