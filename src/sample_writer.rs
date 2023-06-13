@@ -41,7 +41,7 @@ impl<'a> CsvSampleWriter<'a> {
 
 impl<'a> SampleWriter for FastaSampleWriter<'a> {
     fn write(&self, simulations: &[Box<SimulationTrait>], sample_size: usize) {
-        println!("Writing fasta sample to {}", self.path);
+        log::info!("Writing fasta sample to {}", self.path);
         for (compartment_id, compartment) in simulations.iter().enumerate() {
             let generation = compartment.get_generation();
             let barcode = format!("sample_{generation}_{compartment_id}");
@@ -120,7 +120,7 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
 
 impl<'a> SampleWriter for CsvSampleWriter<'a> {
     fn write(&self, simulations: &[Box<SimulationTrait>], sample_size: usize) {
-        println!("Writing csv sample to {}", self.path);
+        log::info!("Writing csv sample to {}", self.path);
         for (compartment_id, compartment) in simulations.iter().enumerate() {
             let generation = compartment.get_generation();
             let barcode = format!("sample_{generation}_{compartment_id}");
