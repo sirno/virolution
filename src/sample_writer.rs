@@ -50,6 +50,12 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
             let barcode_path = Path::new(self.path).join("barcodes.csv");
             let sample_path = Path::new(self.path).join(format!("{barcode}.fasta"));
 
+            // create output directories
+            std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
+                eprintln!("Unable to create output path.");
+                std::process::exit(1);
+            });
+
             // create file buffers
             let mut barcode_file = fs::OpenOptions::new()
                 .create(true)
@@ -123,6 +129,12 @@ impl<'a> SampleWriter for CsvSampleWriter<'a> {
             let barcode_path = Path::new(self.path).join("barcodes.csv");
             let sample_path = Path::new(self.path).join(format!("{barcode}.csv"));
 
+            // create output directories
+            std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
+                eprintln!("Unable to create output path.");
+                std::process::exit(1);
+            });
+
             // create file buffers
             let mut barcode_file = fs::OpenOptions::new()
                 .create(true)
@@ -163,5 +175,17 @@ impl<'a> SampleWriter for CsvSampleWriter<'a> {
             .write(&mut barcode_file)
             .expect("Unable to write to barcode file.");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_csv_write() {
+        let tmp_dir = std::env::temp_dir().join("test_path");
+        let path = tmp_dir.to_str().unwrap();
+        let sample_writer = CsvSampleWriter::new("test_simulation", path);
     }
 }

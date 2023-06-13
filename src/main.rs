@@ -15,9 +15,7 @@ use std::fs;
 use std::io;
 use std::ops::Range;
 use std::panic::catch_unwind;
-use std::path::Path;
 use virolution::args::*;
-use virolution::barcode::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
 use virolution::population;
@@ -53,19 +51,6 @@ fn setup(args: &Args) {
                 std::process::exit(1);
             });
     }
-
-    // setup barcode file
-    let barcode_path = Path::new(&args.outdir).join("barcodes.csv");
-    std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
-        eprintln!("Unable to create output path.");
-        std::process::exit(1);
-    });
-    let mut barcode_file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(barcode_path)
-        .expect("Unable to open barcode file.");
-    BarcodeEntry::write_header(&mut barcode_file).expect("Unable to write barcode header.");
 }
 
 fn load_sequence(path: &str) -> Vec<Symbol> {
