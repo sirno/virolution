@@ -188,7 +188,7 @@ impl FitnessTable {
     }
 
     pub fn write(&self, writer: &mut impl std::io::Write) -> Result<(), std::io::Error> {
-        let shape = &[self.n_symbols as u64, self.n_sites as u64];
+        let shape = &[self.n_sites as u64, self.n_symbols as u64];
         let mut npy_writer = npyz::WriteOptions::new()
             .default_dtype()
             .shape(shape)
@@ -277,10 +277,21 @@ mod tests {
     #[test]
     fn write_fitness() {
         let sequence = vec![Some(0x00); 100000];
+        let distribution = FitnessDistribution::Exponential(ExponentialParameters {
+            weights: MutationCategoryWeights {
+                beneficial: 0.29,
+                deleterious: 0.51,
+                lethal: 0.2,
+                neutral: 0.,
+            },
+            lambda_beneficial: 0.03,
+            lambda_deleterious: 0.21,
+        });
+
         let fitness = FitnessTable::from_model(
             &sequence,
             4,
-            FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
+            FitnessModel::new(distribution, UtilityFunction::Linear),
         )
         .unwrap();
         let mut buffer = Vec::new();
@@ -288,7 +299,7 @@ mod tests {
         fitness.write(&mut buffer).unwrap();
 
         let npy_data = npyz::NpyFile::new(buffer.as_slice()).unwrap();
-        assert_eq!(npy_data.shape(), &[4, 100000]);
+        assert_eq!(npy_data.shape(), &[100000, 4]);
         let data: Vec<f64> = npy_data
             .data::<f64>()
             .unwrap()
