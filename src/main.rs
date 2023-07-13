@@ -122,10 +122,8 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
         }
     };
 
-    let sample_writer: Box<dyn SampleWriter> = Box::new(FastaSampleWriter::new(
-        args.outdir.as_str(),
-        args.simulation_name.as_str(),
-    ));
+    let sample_writer: Box<dyn SampleWriter> =
+        Box::new(FastaSampleWriter::new(args.outdir.as_str(), &args.outdir));
 
     for generation in 0..=args.generations {
         // logging
