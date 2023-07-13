@@ -275,6 +275,24 @@ mod tests {
     }
 
     #[test]
+    fn get_fitness_indexing() {
+        let table = FitnessTable {
+            n_sites: 2,
+            n_symbols: 4,
+            table: vec![1., 2., 3., 4., 5., 6., 7., 8.],
+            fitness_model: FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
+        };
+        assert_eq!(table.get_fitness(&0, &Some(0)), 1.);
+        assert_eq!(table.get_fitness(&0, &Some(1)), 2.);
+        assert_eq!(table.get_fitness(&0, &Some(2)), 3.);
+        assert_eq!(table.get_fitness(&0, &Some(3)), 4.);
+        assert_eq!(table.get_fitness(&1, &Some(0)), 5.);
+        assert_eq!(table.get_fitness(&1, &Some(1)), 6.);
+        assert_eq!(table.get_fitness(&1, &Some(2)), 7.);
+        assert_eq!(table.get_fitness(&1, &Some(3)), 8.);
+    }
+
+    #[test]
     fn write_fitness() {
         let sequence = vec![Some(0x00); 100000];
         let distribution = FitnessDistribution::Exponential(ExponentialParameters {
