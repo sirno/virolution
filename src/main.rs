@@ -1,5 +1,4 @@
 #![feature(let_chains)]
-#![feature(once_cell)]
 #![feature(test)]
 
 extern crate test;
