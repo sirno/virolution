@@ -10,6 +10,10 @@ use clap::Parser;
     trailing_var_arg = true,
 )]
 pub struct Args {
+    /// Name of the simulation
+    #[clap(short, long, default_value = "simulation")]
+    pub name: String,
+
     /// Number of generations to simulate
     #[clap(short, long, default_value_t = 200)]
     pub generations: usize,
@@ -29,10 +33,6 @@ pub struct Args {
     /// Path to fitness table
     #[clap(long, default_value = "fitness_table.npy")]
     pub fitness_table: String,
-
-    /// Simulation name
-    #[clap(long, default_value = "simulation")]
-    pub simulation_name: String,
 
     /// Path to log file
     #[clap(long, default_value = "virolution.log")]
