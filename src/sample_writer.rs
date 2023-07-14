@@ -17,8 +17,15 @@ pub struct FastaSampleWriter<'a> {
 
 impl<'a> FastaSampleWriter<'a> {
     pub fn new(simulation_name: &'a str, path: &'a str) -> Self {
-        // init barcode file header
         let barcode_path = Path::new(path).join("barcodes.csv");
+
+        // create output directories
+        std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
+            eprintln!("Unable to create output path.");
+            std::process::exit(1);
+        });
+
+        //create barcode file with header
         let mut barcode_file = fs::OpenOptions::new()
             .create(true)
             .write(true)
@@ -41,8 +48,15 @@ pub struct CsvSampleWriter<'a> {
 
 impl<'a> CsvSampleWriter<'a> {
     pub fn new(simulation_name: &'a str, path: &'a str) -> Self {
-        // init barcode file header
         let barcode_path = Path::new(path).join("barcodes.csv");
+
+        // create output directories
+        std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
+            eprintln!("Unable to create output path.");
+            std::process::exit(1);
+        });
+
+        //create barcode file with header
         let mut barcode_file = fs::OpenOptions::new()
             .create(true)
             .write(true)
@@ -68,12 +82,6 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
             // create output files
             let barcode_path = Path::new(self.path).join("barcodes.csv");
             let sample_path = Path::new(self.path).join(format!("{barcode}.fasta"));
-
-            // create output directories
-            std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
-                eprintln!("Unable to create output path.");
-                std::process::exit(1);
-            });
 
             // create file buffers
             let mut barcode_file = fs::OpenOptions::new()
