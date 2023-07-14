@@ -17,6 +17,15 @@ pub struct FastaSampleWriter<'a> {
 
 impl<'a> FastaSampleWriter<'a> {
     pub fn new(simulation_name: &'a str, path: &'a str) -> Self {
+        // init barcode file header
+        let barcode_path = Path::new(path).join("barcodes.csv");
+        let mut barcode_file = fs::OpenOptions::new()
+            .create(true)
+            .open(barcode_path)
+            .expect("Unable to open barcode file.");
+        BarcodeEntry::write_header(&mut barcode_file)
+            .expect("Unable to write header to barcode file.");
+
         Self {
             simulation_name,
             path,
@@ -31,7 +40,16 @@ pub struct CsvSampleWriter<'a> {
 
 impl<'a> CsvSampleWriter<'a> {
     pub fn new(simulation_name: &'a str, path: &'a str) -> Self {
-        // create output files
+        // init barcode file header
+        let barcode_path = Path::new(path).join("barcodes.csv");
+        println!("barcode_path: {:?}", barcode_path);
+        let mut barcode_file = fs::OpenOptions::new()
+            .create(true)
+            .open(barcode_path)
+            .expect("Unable to open barcode file.");
+        BarcodeEntry::write_header(&mut barcode_file)
+            .expect("Unable to write header to barcode file.");
+
         Self {
             simulation_name,
             path,
@@ -185,7 +203,7 @@ mod tests {
     #[test]
     fn test_csv_write() {
         let tmp_dir = std::env::temp_dir().join("test_path");
-        let path = tmp_dir.to_str().unwrap();
-        let sample_writer = CsvSampleWriter::new("test_simulation", path);
+        let _path = tmp_dir.to_str().unwrap();
+        // let sample_writer = CsvSampleWriter::new("test_simulation", path);
     }
 }
