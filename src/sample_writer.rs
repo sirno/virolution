@@ -173,7 +173,7 @@ impl<'a> SampleWriter for CsvSampleWriter<'a> {
                 .expect("Unable to open sample file.");
 
             samples_file
-                .write_record(&["haplotype", "count"])
+                .write_record(["haplotype", "count"])
                 .expect("Unable to write header to samples file.");
 
             // sample sequences and write to file

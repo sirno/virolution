@@ -9,48 +9,48 @@ use std::io::BufReader;
 
 use super::simulation_parameters::SimulationParameters;
 
-pub static TRANSFERS: phf::Map<&'static str, &'static [&'static [f64]]> = phf_map! {
-    "migration_fwd" => &MIGRATION_FWD,
-    "migration_rev" => &MIGRATION_REV,
-    "root_ab" => &ROOT_AB,
-    "root_bc" => &ROOT_BC,
-    "root_cd" => &ROOT_CD,
-    "default" => &DEFAULT,
+pub static TRANSFERS: phf::Map<&'static str, &[&[f64]]> = phf_map! {
+    "migration_fwd" => MIGRATION_FWD,
+    "migration_rev" => MIGRATION_REV,
+    "root_ab" => ROOT_AB,
+    "root_bc" => ROOT_BC,
+    "root_cd" => ROOT_CD,
+    "default" => DEFAULT,
 };
 
-const DEFAULT: &'static [&'static [f64]] = &[
+const DEFAULT: &[&[f64]] = &[
     &[1., 0., 0., 0.],
     &[0., 1., 0., 0.],
     &[0., 0., 1., 0.],
     &[0., 0., 0., 1.],
 ];
 
-const MIGRATION_FWD: &'static [&'static [f64]] = &[
+const MIGRATION_FWD: &[&[f64]] = &[
     &[1., 0., 0., 0.],
     &[0.2, 0.8, 0., 0.],
     &[0., 0.2, 0.8, 0.],
     &[0., 0., 0., 0.],
 ];
-const MIGRATION_REV: &'static [&'static [f64]] = &[
+const MIGRATION_REV: &[&[f64]] = &[
     &[0.8, 0.2, 0., 0.],
     &[0., 1., 0., 0.],
     &[0., 0., 1., 0.],
     &[0., 0., 0., 0.],
 ];
 
-const ROOT_AB: &'static [&'static [f64]] = &[
+const ROOT_AB: &[&[f64]] = &[
     &[1., 0., 0., 0.],
     &[1., 1., 0., 0.],
     &[0., 0., 1., 0.],
     &[0., 0., 0., 1.],
 ];
-const ROOT_BC: &'static [&'static [f64]] = &[
+const ROOT_BC: &[&[f64]] = &[
     &[1., 0., 0., 0.],
     &[0., 1., 0., 0.],
     &[0., 1., 1., 0.],
     &[0., 0., 0., 1.],
 ];
-const ROOT_CD: &'static [&'static [f64]] = &[
+const ROOT_CD: &[&[f64]] = &[
     &[1., 0., 0., 0.],
     &[0., 1., 0., 0.],
     &[0., 0., 1., 0.],
@@ -70,14 +70,14 @@ impl<T> TransferMatrix<T> {
     {
         // Verify if slice is square
         slice
-            .into_iter()
+            .iter()
             .for_each(|row| assert_eq!(row.len(), slice.len()));
 
-        let matrix = slice.iter().map(|s| s.iter()).flatten().cloned().collect();
-        return Self {
+        let matrix = slice.iter().flat_map(|s| s.iter()).cloned().collect();
+        Self {
             matrix,
             size: slice.len(),
-        };
+        }
     }
 
     fn from_vec(vec: Vec<Vec<T>>) -> Self
@@ -87,11 +87,11 @@ impl<T> TransferMatrix<T> {
         // Verify if vec is square
         vec.iter().for_each(|row| assert_eq!(row.len(), vec.len()));
 
-        let matrix = vec.iter().map(|s| s.iter()).flatten().cloned().collect();
-        return Self {
+        let matrix = vec.iter().flat_map(|s| s.iter()).cloned().collect();
+        Self {
             matrix,
             size: vec.len(),
-        };
+        }
     }
 
     pub fn get(&self, row: usize, col: usize) -> &T {

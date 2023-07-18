@@ -305,16 +305,15 @@ impl Simulation for BasicSimulation {
                     let length = host.len();
                     host.iter().for_each(|infectant| {
                         let fitness = self.population[infectant].get_fitness(fitness_table);
-                        match Poisson::new(
+                        if let Ok(dist) = Poisson::new(
                             fitness * self.simulation_settings.basic_reproductive_number
                                 / length as f64,
                         ) {
-                            Ok(dist) => unsafe {
+                            unsafe {
                                 (offspring_ptr as *mut usize)
-                                    .offset(*infectant as isize)
+                                    .add(*infectant)
                                     .write(dist.sample(&mut rand::thread_rng()) as usize);
-                            },
-                            Err(_) => {}
+                            }
                         }
                     });
                 });
@@ -333,12 +332,15 @@ impl Simulation for BasicSimulation {
                     let length = host.len();
                     host.iter().for_each(|infectant| {
                         let fitness = self.population[infectant].get_fitness(fitness_table);
-                        match Poisson::new(
+                        if let Ok(dist) = Poisson::new(
                             fitness * self.simulation_settings.basic_reproductive_number
                                 / length as f64,
                         ) {
-                            Ok(dist) => offspring[*infectant] = dist.sample(&mut rng) as usize,
-                            Err(_) => {}
+                            unsafe {
+                                (offspring_ptr as *mut usize)
+                                    .offset(*infectant as isize)
+                                    .write(dist.sample(&mut rand::thread_rng()) as usize);
+                            }
                         }
                     });
                 });
