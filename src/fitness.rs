@@ -22,8 +22,8 @@ pub enum FitnessDistribution {
     Neutral,
     Exponential(ExponentialParameters),
     File(FileParameters),
+    Lognormal(LognormalParameters),
     // Spikes,
-    // Lognormal,
     // Beta,
     // Empirical,
 }
@@ -49,6 +49,13 @@ pub struct ExponentialParameters {
     pub weights: MutationCategoryWeights,
     pub lambda_beneficial: f64,
     pub lambda_deleterious: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct LognormalParameters {
+    pub lethal: f64,
+    pub mu: f64,
+    pub sigma: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -127,6 +134,39 @@ impl ExponentialParameters {
     }
 }
 
+impl LognormalParameters {
+    fn create_table(&self, n_symbols: usize, sequence: &Vec<Symbol>) -> Vec<f64> {
+        let mut table = vec![-1.; sequence.len() * n_symbols];
+        let mut rng = rand::thread_rng();
+
+        // create distributions
+        let lognormal = rand_distr::LogNormal::new(self.mu, self.sigma).unwrap();
+        let lethal_distr = rand_distr::Bernoulli::new(self.lethal).unwrap();
+
+        // fill wt sequence with ones
+        for (position, &symbol) in sequence.iter().enumerate() {
+            if let Some(value) = symbol {
+                table[position * n_symbols + (value as usize)] = 1.;
+            }
+        }
+
+        // sample for remaining positions
+        for el in &mut table {
+            if *el >= 0. {
+                continue;
+            }
+
+            *el = if lethal_distr.sample(&mut rng) {
+                0.
+            } else {
+                lognormal.sample(&mut rng)
+            };
+        }
+
+        table
+    }
+}
+
 impl FileParameters {
     fn load_table(&self) -> Vec<f64> {
         let reader = NpyFile::new(std::fs::File::open(&self.path).unwrap()).unwrap();
@@ -163,6 +203,7 @@ impl FitnessTable {
             FitnessDistribution::Exponential(ref params) => {
                 params.create_table(n_symbols, sequence)
             }
+            FitnessDistribution::Lognormal(ref params) => params.create_table(n_symbols, sequence),
             FitnessDistribution::File(ref params) => params.load_table(),
             FitnessDistribution::Neutral => vec![1.; n_sites * n_symbols],
         };
@@ -194,7 +235,7 @@ impl FitnessTable {
             .shape(shape)
             .writer(writer)
             .begin_nd()?;
-        npy_writer.extend(self.table.clone().into_iter())?;
+        npy_writer.extend(self.table.clone())?;
         npy_writer.finish()?;
         Ok(())
     }
