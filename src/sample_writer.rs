@@ -7,7 +7,32 @@ use itertools::Itertools;
 use crate::{barcode::BarcodeEntry, haplotype::FASTA_ENCODE, simulation::SimulationTrait};
 
 pub trait SampleWriter {
-    fn write(&self, simulations: &[Box<SimulationTrait>], sample_size: usize);
+    fn write(
+        &self,
+        simulations: &[Box<SimulationTrait>],
+        sample_size: usize,
+    ) -> Result<(), std::io::Error>;
+
+    // barcode
+    fn get_barcode_path(&self) -> std::path::PathBuf;
+
+    fn init_barcode_file(&self) -> Result<(), std::io::Error> {
+        let barcode_path = self.get_barcode_path();
+        std::fs::create_dir_all(barcode_path.parent().unwrap())?;
+        let mut barcode_file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(barcode_path)?;
+        BarcodeEntry::write_header(&mut barcode_file)?;
+        Ok(())
+    }
+
+    fn write_barcode(&self, barcode: &BarcodeEntry) -> Result<(), std::io::Error> {
+        let barcode_path = self.get_barcode_path();
+        let mut barcode_file = fs::OpenOptions::new().append(true).open(barcode_path)?;
+        barcode.write(&mut barcode_file)?;
+        Ok(())
+    }
 }
 
 pub struct FastaSampleWriter<'a> {
@@ -16,28 +41,15 @@ pub struct FastaSampleWriter<'a> {
 }
 
 impl<'a> FastaSampleWriter<'a> {
-    pub fn new(simulation_name: &'a str, path: &'a str) -> Self {
-        let barcode_path = Path::new(path).join("barcodes.csv");
-
-        // create output directories
-        std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
-            eprintln!("Unable to create output path.");
-            std::process::exit(1);
-        });
-
-        //create barcode file with header
-        let mut barcode_file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(barcode_path)
-            .expect("Unable to open barcode file.");
-        BarcodeEntry::write_header(&mut barcode_file)
-            .expect("Unable to write header to barcode file.");
-
-        Self {
+    pub fn new(simulation_name: &'a str, path: &'a str) -> Result<Self, std::io::Error> {
+        let writer = Self {
             simulation_name,
             path,
-        }
+        };
+
+        writer.init_barcode_file()?;
+
+        Ok(writer)
     }
 }
 
@@ -47,48 +59,37 @@ pub struct CsvSampleWriter<'a> {
 }
 
 impl<'a> CsvSampleWriter<'a> {
-    pub fn new(simulation_name: &'a str, path: &'a str) -> Self {
-        let barcode_path = Path::new(path).join("barcodes.csv");
-
-        // create output directories
-        std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
-            eprintln!("Unable to create output path.");
-            std::process::exit(1);
-        });
-
-        //create barcode file with header
-        let mut barcode_file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(barcode_path)
-            .expect("Unable to open barcode file.");
-        BarcodeEntry::write_header(&mut barcode_file)
-            .expect("Unable to write header to barcode file.");
-
-        Self {
+    pub fn new(simulation_name: &'a str, path: &'a str) -> Result<Self, std::io::Error> {
+        let writer = Self {
             simulation_name,
             path,
-        }
+        };
+
+        writer.init_barcode_file()?;
+
+        Ok(writer)
     }
 }
 
 impl<'a> SampleWriter for FastaSampleWriter<'a> {
-    fn write(&self, simulations: &[Box<SimulationTrait>], sample_size: usize) {
+    fn get_barcode_path(&self) -> std::path::PathBuf {
+        Path::new(self.path).join("barcodes.csv")
+    }
+
+    fn write(
+        &self,
+        simulations: &[Box<SimulationTrait>],
+        sample_size: usize,
+    ) -> Result<(), std::io::Error> {
         log::info!("Writing fasta sample to {}", self.path);
         for (compartment_id, compartment) in simulations.iter().enumerate() {
             let generation = compartment.get_generation();
             let barcode = format!("sample_{generation}_{compartment_id}");
 
             // create output files
-            let barcode_path = Path::new(self.path).join("barcodes.csv");
             let sample_path = Path::new(self.path).join(format!("{barcode}.fasta"));
 
             // create file buffers
-            let mut barcode_file = fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(barcode_path)
-                .expect("Unable to open barcode file.");
             let mut samples_file = io::BufWriter::new(fs::File::create(sample_path).unwrap());
 
             // precompute sequences
@@ -132,46 +133,40 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
             }
 
             // write barcode to file
-            BarcodeEntry {
+            self.write_barcode(&BarcodeEntry {
                 barcode: &barcode,
                 experiment: &self.simulation_name.to_string(),
                 time: generation,
                 replicate: 0,
                 compartment: compartment_id,
-            }
-            .write(&mut barcode_file)
-            .expect("Unable to write to barcode file.");
+            })?;
         }
+        Ok(())
     }
 }
 
 impl<'a> SampleWriter for CsvSampleWriter<'a> {
-    fn write(&self, simulations: &[Box<SimulationTrait>], sample_size: usize) {
+    fn get_barcode_path(&self) -> std::path::PathBuf {
+        Path::new(self.path).join("barcodes.csv")
+    }
+
+    fn write(
+        &self,
+        simulations: &[Box<SimulationTrait>],
+        sample_size: usize,
+    ) -> Result<(), std::io::Error> {
         log::info!("Writing csv sample to {}", self.path);
         for (compartment_id, compartment) in simulations.iter().enumerate() {
             let generation = compartment.get_generation();
             let barcode = format!("sample_{generation}_{compartment_id}");
 
-            // create output files
-            let barcode_path = Path::new(self.path).join("barcodes.csv");
+            // create output file
             let sample_path = Path::new(self.path).join(format!("{barcode}.csv"));
-
-            // create output directories
-            std::fs::create_dir_all(barcode_path.parent().unwrap()).unwrap_or_else(|_| {
-                eprintln!("Unable to create output path.");
-                std::process::exit(1);
-            });
-
-            // create file buffers
-            let mut barcode_file = fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(barcode_path)
-                .expect("Unable to open barcode file.");
             let mut samples_file = csv::WriterBuilder::new()
                 .from_path(sample_path)
                 .expect("Unable to open sample file.");
 
+            // write header
             samples_file
                 .write_record(["haplotype", "count"])
                 .expect("Unable to write header to samples file.");
@@ -192,16 +187,15 @@ impl<'a> SampleWriter for CsvSampleWriter<'a> {
             }
 
             // write barcode to file
-            BarcodeEntry {
+            self.write_barcode(&BarcodeEntry {
                 barcode: &barcode,
                 experiment: &self.simulation_name.to_string(),
                 time: generation,
                 replicate: 0,
                 compartment: compartment_id,
-            }
-            .write(&mut barcode_file)
-            .expect("Unable to write to barcode file.");
+            })?;
         }
+        Ok(())
     }
 }
 

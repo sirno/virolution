@@ -5,6 +5,7 @@ extern crate test;
 
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
+use itertools::Itertools;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use seq_io::fasta;
@@ -121,8 +122,12 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
         }
     };
 
-    let sample_writer: Box<dyn SampleWriter> =
-        Box::new(FastaSampleWriter::new(&args.name, &args.outdir));
+    let sample_writer: Box<dyn SampleWriter> = Box::new(
+        FastaSampleWriter::new(&args.name, &args.outdir).unwrap_or_else(|err| {
+            eprintln!("Unable to create sample writer: {err}.");
+            std::process::exit(1);
+        }),
+    );
 
     for generation in 0..=args.generations {
         // logging
@@ -147,7 +152,12 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
         log::debug!("Process sampling...");
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
-            sample_writer.write(simulations, sample_size);
+            sample_writer
+                .write(simulations, sample_size)
+                .unwrap_or_else(|err| {
+                    eprintln!("Unable to write sample: {err}.");
+                    std::process::exit(1);
+                })
         }
 
         // abort on last generation after sampling
@@ -232,10 +242,12 @@ fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPl
         }
     };
 
-    let sample_writer: Box<dyn SampleWriter> = Box::new(FastaSampleWriter::new(
-        args.name.as_str(),
-        args.outdir.as_str(),
-    ));
+    let sample_writer: Box<dyn SampleWriter> = Box::new(
+        FastaSampleWriter::new(&args.name, &args.outdir).unwrap_or_else(|err| {
+            eprintln!("Unable to create sample writer: {err}.");
+            std::process::exit(1);
+        }),
+    );
 
     for generation in 0..=args.generations {
         // logging
@@ -415,4 +427,24 @@ fn main() {
             .unwrap_or_else(|_| eprintln!("Unable to write tree file."));
     }
     log::info!("Finished storing tree.");
+
+    log::info!("Storing sequences...");
+    for (compartment_id, compartment) in simulations.iter().enumerate() {
+        let mut sequence_file = csv::WriterBuilder::new()
+            .from_path(format!("final.{}.csv", compartment_id))
+            .expect("Unable to create final sequence file.");
+
+        sequence_file
+            .write_record(["haplotype", "count"])
+            .expect("Unable to write header to final sequence file.");
+
+        for (haplotype_ref, haplotype_count) in compartment.get_population().iter().counts() {
+            sequence_file
+                .write_record(&[
+                    haplotype_ref.as_ref().get_string(),
+                    haplotype_count.to_string(),
+                ])
+                .expect("Unable to write to samples file.")
+        }
+    }
 }
