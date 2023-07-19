@@ -272,7 +272,12 @@ fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPl
         log::debug!("Process sampling...");
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
-            sample_writer.write(simulations, sample_size);
+            sample_writer
+                .write(simulations, sample_size)
+                .unwrap_or_else(|err| {
+                    eprintln!("Unable to write sample: {err}.");
+                    std::process::exit(1);
+                });
         }
 
         // abort on last generation after sampling

@@ -336,11 +336,7 @@ impl Simulation for BasicSimulation {
                             fitness * self.simulation_settings.basic_reproductive_number
                                 / length as f64,
                         ) {
-                            unsafe {
-                                (offspring_ptr as *mut usize)
-                                    .offset(*infectant as isize)
-                                    .write(dist.sample(&mut rand::thread_rng()) as usize);
-                            }
+                            offspring[*infectant] = dist.sample(&mut rng) as usize;
                         }
                     });
                 });
