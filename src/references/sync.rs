@@ -40,13 +40,18 @@ impl HaplotypeRef {
     }
 
     #[inline]
-    pub fn get_clone(&self) -> HaplotypeRef {
-        HaplotypeRef(self.0.clone())
+    pub fn get_weak(&self) -> HaplotypeWeak {
+        HaplotypeWeak(Arc::downgrade(&self.0))
     }
 
     #[inline]
-    pub fn get_weak(&self) -> HaplotypeWeak {
-        HaplotypeWeak(Arc::downgrade(&self.0))
+    pub fn try_unwrap(&self) -> Option<Haplotype> {
+        Arc::try_unwrap(self.0.clone()).ok()
+    }
+
+    #[inline]
+    pub fn as_ptr(&self) -> *const Haplotype {
+        Arc::as_ptr(&self.0)
     }
 }
 
@@ -72,7 +77,7 @@ impl Hash for HaplotypeRef {
     }
 }
 
-#[derive(Clone, Deref)]
+#[derive(Clone, Deref, DerefMut)]
 pub struct HaplotypeWeak(Weak<Haplotype>);
 
 impl HaplotypeWeak {

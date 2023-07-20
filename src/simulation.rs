@@ -357,6 +357,14 @@ impl Simulation for BasicSimulation {
                 self.simulation_settings.max_population,
             ) as f64) as usize;
 
+        log::info!(
+            "Subsampling population with {} offspring and {} sample size",
+            offspring_size,
+            sample_size
+        );
+
+        log::info!("Offspring map: {:?}", offspring_map);
+
         self.population.sample(sample_size, offspring_map)
     }
 

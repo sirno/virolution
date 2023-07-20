@@ -1,4 +1,5 @@
 #![feature(let_chains)]
+#![feature(get_mut_unchecked)]
 #![feature(test)]
 
 extern crate test;
@@ -93,7 +94,7 @@ fn create_simulations(
                 Population::new()
             };
             BasicSimulation::new(
-                wildtype.get_clone(),
+                wildtype.clone(),
                 init_population,
                 fitness_tables.to_vec(),
                 parameters.clone(),

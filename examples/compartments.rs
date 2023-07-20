@@ -51,7 +51,7 @@ fn main() {
             let population = population![wt.clone(); 1_000_000];
             let fitness_tables = vec![(0..settings.host_population_size, fitness_table.clone())];
             BasicSimulation::new(
-                wt.get_clone(),
+                wt.clone(),
                 population,
                 fitness_tables,
                 settings.clone(),
