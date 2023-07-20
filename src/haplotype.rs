@@ -46,8 +46,7 @@ pub struct Descendant {
     reference: HaplotypeWeak,
     wildtype: HaplotypeWeak,
     ancestor: HaplotypeRef,
-    positions: Vec<usize>,
-    changes: Vec<(Symbol, Symbol)>,
+    changes: HashMap<usize, (Symbol, Symbol)>,
     generation: usize,
     fitness: OnceLock<f64>,
     descendants: Mutex<Vec<HaplotypeWeak>>,
@@ -91,13 +90,14 @@ impl Haplotype {
         let ancestor = self.get_reference();
         let wildtype = self.get_wildtype();
 
-        let changes = positions
-            .iter()
-            .enumerate()
-            .map(|(idx, position)| (self.get_base(position), changes[idx]))
-            .collect();
+        let changes = HashMap::from_iter(
+            positions
+                .iter()
+                .zip(changes.iter())
+                .map(|(pos, sym)| (*pos, (self.get_base(pos), *sym))),
+        );
 
-        let descendant = Descendant::new(ancestor, wildtype, positions, changes, generation);
+        let descendant = Descendant::new(ancestor, wildtype, changes, generation);
 
         self.add_descendant(descendant.get_weak());
 
@@ -164,7 +164,6 @@ impl Haplotype {
         // if there are dirty descendants, replace one of them
         if dirty_descendants.load(Ordering::Relaxed) > 0 && let Some(idx) = descendants_guard
             .iter()
-            .rev()
             .position(|x| !x.exists())
         {
             descendants_guard[idx] = descendant;
@@ -348,8 +347,7 @@ impl Descendant {
     pub fn new(
         ancestor: HaplotypeRef,
         wildtype: HaplotypeRef,
-        positions: Vec<usize>,
-        changes: Vec<(Symbol, Symbol)>,
+        changes: HashMap<usize, (Symbol, Symbol)>,
         generation: usize,
     ) -> HaplotypeRef {
         HaplotypeRef::new_cyclic(|reference| {
@@ -357,7 +355,6 @@ impl Descendant {
                 reference: reference.clone(),
                 wildtype: wildtype.get_weak(),
                 ancestor: ancestor.get_clone(),
-                positions: positions.clone(),
                 changes: changes.clone(),
                 generation,
                 fitness: OnceLock::new(),
@@ -368,13 +365,8 @@ impl Descendant {
     }
 
     pub fn get_base(&self, position: &usize) -> Symbol {
-        match self
-            .positions
-            .iter()
-            .enumerate()
-            .find(|(_idx, p)| *p == position)
-        {
-            Some((idx, _)) => self.changes[idx].1,
+        match self.changes.get(position) {
+            Some((_from, to)) => *to,
             None => self.ancestor.get_base(position),
         }
     }
@@ -388,20 +380,18 @@ impl Descendant {
     }
 
     pub fn get_mutations(&self) -> HashMap<usize, (Symbol, Symbol)> {
-        let wt_ref = self.wildtype.upgrade().unwrap();
         let mut mutations = self.ancestor.get_mutations();
-        self.positions
-            .iter()
-            .enumerate()
-            .for_each(|(idx, position)| {
-                let change = self.changes[idx];
-                let wt_base = wt_ref.get_base(position);
-                if change.1 == wt_base {
-                    mutations.remove(position);
-                } else {
-                    mutations.insert(*position, change);
-                }
-            });
+        let wt_ref = self.wildtype.upgrade().unwrap();
+
+        self.changes.iter().for_each(|(position, change)| {
+            let wt_base = wt_ref.get_base(&position);
+            if change.1 == wt_base {
+                mutations.remove(&position);
+            } else {
+                mutations.insert(*position, *change);
+            }
+        });
+
         mutations
     }
 
@@ -409,10 +399,10 @@ impl Descendant {
         self.fitness.get_or_init(|| {
             let mut fitness = self.ancestor.get_fitness(fitness_table);
 
-            for (position, change) in self.positions.iter().zip(self.changes.iter()) {
+            self.changes.iter().for_each(|(position, change)| {
                 fitness /= fitness_table.get_fitness(position, &change.0);
                 fitness *= fitness_table.get_fitness(position, &change.1);
-            }
+            });
 
             fitness_table.utility(fitness)
         })
@@ -425,9 +415,9 @@ impl Descendant {
 
         let node = format!("'{name}_{block_id}':{branch_length}");
 
-        let descendants = self
-            .descendants
-            .lock()
+        let descendants_guard = self.descendants.lock();
+
+        let descendants = descendants_guard
             .iter()
             .filter(|x| x.exists())
             .map(|x| x.upgrade().unwrap().get_subtree(self.reference.clone()))
