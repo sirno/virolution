@@ -1,7 +1,7 @@
 use super::fitness::FitnessTable;
+use super::references::DescendantsCell;
 use super::references::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
-use parking_lot::Mutex;
 use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
 use std::collections::HashMap;
@@ -37,7 +37,7 @@ pub enum Haplotype {
 pub struct Wildtype {
     reference: HaplotypeWeak,
     sequence: Vec<Symbol>,
-    descendants: Mutex<Vec<HaplotypeWeak>>,
+    descendants: DescendantsCell,
     dirty_descendants: AtomicUsize,
 }
 
@@ -49,7 +49,7 @@ pub struct Descendant {
     changes: HashMap<usize, (Symbol, Symbol)>,
     generation: usize,
     fitness: OnceLock<f64>,
-    descendants: Mutex<Vec<HaplotypeWeak>>,
+    descendants: DescendantsCell,
     dirty_descendants: AtomicUsize,
 }
 
@@ -63,7 +63,7 @@ pub struct Recombinant {
     right_position: usize,
     generation: usize,
     fitness: OnceLock<f64>,
-    descendants: Mutex<Vec<HaplotypeWeak>>,
+    descendants: DescendantsCell,
     dirty_descendants: AtomicUsize,
 }
 
@@ -139,7 +139,14 @@ impl Haplotype {
         matches!(self, Haplotype::Recombinant(_))
     }
 
-    fn get_descendant(&self) -> Option<&Descendant> {
+    fn unwrap_mutant(&self) -> &Descendant {
+        match self {
+            Haplotype::Descendant(ht) => ht,
+            _ => panic!("Haplotype is not a mutant."),
+        }
+    }
+
+    fn try_unwrap_mutant(&self) -> Option<&Descendant> {
         match self {
             Haplotype::Descendant(ht) => Some(ht),
             _ => None,
@@ -174,7 +181,7 @@ impl Haplotype {
         }
     }
 
-    pub fn get_descendants(&self) -> &Mutex<Vec<HaplotypeWeak>> {
+    pub fn get_descendants(&self) -> &DescendantsCell {
         match self {
             Haplotype::Wildtype(wt) => &wt.descendants,
             Haplotype::Descendant(ht) => &ht.descendants,
@@ -194,22 +201,6 @@ impl Haplotype {
                 rc.descendants.lock().len() - rc.dirty_descendants.load(Ordering::Relaxed)
             }
         }
-    }
-
-    fn set_ancestor(&mut self, ancestor: HaplotypeRef, previous_ancestor: HaplotypeRef) {
-        match self {
-            Haplotype::Wildtype(wt) => unreachable!(),
-            Haplotype::Descendant(ht) => ht.ancestor = ancestor,
-            Haplotype::Recombinant(rc) => {
-                if rc.left_ancestor == previous_ancestor {
-                    rc.left_ancestor = ancestor;
-                } else if rc.right_ancestor == previous_ancestor {
-                    rc.right_ancestor = ancestor;
-                } else {
-                    unreachable!();
-                }
-            }
-        };
     }
 
     fn add_descendant(&self, descendant: HaplotypeWeak) {
@@ -232,29 +223,6 @@ impl Haplotype {
         }
 
         descendants_guard.push(descendant);
-    }
-
-    fn swap_descendant(&self, old: HaplotypeWeak, new: HaplotypeWeak) {
-        let descendants = match self {
-            Haplotype::Wildtype(wt) => &wt.descendants,
-            Haplotype::Descendant(ht) => &ht.descendants,
-            Haplotype::Recombinant(rc) => &rc.descendants,
-        };
-
-        let mut descendants_guard = descendants.lock();
-
-        let first = descendants_guard.first().unwrap();
-        println!("{:?}", first.as_ptr());
-        println!("{:?}", first);
-        println!("{:?}", old.as_ptr());
-        println!("{:?}", old);
-        println!("{:?}", new.as_ptr());
-        println!("{:?}", new);
-
-        if let Some(idx) = descendants_guard.iter().position(|x| old.eq(x)) {
-            println!("Swapping descendant");
-            descendants_guard[idx] = new;
-        }
     }
 
     fn increment_dirty_descendants(&self) {
@@ -367,21 +335,112 @@ impl Haplotype {
     }
 
     pub fn get_tree(&self) -> String {
-        let mut tree = match self {
-            Haplotype::Wildtype(wt) => wt.get_subtree(),
-            Haplotype::Descendant(ht) => ht.get_subtree(),
-            Haplotype::Recombinant(rc) => rc.get_subtree(self.get_reference().get_weak()),
-        };
-        tree.push(';');
-        tree
+        let tree = self.get_subtree(self.get_reference().get_weak());
+        format!("({});", tree)
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
+        self.prune_descendants();
         match self {
             Haplotype::Wildtype(wt) => wt.get_subtree(),
             Haplotype::Descendant(ht) => ht.get_subtree(),
             Haplotype::Recombinant(rc) => rc.get_subtree(ancestor),
         }
+    }
+
+    pub fn prune_tree(&self) {
+        self.prune_descendants();
+        self.get_descendants()
+            .lock()
+            .iter()
+            .filter_map(|x| x.upgrade())
+            .for_each(|x| x.prune_tree());
+    }
+
+    fn prune_descendants(&self) {
+        let mut descendants_guard = self.get_descendants().lock();
+        for idx in 0..descendants_guard.len() {
+            if let Some(descendant) = descendants_guard[idx].upgrade() {
+                let new = Haplotype::prune_descendant(descendant);
+                descendants_guard[idx] = new.get_weak();
+            }
+        }
+    }
+
+    fn prune_descendant(descendant: HaplotypeRef) -> HaplotypeRef {
+        let mut current = descendant;
+        let mut chain: Vec<HaplotypeRef> = vec![current.clone()];
+
+        // find chain of non-recombinant descendants
+        loop {
+            if !current.is_descendant() {
+                break;
+            }
+
+            if current.n_descendants() != 1 {
+                break;
+            }
+
+            let inner = current.unwrap_mutant();
+
+            let next = inner
+                .descendants
+                .lock()
+                .first()
+                .unwrap()
+                .clone()
+                .upgrade()
+                .unwrap();
+
+            if !next.is_descendant() {
+                break;
+            }
+
+            chain.push(next.clone());
+            current = next;
+        }
+
+        // if there is nothing to prune, return
+        if chain.len() == 1 {
+            return current;
+        }
+
+        // aggregate changes
+        let mut changes: HashMap<usize, (Symbol, Symbol)> = HashMap::new();
+        for current in chain.iter().rev() {
+            let inner = current.unwrap_mutant();
+            inner
+                .changes
+                .iter()
+                .for_each(|(position, change)| match changes.get_mut(position) {
+                    Some((from, _to)) => *from = change.0,
+                    None => {
+                        changes.insert(*position, *change);
+                    }
+                });
+        }
+
+        // extract ancestor and wildtype
+        let first = chain.first().unwrap();
+        let ancestor = first.get_ancestors().0.unwrap();
+        let wildtype = first.get_wildtype().get_weak();
+
+        // extract descendants and generation
+        let last = chain.last().unwrap();
+        let generation = last.get_generation();
+
+        // create new node
+        unsafe {
+            Descendant::new_and_replace(
+                last.get_reference().clone(),
+                ancestor.clone(),
+                wildtype,
+                changes,
+                generation,
+            );
+        }
+
+        last.clone()
     }
 }
 
@@ -392,7 +451,7 @@ impl Wildtype {
             Haplotype::Wildtype(Self {
                 reference: reference.clone(),
                 sequence: sequence.clone(),
-                descendants: Mutex::new(Vec::new()),
+                descendants: DescendantsCell::new(),
                 dirty_descendants: AtomicUsize::new(0),
             })
         })
@@ -441,7 +500,7 @@ impl Descendant {
                 changes: changes.clone(),
                 generation,
                 fitness: OnceLock::new(),
-                descendants: Mutex::new(Vec::new()),
+                descendants: DescendantsCell::new(),
                 dirty_descendants: AtomicUsize::new(0),
             })
         })
@@ -455,7 +514,7 @@ impl Descendant {
         changes: HashMap<usize, (Symbol, Symbol)>,
         generation: usize,
     ) {
-        let descendants = old
+        let descendants: Vec<HaplotypeWeak> = old
             .get_descendants()
             .lock()
             .iter()
@@ -469,13 +528,16 @@ impl Descendant {
             changes,
             generation,
             fitness: OnceLock::new(),
-            descendants: Mutex::new(descendants),
+            descendants: DescendantsCell::from_iter(descendants),
             dirty_descendants: AtomicUsize::new(0),
         }));
 
         let old_ptr = old.as_ptr() as *mut Haplotype;
         let new_ptr = new.as_ptr() as *mut Haplotype;
 
+        // evil hack to replace the old reference with the new one and keep
+        // the reference count and reference pointer...
+        // LOL
         std::ptr::swap(old_ptr, new_ptr);
     }
 
@@ -532,12 +594,13 @@ impl Descendant {
 
         let node = format!("'{name}_{block_id}':{branch_length}");
 
-        let descendants_guard = current.get_descendants().lock();
+        let descendants = current.get_descendants();
+        let descendants_guard = descendants.lock();
 
         let descendants = descendants_guard
             .iter()
-            .filter(|x| x.exists())
-            .map(|x| x.upgrade().unwrap().get_subtree(current.get_weak()))
+            .filter_map(|x| x.upgrade())
+            .map(|x| x.get_subtree(current.get_weak()))
             .collect::<Vec<String>>()
             .join(",");
 
@@ -546,91 +609,6 @@ impl Descendant {
         }
 
         format!("({descendants}){node}")
-    }
-
-    /// Merge chain of descendants into a single descendant. NOT THREAD SAFE
-    fn prune(&self) -> HaplotypeRef {
-        let mut current = self.reference.upgrade().unwrap();
-        let mut chain: Vec<HaplotypeRef> = vec![current.clone()];
-
-        // find chain of non-recombinant descendants
-        loop {
-            if !current.is_descendant() {
-                break;
-            }
-
-            let inner = current.get_descendant().unwrap();
-
-            let n_descendants =
-                inner.descendants.lock().len() - inner.dirty_descendants.load(Ordering::Relaxed);
-
-            if n_descendants != 1 {
-                break;
-            }
-
-            let next = inner
-                .descendants
-                .lock()
-                .first()
-                .unwrap()
-                .clone()
-                .upgrade()
-                .unwrap();
-
-            if !next.is_descendant() {
-                break;
-            }
-
-            chain.push(next.clone());
-            current = next;
-        }
-
-        // if there is nothing to prune, return
-        if chain.len() == 1 {
-            return self.reference.upgrade().unwrap();
-        }
-
-        // aggregate changes
-        let mut changes: HashMap<usize, (Symbol, Symbol)> = HashMap::new();
-        for current in chain.iter().rev() {
-            let inner = current.get_descendant().unwrap();
-            inner
-                .changes
-                .iter()
-                .for_each(|(position, change)| match changes.get_mut(position) {
-                    Some((from, _to)) => *from = change.0,
-                    None => {
-                        changes.insert(*position, *change);
-                    }
-                });
-        }
-
-        // extract ancestor and wildtype
-        let first = chain.first().unwrap();
-        let ancestor = first.get_ancestors().0.unwrap();
-        let wildtype = first.get_wildtype().get_weak();
-
-        // extract descendants and generation
-        let last = chain.last().unwrap();
-        let generation = last.get_generation();
-
-        // create new node
-        unsafe {
-            Self::new_and_replace(
-                last.get_reference().clone(),
-                ancestor.clone(),
-                wildtype,
-                changes,
-                generation,
-            );
-        }
-
-        ancestor.swap_descendant(
-            first.get_reference().get_weak(),
-            last.get_reference().get_weak(),
-        );
-
-        last.clone()
     }
 }
 
@@ -654,7 +632,7 @@ impl Recombinant {
                 right_position,
                 generation,
                 fitness: OnceLock::new(),
-                descendants: Mutex::new(Vec::new()),
+                descendants: DescendantsCell::new(),
                 dirty_descendants: AtomicUsize::new(0),
             })
         })
@@ -721,8 +699,8 @@ impl Recombinant {
             self.descendants
                 .lock()
                 .iter()
-                .filter(|x| x.exists())
-                .map(|x| x.upgrade().unwrap().get_subtree(self.reference.clone()))
+                .filter_map(|x| x.upgrade())
+                .map(|x| x.get_subtree(self.reference.clone()))
                 .collect::<Vec<String>>()
                 .join(",")
         } else {
@@ -862,9 +840,21 @@ mod tests {
         let ht2 = ht.create_descendant(vec![0], vec![Some(0x02)], 2);
         let ht3 = ht2.create_descendant(vec![0], vec![Some(0x03)], 3);
 
-        println!("{:?}", ht3);
+        wt.prune_tree();
 
-        // println!("{:?}", wt.get_descendants().lock());
-        println!("{}", wt.get_tree());
+        assert_eq!(wt.n_descendants(), 1);
+
+        let d = wt
+            .get_descendants()
+            .lock()
+            .first()
+            .unwrap()
+            .upgrade()
+            .unwrap();
+
+        assert_eq!(d, ht3);
+        assert_eq!(d.get_generation(), 3);
+        assert_eq!(d.get_mutations().len(), 1);
+        assert_eq!(d.get_mutations().get(&0), Some(&(Some(0x00), Some(0x03))));
     }
 }
