@@ -131,7 +131,7 @@ impl Haplotype {
         matches!(self, Haplotype::Wildtype(_))
     }
 
-    pub fn is_descendant(&self) -> bool {
+    pub fn is_mutant(&self) -> bool {
         matches!(self, Haplotype::Mutant(_))
     }
 
@@ -373,7 +373,7 @@ impl Haplotype {
 
         // find chain of non-recombinant descendants
         loop {
-            if !current.is_descendant() {
+            if !current.is_mutant() {
                 break;
             }
 
@@ -392,7 +392,7 @@ impl Haplotype {
                 .upgrade()
                 .unwrap();
 
-            if !next.is_descendant() {
+            if !next.is_mutant() {
                 break;
             }
 
