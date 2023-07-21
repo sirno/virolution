@@ -28,7 +28,7 @@ pub static FASTA_DECODE: phf::Map<u8, u8> = phf_map! {
 #[derive(Debug)]
 pub enum Haplotype {
     Wildtype(Wildtype),
-    Descendant(Descendant),
+    Mutant(Mutant),
     Recombinant(Recombinant),
 }
 
@@ -42,7 +42,7 @@ pub struct Wildtype {
 }
 
 #[derive(Debug)]
-pub struct Descendant {
+pub struct Mutant {
     reference: HaplotypeWeak,
     wildtype: HaplotypeWeak,
     ancestor: HaplotypeRef,
@@ -71,7 +71,7 @@ impl Drop for Haplotype {
     fn drop(&mut self) {
         match self {
             Haplotype::Wildtype(_wt) => {}
-            Haplotype::Descendant(ht) => ht.ancestor.increment_dirty_descendants(),
+            Haplotype::Mutant(ht) => ht.ancestor.increment_dirty_descendants(),
             Haplotype::Recombinant(rc) => {
                 rc.left_ancestor.increment_dirty_descendants();
                 rc.right_ancestor.increment_dirty_descendants();
@@ -97,7 +97,7 @@ impl Haplotype {
                 .map(|(pos, sym)| (*pos, (self.get_base(pos), *sym))),
         );
 
-        let descendant = Descendant::new(ancestor, wildtype.get_weak(), changes, generation);
+        let descendant = Mutant::new(ancestor, wildtype.get_weak(), changes, generation);
 
         self.add_descendant(descendant.get_weak());
 
@@ -132,23 +132,23 @@ impl Haplotype {
     }
 
     pub fn is_descendant(&self) -> bool {
-        matches!(self, Haplotype::Descendant(_))
+        matches!(self, Haplotype::Mutant(_))
     }
 
     pub fn is_recombinant(&self) -> bool {
         matches!(self, Haplotype::Recombinant(_))
     }
 
-    fn unwrap_mutant(&self) -> &Descendant {
+    fn unwrap_mutant(&self) -> &Mutant {
         match self {
-            Haplotype::Descendant(ht) => ht,
+            Haplotype::Mutant(ht) => ht,
             _ => panic!("Haplotype is not a mutant."),
         }
     }
 
-    fn try_unwrap_mutant(&self) -> Option<&Descendant> {
+    fn try_unwrap_mutant(&self) -> Option<&Mutant> {
         match self {
-            Haplotype::Descendant(ht) => Some(ht),
+            Haplotype::Mutant(ht) => Some(ht),
             _ => None,
         }
     }
@@ -156,7 +156,7 @@ impl Haplotype {
     pub fn get_reference(&self) -> HaplotypeRef {
         let weak = match self {
             Haplotype::Wildtype(wt) => &wt.reference,
-            Haplotype::Descendant(ht) => &ht.reference,
+            Haplotype::Mutant(ht) => &ht.reference,
             Haplotype::Recombinant(rc) => &rc.reference,
         };
         weak.upgrade().expect("Self-reference has been dropped.")
@@ -165,14 +165,14 @@ impl Haplotype {
     pub fn get_wildtype(&self) -> HaplotypeRef {
         match self {
             Haplotype::Wildtype(wt) => wt.get_reference().clone(),
-            Haplotype::Descendant(ht) => ht.wildtype.upgrade().unwrap().clone(),
+            Haplotype::Mutant(ht) => ht.wildtype.upgrade().unwrap().clone(),
             Haplotype::Recombinant(rc) => rc.wildtype.upgrade().unwrap().clone(),
         }
     }
 
     fn get_ancestors(&self) -> (Option<HaplotypeRef>, Option<HaplotypeRef>) {
         match self {
-            Haplotype::Descendant(ht) => (Some(ht.ancestor.clone()), None),
+            Haplotype::Mutant(ht) => (Some(ht.ancestor.clone()), None),
             Haplotype::Recombinant(rc) => (
                 Some(rc.left_ancestor.clone()),
                 Some(rc.right_ancestor.clone()),
@@ -184,7 +184,7 @@ impl Haplotype {
     pub fn get_descendants(&self) -> &DescendantsCell {
         match self {
             Haplotype::Wildtype(wt) => &wt.descendants,
-            Haplotype::Descendant(ht) => &ht.descendants,
+            Haplotype::Mutant(ht) => &ht.descendants,
             Haplotype::Recombinant(rc) => &rc.descendants,
         }
     }
@@ -194,7 +194,7 @@ impl Haplotype {
             Haplotype::Wildtype(wt) => {
                 wt.descendants.lock().len() - wt.dirty_descendants.load(Ordering::Relaxed)
             }
-            Haplotype::Descendant(ht) => {
+            Haplotype::Mutant(ht) => {
                 ht.descendants.lock().len() - ht.dirty_descendants.load(Ordering::Relaxed)
             }
             Haplotype::Recombinant(rc) => {
@@ -206,7 +206,7 @@ impl Haplotype {
     fn add_descendant(&self, descendant: HaplotypeWeak) {
         let (descendants, dirty_descendants) = match self {
             Haplotype::Wildtype(wt) => (&wt.descendants, &wt.dirty_descendants),
-            Haplotype::Descendant(ht) => (&ht.descendants, &ht.dirty_descendants),
+            Haplotype::Mutant(ht) => (&ht.descendants, &ht.dirty_descendants),
             Haplotype::Recombinant(rc) => (&rc.descendants, &rc.dirty_descendants),
         };
 
@@ -228,7 +228,7 @@ impl Haplotype {
     fn increment_dirty_descendants(&self) {
         let dirty_descendants = match self {
             Haplotype::Wildtype(wt) => &wt.dirty_descendants,
-            Haplotype::Descendant(ht) => &ht.dirty_descendants,
+            Haplotype::Mutant(ht) => &ht.dirty_descendants,
             Haplotype::Recombinant(rc) => &rc.dirty_descendants,
         };
         dirty_descendants.fetch_add(1, Ordering::Relaxed);
@@ -237,7 +237,7 @@ impl Haplotype {
     pub fn get_base(&self, position: &usize) -> Symbol {
         match self {
             Haplotype::Wildtype(wt) => wt.get_base(position),
-            Haplotype::Descendant(ht) => ht.get_base(position),
+            Haplotype::Mutant(ht) => ht.get_base(position),
             Haplotype::Recombinant(rc) => rc.get_base(position),
         }
     }
@@ -245,7 +245,7 @@ impl Haplotype {
     pub fn get_generation(&self) -> usize {
         match self {
             Haplotype::Wildtype(_wt) => 0,
-            Haplotype::Descendant(ht) => ht.get_generation(),
+            Haplotype::Mutant(ht) => ht.get_generation(),
             Haplotype::Recombinant(rc) => rc.get_generation(),
         }
     }
@@ -264,7 +264,7 @@ impl Haplotype {
     pub fn get_wildtype_sequence(&self) -> Vec<Symbol> {
         match self {
             Haplotype::Wildtype(wt) => wt.sequence.to_vec(),
-            Haplotype::Descendant(_ht) => self.get_wildtype().get_wildtype_sequence(),
+            Haplotype::Mutant(_ht) => self.get_wildtype().get_wildtype_sequence(),
             Haplotype::Recombinant(_rc) => self.get_wildtype().get_wildtype_sequence(),
         }
     }
@@ -299,7 +299,7 @@ impl Haplotype {
     pub fn get_mutations(&self) -> HashMap<usize, (Symbol, Symbol)> {
         match self {
             Haplotype::Wildtype(_wt) => HashMap::new(),
-            Haplotype::Descendant(ht) => ht.get_mutations(),
+            Haplotype::Mutant(ht) => ht.get_mutations(),
             Haplotype::Recombinant(rc) => rc.get_mutations(),
         }
     }
@@ -307,7 +307,7 @@ impl Haplotype {
     pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
         match self {
             Haplotype::Wildtype(_wt) => 1.,
-            Haplotype::Descendant(ht) => *ht.get_fitness(fitness_table),
+            Haplotype::Mutant(ht) => *ht.get_fitness(fitness_table),
             Haplotype::Recombinant(rc) => *rc.get_fitness(fitness_table),
         }
     }
@@ -329,21 +329,21 @@ impl Haplotype {
     pub fn get_length(&self) -> usize {
         match self {
             Haplotype::Wildtype(wt) => wt.get_length(),
-            Haplotype::Descendant(ht) => ht.get_length(),
+            Haplotype::Mutant(ht) => ht.get_length(),
             Haplotype::Recombinant(rc) => rc.get_length(),
         }
     }
 
     pub fn get_tree(&self) -> String {
         let tree = self.get_subtree(self.get_reference().get_weak());
-        format!("({});", tree)
+        format!("{};", tree)
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
         self.prune_descendants();
         match self {
             Haplotype::Wildtype(wt) => wt.get_subtree(),
-            Haplotype::Descendant(ht) => ht.get_subtree(),
+            Haplotype::Mutant(ht) => ht.get_subtree(),
             Haplotype::Recombinant(rc) => rc.get_subtree(ancestor),
         }
     }
@@ -431,7 +431,7 @@ impl Haplotype {
 
         // create new node
         unsafe {
-            Descendant::new_and_replace(
+            Mutant::new_and_replace(
                 last.get_reference().clone(),
                 ancestor.clone(),
                 wildtype,
@@ -484,7 +484,7 @@ impl Wildtype {
     }
 }
 
-impl Descendant {
+impl Mutant {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
         ancestor: HaplotypeRef,
@@ -493,7 +493,7 @@ impl Descendant {
         generation: usize,
     ) -> HaplotypeRef {
         HaplotypeRef::new_cyclic(|reference| {
-            Haplotype::Descendant(Self {
+            Haplotype::Mutant(Self {
                 reference: reference.clone(),
                 wildtype: wildtype.clone(),
                 ancestor: ancestor.clone(),
@@ -521,7 +521,7 @@ impl Descendant {
             .cloned()
             .filter(|x| x.exists())
             .collect();
-        let new = HaplotypeRef::new(Haplotype::Descendant(Self {
+        let new = HaplotypeRef::new(Haplotype::Mutant(Self {
             reference: old.get_weak(),
             wildtype,
             ancestor,
