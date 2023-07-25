@@ -296,7 +296,7 @@ mod tests {
         let wt1 = Wildtype::new(vec![Some(0x00); 10]);
         let wt2 = Wildtype::new(vec![Some(0x00); 10]);
 
-        population![&wt1, &wt1, &wt2]
+        population![&wt1, &wt1, &wt2, &wt2]
     }
 
     #[test]
@@ -324,7 +324,7 @@ mod tests {
         let second_record = reader.records().next().unwrap().unwrap();
         assert_eq!(second_record.len(), 2);
         assert_eq!(second_record[0], "wt".to_string());
-        assert_eq!(second_record[1], "1".to_string());
+        assert_eq!(second_record[1], "2".to_string());
     }
 
     #[test]
@@ -347,12 +347,14 @@ mod tests {
             .map(|l| l.expect("Unable to read line"))
             .collect();
 
-        assert_eq!(lines.len(), 6);
+        assert_eq!(lines.len(), 8);
         assert_eq!(lines[0], ">compartment_id=0;sequence_id=0;generation=0");
         assert_eq!(lines[1], "AAAAAAAAAA");
         assert_eq!(lines[2], ">compartment_id=0;sequence_id=1;generation=0");
         assert_eq!(lines[3], "AAAAAAAAAA");
         assert_eq!(lines[4], ">compartment_id=0;sequence_id=2;generation=0");
         assert_eq!(lines[5], "AAAAAAAAAA");
+        assert_eq!(lines[6], ">compartment_id=0;sequence_id=3;generation=0");
+        assert_eq!(lines[7], "AAAAAAAAAA");
     }
 }
