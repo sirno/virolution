@@ -377,7 +377,7 @@ impl Haplotype {
                 break;
             }
 
-            if current.n_descendants() != 1 {
+            if current.n_descendants() <= 1 {
                 break;
             }
 
