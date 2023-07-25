@@ -1,15 +1,17 @@
 use csv;
 use seq_io::fasta::{OwnedRecord, Record};
 use std::{
+    cell::RefCell,
     collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
+    rc::Rc,
 };
 
 use itertools::Itertools;
 
 use crate::{
-    barcode::BarcodeEntry, haplotype::FASTA_ENCODE, population::Population,
+    barcode::BarcodeEntry, haplotype::FASTA_ENCODE, historian::Historian, population::Population,
     simulation::SimulationTrait,
 };
 
@@ -19,6 +21,9 @@ pub trait SampleWriter {
 
     /// Get the path to the output directory
     fn get_path(&self) -> PathBuf;
+
+    /// Get the historian
+    fn get_historian(&self) -> Option<Rc<RefCell<Historian>>>;
 
     /// Write a sample of each simulation to a file
     fn sample_from_simulations(
@@ -36,6 +41,12 @@ pub trait SampleWriter {
 
             // write to file
             let barcode = self.write(&sample, compartment.get_generation(), compartment_id)?;
+
+            if let Some(historian) = &self.get_historian() {
+                historian
+                    .borrow_mut()
+                    .record_sample(generation, compartment_id, sample.clone());
+            }
 
             // write barcode to file
             self.write_barcode(&BarcodeEntry {
@@ -84,13 +95,19 @@ pub trait SampleWriter {
 pub struct FastaSampleWriter<'a> {
     simulation_name: &'a str,
     path: &'a str,
+    historian: Option<Rc<RefCell<Historian>>>,
 }
 
 impl<'a> FastaSampleWriter<'a> {
-    pub fn new(simulation_name: &'a str, path: &'a str) -> Result<Self, std::io::Error> {
+    pub fn new(
+        simulation_name: &'a str,
+        path: &'a str,
+        historian: Option<Rc<RefCell<Historian>>>,
+    ) -> Result<Self, std::io::Error> {
         let writer = Self {
             simulation_name,
             path,
+            historian,
         };
 
         writer.init_barcode_file()?;
@@ -102,13 +119,19 @@ impl<'a> FastaSampleWriter<'a> {
 pub struct CsvSampleWriter<'a> {
     simulation_name: &'a str,
     path: &'a str,
+    historian: Option<Rc<RefCell<Historian>>>,
 }
 
 impl<'a> CsvSampleWriter<'a> {
-    pub fn new(simulation_name: &'a str, path: &'a str) -> Result<Self, std::io::Error> {
+    pub fn new(
+        simulation_name: &'a str,
+        path: &'a str,
+        historian: Option<Rc<RefCell<Historian>>>,
+    ) -> Result<Self, std::io::Error> {
         let writer = Self {
             simulation_name,
             path,
+            historian,
         };
 
         writer.init_barcode_file()?;
@@ -128,6 +151,10 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
 
     fn get_barcode_path(&self) -> std::path::PathBuf {
         Path::new(self.path).join("barcodes.csv")
+    }
+
+    fn get_historian(&self) -> Option<Rc<RefCell<Historian>>> {
+        self.historian.clone()
     }
 
     fn write(
@@ -221,6 +248,10 @@ impl<'a> SampleWriter for CsvSampleWriter<'a> {
         Path::new(self.path).join("barcodes.csv")
     }
 
+    fn get_historian(&self) -> Option<Rc<RefCell<Historian>>> {
+        self.historian.clone()
+    }
+
     fn write(
         &self,
         population: &Population,
@@ -272,7 +303,7 @@ mod tests {
     fn test_csv_write() {
         let tmp_dir = std::env::temp_dir();
         let path = tmp_dir.to_str().unwrap();
-        let sample_writer = CsvSampleWriter::new("test_simulation", path).unwrap();
+        let sample_writer = CsvSampleWriter::new("test_simulation", path, None).unwrap();
 
         let population = get_population();
         let barcode = sample_writer.write(&population, 0, 0).unwrap();
@@ -300,7 +331,7 @@ mod tests {
     fn test_fasta_write() {
         let tmp_dir = std::env::temp_dir();
         let path = tmp_dir.to_str().unwrap();
-        let sample_writer = FastaSampleWriter::new("test_simulation", path).unwrap();
+        let sample_writer = FastaSampleWriter::new("test_simulation", path, None).unwrap();
 
         let population = get_population();
         let barcode = sample_writer.write(&population, 0, 0).unwrap();

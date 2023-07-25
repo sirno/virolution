@@ -19,6 +19,7 @@ use std::panic::catch_unwind;
 use virolution::args::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
+use virolution::historian::Historian;
 use virolution::population;
 use virolution::population::Population;
 use virolution::references::HaplotypeRef;
@@ -123,8 +124,10 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
         }
     };
 
+    let historian = Rc::new(RefCell::new(Historian::new()));
+
     let sample_writer: Box<dyn SampleWriter> = Box::new(
-        FastaSampleWriter::new(&args.name, &args.outdir).unwrap_or_else(|err| {
+        FastaSampleWriter::new(&args.name, &args.outdir, Some(historian)).unwrap_or_else(|err| {
             eprintln!("Unable to create sample writer: {err}.");
             std::process::exit(1);
         }),
@@ -227,6 +230,8 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
 
 #[cfg(not(feature = "parallel"))]
 fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPlan) {
+    use std::{cell::RefCell, rc::Rc};
+
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
@@ -243,8 +248,10 @@ fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPl
         }
     };
 
+    let historian = Rc::new(RefCell::new(Historian::new()));
+
     let sample_writer: Box<dyn SampleWriter> = Box::new(
-        FastaSampleWriter::new(&args.name, &args.outdir).unwrap_or_else(|err| {
+        FastaSampleWriter::new(&args.name, &args.outdir, Some(historian)).unwrap_or_else(|err| {
             eprintln!("Unable to create sample writer: {err}.");
             std::process::exit(1);
         }),
