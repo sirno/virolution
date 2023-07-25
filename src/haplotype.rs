@@ -383,10 +383,13 @@ impl Haplotype {
 
             let inner = current.unwrap_mutant();
 
-            let next = match inner.descendants.lock().first().unwrap().clone().upgrade() {
-                Some(next) => next,
-                None => break,
-            };
+            let next = inner
+                .descendants
+                .lock()
+                .iter()
+                .filter_map(|x| x.upgrade())
+                .next()
+                .unwrap();
 
             if !next.is_mutant() {
                 break;
