@@ -377,20 +377,16 @@ impl Haplotype {
                 break;
             }
 
-            if current.n_descendants() <= 1 {
+            if current.n_descendants() != 1 {
                 break;
             }
 
             let inner = current.unwrap_mutant();
 
-            let next = inner
-                .descendants
-                .lock()
-                .first()
-                .unwrap()
-                .clone()
-                .upgrade()
-                .unwrap();
+            let next = match inner.descendants.lock().first().unwrap().clone().upgrade() {
+                Some(next) => next,
+                None => break,
+            };
 
             if !next.is_mutant() {
                 break;
