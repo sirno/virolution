@@ -11,11 +11,13 @@ use itertools::Itertools;
 use rayon::prelude::*;
 use seq_io::fasta;
 use seq_io::fasta::Record;
+use std::cell::RefCell;
 use std::cmp::min;
 use std::fs;
 use std::io;
 use std::ops::Range;
 use std::panic::catch_unwind;
+use std::rc::Rc;
 use virolution::args::*;
 use virolution::fitness::*;
 use virolution::haplotype::*;
@@ -230,8 +232,6 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
 
 #[cfg(not(feature = "parallel"))]
 fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPlan) {
-    use std::{cell::RefCell, rc::Rc};
-
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
