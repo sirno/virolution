@@ -175,16 +175,23 @@ impl Population {
         &self.haplotypes
     }
 
-    /// Get a random sample of `HaplotypeRef` from the `Population`.
-    pub fn choose_multiple(&self, rng: &mut ThreadRng, amount: usize) -> Vec<&HaplotypeRef> {
-        self.population
-            .choose_multiple(rng, amount)
-            .map(|&id| {
-                self.haplotypes
-                    .get(&id)
-                    .unwrap_or_else(|| panic!("No haplotype with index {id}"))
-            })
-            .collect()
+    /// Choose `Population` of size `size` from the `Population`.
+    pub fn choose_multiple(&self, rng: &mut ThreadRng, size: usize) -> Self {
+        let population: Vec<usize> = self
+            .population
+            .choose_multiple(rng, size)
+            .map(|&id| id)
+            .collect();
+        let haplotypes: Haplotypes = population
+            .iter()
+            .unique()
+            .map(|&id| (id, self.haplotypes[&id].clone()))
+            .collect();
+
+        Self {
+            population,
+            haplotypes,
+        }
     }
 
     #[allow(dead_code)]

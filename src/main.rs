@@ -154,7 +154,7 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
             sample_writer
-                .write(simulations, sample_size)
+                .sample_from_simulations(simulations, sample_size)
                 .unwrap_or_else(|err| {
                     eprintln!("Unable to write sample: {err}.");
                     std::process::exit(1);
@@ -274,7 +274,7 @@ fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPl
         let sample_size = plan.get_sample_size(generation);
         if sample_size > 0 {
             sample_writer
-                .write(simulations, sample_size)
+                .sample_from_simulations(simulations, sample_size)
                 .unwrap_or_else(|err| {
                     eprintln!("Unable to write sample: {err}.");
                     std::process::exit(1);
