@@ -190,10 +190,10 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
         for (haplotype_id, haplotype_ref) in population.iter().enumerate() {
             let head = format!(
                 "sequence_id={};block_id={};compartment_id={};generation={}",
-                compartment,
                 haplotype_id,
-                generation,
-                haplotype_ref.get_block_id()
+                haplotype_ref.get_block_id(),
+                compartment,
+                generation
             )
             .as_bytes()
             .to_vec();
@@ -351,13 +351,37 @@ mod tests {
             .collect();
 
         assert_eq!(lines.len(), 8);
-        assert_eq!(lines[0], ">compartment_id=0;sequence_id=0;generation=0");
+        assert_eq!(
+            lines[0],
+            format!(
+                ">sequence_id=0;block_id={};compartment_id=0;generation=0",
+                population[&0].get_block_id()
+            )
+        );
         assert_eq!(lines[1], "AAAAAAAAAA");
-        assert_eq!(lines[2], ">compartment_id=0;sequence_id=1;generation=0");
+        assert_eq!(
+            lines[2],
+            format!(
+                ">sequence_id=1;block_id={};compartment_id=0;generation=0",
+                population[&1].get_block_id()
+            )
+        );
         assert_eq!(lines[3], "AAAAAAAAAA");
-        assert_eq!(lines[4], ">compartment_id=0;sequence_id=2;generation=0");
+        assert_eq!(
+            lines[4],
+            format!(
+                ">sequence_id=2;block_id={};compartment_id=0;generation=0",
+                population[&2].get_block_id()
+            )
+        );
         assert_eq!(lines[5], "AAAAAAAAAA");
-        assert_eq!(lines[6], ">compartment_id=0;sequence_id=3;generation=0");
+        assert_eq!(
+            lines[6],
+            format!(
+                ">sequence_id=3;block_id={};compartment_id=0;generation=0",
+                population[&3].get_block_id()
+            )
+        );
         assert_eq!(lines[7], "AAAAAAAAAA");
     }
 }
