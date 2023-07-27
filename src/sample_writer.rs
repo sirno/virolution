@@ -189,8 +189,11 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
         // write to file
         for (haplotype_id, haplotype_ref) in population.iter().enumerate() {
             let head = format!(
-                "compartment_id={};sequence_id={};generation={}",
-                compartment, haplotype_id, generation
+                "sequence_id={};block_id={};compartment_id={};generation={}",
+                compartment,
+                haplotype_id,
+                generation,
+                haplotype_ref.get_block_id()
             )
             .as_bytes()
             .to_vec();
