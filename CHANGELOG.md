@@ -2,6 +2,7 @@
 
 ## 0.2.0 --- Treecherous Harmony (WIP)
 
+- Trees only report the `block_id`
 - Include `block_id` in fasta output
 
 ## 0.1.0 --- Rapid Expansion (Jul 26, 2023)

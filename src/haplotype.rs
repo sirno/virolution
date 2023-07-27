@@ -587,11 +587,10 @@ impl Mutant {
     pub fn get_subtree(&self) -> String {
         let current = self.reference.upgrade().unwrap();
 
-        let name = current.get_string();
         let block_id = current.get_block_id();
         let branch_length = current.get_generation() - self.ancestor.get_generation();
 
-        let node = format!("'{name}_{block_id}':{branch_length}");
+        let node = format!("'{block_id}':{branch_length}");
 
         let descendants = current.get_descendants();
         let descendants_guard = descendants.lock();
@@ -688,11 +687,10 @@ impl Recombinant {
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
-        let name = self.reference.upgrade().unwrap().get_string();
         let block_id = self.reference.get_block_id();
         let branch_length = self.generation - ancestor.upgrade().unwrap().get_generation();
 
-        let node = format!("#R'{name}_{block_id}':{branch_length}");
+        let node = format!("#R'{block_id}':{branch_length}");
 
         let descendants = if self.left_ancestor.get_weak() == ancestor {
             self.descendants
@@ -820,13 +818,13 @@ mod tests {
 
         let ht = wt.create_descendant(vec![0], vec![Some(0x03)], 1);
         let ht_id = ht.get_block_id();
-        assert_eq!(wt.get_tree(), format!("('0:0->3_{}':1)wt;", ht_id));
+        assert_eq!(wt.get_tree(), format!("('{}':1)wt;", ht_id));
 
         let rc = Haplotype::create_recombinant(&wt, &ht, 1, 2, 2);
         let rc_id = rc.get_block_id();
         assert_eq!(
             wt.get_tree(),
-            format!("((#R'0:0->3_{rc_id}':1)'0:0->3_{ht_id}':1,#R'0:0->3_{rc_id}':2)wt;")
+            format!("((#R'{rc_id}':1)'{ht_id}':1,#R'{rc_id}':2)wt;")
         );
     }
 
