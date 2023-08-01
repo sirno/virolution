@@ -7,6 +7,7 @@
 //!
 
 use crate::population::Population;
+use std::fmt;
 
 pub struct Historian {
     history: Vec<Box<dyn HistoricalEvent>>,
@@ -21,6 +22,18 @@ struct SampleEvent {
 }
 
 impl HistoricalEvent for SampleEvent {}
+
+impl fmt::Display for SampleEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "SampleEvent(generation={},compartment={},length={})",
+            self.generation,
+            self.compartment,
+            self.sample.len()
+        )
+    }
+}
 
 impl SampleEvent {
     fn new(generation: usize, compartment: usize, sample: Population) -> Self {
