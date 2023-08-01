@@ -1,3 +1,23 @@
+//! Haplotype representation and operations
+//!
+//! The `Haplotype` struct represents a single haplotype, represented as part of
+//! a tree structure. The tree structure is implemented using weak references
+//! and strong backreferences allowing any resources that are not observable
+//! anymore to be dropped.
+//!
+//! The `Haplotype` struct is an enum that can be a representation of any
+//! possible transformation of a preceeding haplotype. Currently, the following
+//! transformations are supported:
+//!
+//! - Wildtype: The wildtype haplotype is the starting point of any phylogeny.
+//!   It is the only haplotype that does not have a parent.
+//! - Mutant: A mutant haplotype is a haplotype that has a set of mutations that
+//!   are not present in its parent. The mutations are stored as a HashMap of
+//!   positions and symbols.
+//! - Recombinant: A recombinant haplotype is a haplotype that consists of a
+//!   combination of two parent haplotypes.
+//!
+
 use super::fitness::FitnessTable;
 use super::references::DescendantsCell;
 use super::references::{HaplotypeRef, HaplotypeWeak};
