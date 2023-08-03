@@ -208,34 +208,6 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
         }
         Ok(barcode)
     }
-
-    fn sample_from_simulations(
-        &self,
-        simulations: &[Box<SimulationTrait>],
-        sample_size: usize,
-    ) -> Result<(), std::io::Error> {
-        log::info!("Writing fasta sample to {}", self.path);
-        for (compartment_id, compartment) in simulations.iter().enumerate() {
-            let generation = compartment.get_generation();
-
-            // sample population
-            let population = compartment.get_population();
-            let sample = population.choose_multiple(&mut rand::thread_rng(), sample_size);
-
-            // write to file
-            let barcode = self.write(&sample, compartment.get_generation(), compartment_id)?;
-
-            // write barcode to file
-            self.write_barcode(&BarcodeEntry {
-                barcode: &barcode,
-                experiment: &self.simulation_name.to_string(),
-                time: generation,
-                replicate: 0,
-                compartment: compartment_id,
-            })?;
-        }
-        Ok(())
-    }
 }
 
 impl<'a> SampleWriter for CsvSampleWriter<'a> {
