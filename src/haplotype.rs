@@ -26,7 +26,7 @@ use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::OnceLock;
 
 // #[derive(Clone, Debug, Deref)]
@@ -58,7 +58,7 @@ pub struct Wildtype {
     reference: HaplotypeWeak,
     sequence: Vec<Symbol>,
     descendants: DescendantsCell,
-    dirty_descendants: AtomicUsize,
+    dirty_descendants: AtomicIsize,
 }
 
 #[derive(Debug)]
@@ -70,7 +70,7 @@ pub struct Mutant {
     generation: usize,
     fitness: OnceLock<f64>,
     descendants: DescendantsCell,
-    dirty_descendants: AtomicUsize,
+    dirty_descendants: AtomicIsize,
 }
 
 #[derive(Debug)]
@@ -84,7 +84,7 @@ pub struct Recombinant {
     generation: usize,
     fitness: OnceLock<f64>,
     descendants: DescendantsCell,
-    dirty_descendants: AtomicUsize,
+    dirty_descendants: AtomicIsize,
 }
 
 impl Drop for Haplotype {
@@ -209,17 +209,26 @@ impl Haplotype {
         }
     }
 
-    pub fn n_descendants(&self) -> usize {
+    fn valid_descendants(&self) -> usize {
         match self {
-            Haplotype::Wildtype(wt) => {
-                wt.descendants.lock().len() - wt.dirty_descendants.load(Ordering::Relaxed)
-            }
-            Haplotype::Mutant(ht) => {
-                ht.descendants.lock().len() - ht.dirty_descendants.load(Ordering::Relaxed)
-            }
-            Haplotype::Recombinant(rc) => {
-                rc.descendants.lock().len() - rc.dirty_descendants.load(Ordering::Relaxed)
-            }
+            Haplotype::Wildtype(wt) => wt
+                .descendants
+                .lock()
+                .len()
+                .checked_add_signed(wt.dirty_descendants.load(Ordering::Relaxed))
+                .expect("Number of descendants overflowed."),
+            Haplotype::Mutant(mt) => mt
+                .descendants
+                .lock()
+                .len()
+                .checked_add_signed(mt.dirty_descendants.load(Ordering::Relaxed))
+                .expect("Number of descendants overflowed."),
+            Haplotype::Recombinant(rc) => rc
+                .descendants
+                .lock()
+                .len()
+                .checked_add_signed(rc.dirty_descendants.load(Ordering::Relaxed))
+                .expect("Number of descendants overflowed."),
         }
     }
 
@@ -238,7 +247,7 @@ impl Haplotype {
             .position(|x| !x.exists())
         {
             descendants_guard[idx] = descendant;
-            dirty_descendants.fetch_sub(1, Ordering::Relaxed);
+            dirty_descendants.fetch_add(1, Ordering::Relaxed);
             return;
         }
 
@@ -246,6 +255,15 @@ impl Haplotype {
     }
 
     fn increment_dirty_descendants(&self) {
+        let dirty_descendants = match self {
+            Haplotype::Wildtype(wt) => &wt.dirty_descendants,
+            Haplotype::Mutant(ht) => &ht.dirty_descendants,
+            Haplotype::Recombinant(rc) => &rc.dirty_descendants,
+        };
+        dirty_descendants.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    fn decrement_dirty_descendants(&self) {
         let dirty_descendants = match self {
             Haplotype::Wildtype(wt) => &wt.dirty_descendants,
             Haplotype::Mutant(ht) => &ht.dirty_descendants,
@@ -397,7 +415,7 @@ impl Haplotype {
                 break;
             }
 
-            if current.n_descendants() != 1 {
+            if current.valid_descendants() != 1 {
                 break;
             }
 
@@ -459,6 +477,10 @@ impl Haplotype {
             );
         }
 
+        // decrement dirty descendant count of the ancestor because it
+        // will be incremented when the old node is dropped
+        ancestor.decrement_dirty_descendants();
+
         last.clone()
     }
 }
@@ -471,7 +493,7 @@ impl Wildtype {
                 reference: reference.clone(),
                 sequence: sequence.clone(),
                 descendants: DescendantsCell::new(),
-                dirty_descendants: AtomicUsize::new(0),
+                dirty_descendants: AtomicIsize::new(0),
             })
         })
     }
@@ -520,7 +542,7 @@ impl Mutant {
                 generation,
                 fitness: OnceLock::new(),
                 descendants: DescendantsCell::new(),
-                dirty_descendants: AtomicUsize::new(0),
+                dirty_descendants: AtomicIsize::new(0),
             })
         })
     }
@@ -548,7 +570,7 @@ impl Mutant {
             generation,
             fitness: OnceLock::new(),
             descendants: DescendantsCell::from_iter(descendants),
-            dirty_descendants: AtomicUsize::new(0),
+            dirty_descendants: AtomicIsize::new(0),
         }));
 
         let old_ptr = old.as_ptr() as *mut Haplotype;
@@ -651,7 +673,7 @@ impl Recombinant {
                 generation,
                 fitness: OnceLock::new(),
                 descendants: DescendantsCell::new(),
-                dirty_descendants: AtomicUsize::new(0),
+                dirty_descendants: AtomicIsize::new(0),
             })
         })
     }
@@ -859,7 +881,7 @@ mod tests {
 
         wt.prune_tree();
 
-        assert_eq!(wt.n_descendants(), 1);
+        assert_eq!(wt.valid_descendants(), 1);
 
         let d = wt
             .get_descendants()
