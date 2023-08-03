@@ -127,6 +127,12 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
     };
 
     let historian = Rc::new(RefCell::new(Historian::new()));
+    unsafe {
+        // Leak this memory to avoid a free after use
+        let ptr = Rc::into_raw(historian.clone());
+        Rc::increment_strong_count(ptr);
+        Rc::from_raw(ptr);
+    }
 
     let sample_writer: Box<dyn SampleWriter> = Box::new(
         FastaSampleWriter::new(&args.name, &args.outdir, Some(historian)).unwrap_or_else(|err| {
@@ -231,7 +237,12 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
 }
 
 #[cfg(not(feature = "parallel"))]
-fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPlan) {
+fn run(
+    args: &Args,
+    simulations: &mut [Box<SimulationTrait>],
+    plan: SimulationPlan,
+    wildtype: &HaplotypeRef,
+) {
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
@@ -249,12 +260,20 @@ fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPl
     };
 
     let historian = Rc::new(RefCell::new(Historian::new()));
+    unsafe {
+        // Leak this memory to avoid a free after use
+        let ptr = Rc::into_raw(historian.clone());
+        Rc::increment_strong_count(ptr);
+        Rc::from_raw(ptr);
+    }
 
     let sample_writer: Box<dyn SampleWriter> = Box::new(
-        FastaSampleWriter::new(&args.name, &args.outdir, Some(historian)).unwrap_or_else(|err| {
-            eprintln!("Unable to create sample writer: {err}.");
-            std::process::exit(1);
-        }),
+        FastaSampleWriter::new(&args.name, &args.outdir, Some(historian.clone())).unwrap_or_else(
+            |err| {
+                eprintln!("Unable to create sample writer: {err}.");
+                std::process::exit(1);
+            },
+        ),
     );
 
     for generation in 0..=args.generations {
@@ -339,6 +358,9 @@ fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPl
         bar.finish_with_message("Done.");
     }
     log::info!("Finished simulation.");
+
+    fs::write("tree2.nw", wildtype.get_tree())
+        .unwrap_or_else(|_| eprintln!("Unable to write tree file."));
 }
 
 fn main() {
@@ -431,7 +453,7 @@ fn main() {
     );
 
     // run simulation
-    run(&args, &mut simulations, settings.simulation_plan);
+    run(&args, &mut simulations, settings.simulation_plan, &wildtype);
 
     // store tree if specified.
     log::info!("Storing tree...");

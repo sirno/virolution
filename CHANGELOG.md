@@ -2,6 +2,7 @@
 
 ## 0.2.0 --- Treecherous Harmony (WIP)
 
+- Leaking the Historian
 - Trees only report the `block_id`
 - Include `block_id` in fasta output
 
