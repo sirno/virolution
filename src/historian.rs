@@ -9,12 +9,14 @@
 use crate::population::Population;
 use std::fmt;
 
+#[derive(Debug)]
 pub struct Historian {
     history: Vec<Box<dyn HistoricalEvent>>,
 }
 
-trait HistoricalEvent {}
+trait HistoricalEvent: std::fmt::Debug {}
 
+#[derive(Debug)]
 struct SampleEvent {
     generation: usize,
     compartment: usize,

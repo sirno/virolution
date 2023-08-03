@@ -358,9 +358,6 @@ fn run(
         bar.finish_with_message("Done.");
     }
     log::info!("Finished simulation.");
-
-    fs::write("tree2.nw", wildtype.get_tree())
-        .unwrap_or_else(|_| eprintln!("Unable to write tree file."));
 }
 
 fn main() {
