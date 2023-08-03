@@ -26,6 +26,7 @@ use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
 use std::collections::HashMap;
 use std::fmt;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::OnceLock;
 
@@ -411,6 +412,13 @@ impl Haplotype {
 
         // find chain of non-recombinant descendants
         loop {
+            if Rc::strong_count(&current) > 3 {
+                // two internal references and the one that maintains the chain
+                // if there are more than 3, then outside references exist and
+                // we do not want to squash past this node
+                break;
+            }
+
             if !current.is_mutant() {
                 break;
             }
@@ -439,7 +447,7 @@ impl Haplotype {
 
         // if there is nothing to prune, return
         if chain.len() == 1 {
-            return current;
+            return current.clone();
         }
 
         // aggregate changes
@@ -879,11 +887,13 @@ mod tests {
         let ht2 = ht.create_descendant(vec![0], vec![Some(0x02)], 2);
         let ht3 = ht2.create_descendant(vec![0], vec![Some(0x03)], 3);
 
+        // outside references exist to ht and ht2
+        // nothing should be squashed
         wt.prune_tree();
 
         assert_eq!(wt.valid_descendants(), 1);
 
-        let d = wt
+        let d1 = wt
             .get_descendants()
             .lock()
             .first()
@@ -891,9 +901,30 @@ mod tests {
             .upgrade()
             .unwrap();
 
-        assert_eq!(d, ht3);
-        assert_eq!(d.get_generation(), 3);
-        assert_eq!(d.get_mutations().len(), 1);
-        assert_eq!(d.get_mutations().get(&0), Some(&(Some(0x00), Some(0x03))));
+        assert_eq!(d1, ht);
+
+        drop(d1);
+
+        // drop the outside references
+        drop(ht);
+        drop(ht2);
+
+        // ht and ht2 should be squashed
+        wt.prune_tree();
+
+        assert_eq!(wt.valid_descendants(), 1);
+
+        let d2 = wt
+            .get_descendants()
+            .lock()
+            .first()
+            .unwrap()
+            .upgrade()
+            .unwrap();
+
+        assert_eq!(d2, ht3);
+        assert_eq!(d2.get_generation(), 3);
+        assert_eq!(d2.get_mutations().len(), 1);
+        assert_eq!(d2.get_mutations().get(&0), Some(&(Some(0x00), Some(0x03))));
     }
 }
