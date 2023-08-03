@@ -428,10 +428,9 @@ fn main() {
         }
     };
 
-    let mut fitness_file =
-        io::BufWriter::new(fs::File::create(args.fitness_table.clone()).unwrap());
-
-    for (_, fitness_table) in fitness_tables.clone() {
+    for (idx, (_, fitness_table)) in fitness_tables.clone().iter().enumerate() {
+        let name = format!("fitness_table_{}.npy", idx);
+        let mut fitness_file = io::BufWriter::new(fs::File::create(name).unwrap());
         fitness_table.write(&mut fitness_file).unwrap();
     }
 

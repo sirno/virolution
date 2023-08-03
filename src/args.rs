@@ -31,7 +31,7 @@ pub struct Args {
     pub outdir: String,
 
     /// Path to fitness table
-    #[clap(long, default_value = "fitness_table.npy")]
+    #[clap(long, default_value = "fitness_table_{}.npy")]
     pub fitness_table: String,
 
     /// Path to log file
