@@ -2,6 +2,7 @@
 
 ## 0.2.0 --- Treecherous Harmony (WIP)
 
+- Change encoding order to ATCG
 - Leaking the Historian
 - Trees only report the `block_id`
 - Include `block_id` in fasta output
