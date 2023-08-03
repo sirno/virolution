@@ -363,8 +363,6 @@ impl Simulation for BasicSimulation {
             sample_size
         );
 
-        log::info!("Offspring map: {:?}", offspring_map);
-
         self.population.sample(sample_size, offspring_map)
     }
 
