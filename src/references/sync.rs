@@ -40,6 +40,11 @@ impl HaplotypeRef {
     }
 
     #[inline]
+    pub fn get_strong_count(&self) -> usize {
+        Arc::strong_count(&self.0)
+    }
+
+    #[inline]
     pub fn get_weak(&self) -> HaplotypeWeak {
         HaplotypeWeak(Arc::downgrade(&self.0))
     }

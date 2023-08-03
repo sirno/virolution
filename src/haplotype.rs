@@ -26,7 +26,6 @@ use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
 use std::collections::HashMap;
 use std::fmt;
-use std::rc::Rc;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::OnceLock;
 
@@ -412,7 +411,7 @@ impl Haplotype {
 
         // find chain of non-recombinant descendants
         loop {
-            if Rc::strong_count(&current) > 3 {
+            if current.get_strong_count() > 3 {
                 // two internal references and the one that maintains the chain
                 // if there are more than 3, then outside references exist and
                 // we do not want to squash past this node

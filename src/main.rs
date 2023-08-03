@@ -237,12 +237,7 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
 }
 
 #[cfg(not(feature = "parallel"))]
-fn run(
-    args: &Args,
-    simulations: &mut [Box<SimulationTrait>],
-    plan: SimulationPlan,
-    wildtype: &HaplotypeRef,
-) {
+fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPlan) {
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
@@ -450,7 +445,7 @@ fn main() {
     );
 
     // run simulation
-    run(&args, &mut simulations, settings.simulation_plan, &wildtype);
+    run(&args, &mut simulations, settings.simulation_plan);
 
     // store tree if specified.
     log::info!("Storing tree...");

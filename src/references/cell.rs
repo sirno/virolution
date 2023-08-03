@@ -27,6 +27,11 @@ impl HaplotypeRef {
     }
 
     #[inline]
+    pub fn get_strong_count(&self) -> usize {
+        Rc::strong_count(&self.0)
+    }
+
+    #[inline]
     pub fn get_weak(&self) -> HaplotypeWeak {
         HaplotypeWeak(Rc::downgrade(&self.0))
     }
