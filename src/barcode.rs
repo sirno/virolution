@@ -17,14 +17,16 @@ impl BarcodeEntry<'_> {
             .has_headers(false)
             .from_writer(writer);
         csv_writer.serialize(self)?;
+        csv_writer.flush()?;
         Ok(())
     }
 
     pub fn write_header(writer: &mut impl Write) -> Result<(), Error> {
         let mut csv_writer = csv::WriterBuilder::new()
-            .has_headers(true)
+            .has_headers(false)
             .from_writer(writer);
         csv_writer.write_record(["barcode", "experiment", "time", "replicate", "compartment"])?;
+        csv_writer.flush()?;
         Ok(())
     }
 }

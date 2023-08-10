@@ -78,6 +78,7 @@ pub trait SampleWriter {
         let mut barcode_file = fs::OpenOptions::new()
             .create(true)
             .write(true)
+            .truncate(true)
             .open(barcode_path)?;
         BarcodeEntry::write_header(&mut barcode_file)?;
         Ok(())
