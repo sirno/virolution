@@ -1,5 +1,6 @@
 #![feature(let_chains)]
 #![feature(get_mut_unchecked)]
+#![feature(extract_if)]
 #![feature(test)]
 
 extern crate test;
