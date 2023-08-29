@@ -16,6 +16,17 @@ pub enum SettingsError {
     YamlError(serde_yaml::Error),
 }
 
+impl std::error::Error for SettingsError {}
+
+impl std::fmt::Display for SettingsError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SettingsError::IoError(error) => write!(formatter, "IO error: {}", error),
+            SettingsError::YamlError(error) => write!(formatter, "YAML error: {}", error),
+        }
+    }
+}
+
 impl std::fmt::Display for Settings {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut output = vec![];

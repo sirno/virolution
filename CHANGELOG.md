@@ -14,6 +14,7 @@
 - Field names have been renamed accordingly
 - Moved all things related to `Settings` into config module
 - Moved several structures into core module
+- Move application control flow into runner module
 
 ## 0.1.0 --- Rapid Expansion (Jul 26, 2023)
 

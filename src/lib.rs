@@ -9,5 +9,6 @@ pub mod barcode;
 pub mod core;
 pub mod config;
 pub mod references;
+pub mod runner;
 pub mod sample_writer;
 pub mod simulation;

@@ -4,6 +4,9 @@ use rand::prelude::*;
 use rand_distr::{Exp, WeightedIndex};
 use serde::{Deserialize, Serialize};
 
+use std::error::Error;
+use std::fmt;
+
 #[derive(Clone)]
 pub struct FitnessTable {
     n_sites: usize,
@@ -13,8 +16,20 @@ pub struct FitnessTable {
 }
 
 #[derive(Clone, Debug)]
-pub struct FitnessError {
+pub struct FitnessTableError {
     pub message: String,
+}
+
+impl fmt::Display for FitnessTableError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "FitnessTableError: {}", self.message)
+    }
+}
+
+impl Error for FitnessTableError {
+    fn description(&self) -> &str {
+        &self.message
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -197,7 +212,7 @@ impl FitnessTable {
         sequence: &Vec<Symbol>,
         n_symbols: usize,
         fitness_model: FitnessModel,
-    ) -> Result<Self, FitnessError> {
+    ) -> Result<Self, FitnessTableError> {
         let n_sites = sequence.len();
         let table = match fitness_model.distribution {
             FitnessDistribution::Exponential(ref params) => {
@@ -209,7 +224,7 @@ impl FitnessTable {
         };
 
         if table.len() != n_sites * n_symbols {
-            return Err(FitnessError {
+            return Err(FitnessTableError {
                 message: format!(
                     "Fitness table has wrong size: {} instead of {}",
                     table.len(),
