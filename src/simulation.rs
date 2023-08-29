@@ -1,9 +1,5 @@
 extern crate test;
 
-use crate::{
-    fitness::FitnessTable, haplotype::Haplotype, population::Population, references::HaplotypeRef,
-    simulation_parameters::SimulationParameters,
-};
 use itertools::Itertools;
 use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
@@ -12,6 +8,12 @@ use rayon::prelude::*;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
 use std::{cmp::min, ops::Range};
+
+use crate::config::Parameters;
+use crate::fitness::FitnessTable;
+use crate::haplotype::Haplotype;
+use crate::population::Population;
+use crate::references::HaplotypeRef;
 
 pub type HostMap = Vec<Vec<usize>>;
 pub type HostRange = (Range<usize>, FitnessTable);
@@ -24,7 +26,7 @@ pub type SimulationTrait = dyn Simulation;
 pub trait Simulation {
     fn increment_generation(&mut self);
 
-    fn set_settings(&mut self, settings: SimulationParameters);
+    fn set_parameters(&mut self, parameters: Parameters);
 
     fn get_generation(&self) -> usize;
 
@@ -64,7 +66,7 @@ pub struct BasicSimulation {
     wildtype: HaplotypeRef,
     population: Population,
     fitness_tables: Vec<HostRange>,
-    simulation_settings: SimulationParameters,
+    parameters: Parameters,
     mutation_sampler: Binomial,
     recombination_sampler: Bernoulli,
     infection_sampler: Bernoulli,
@@ -76,21 +78,18 @@ impl BasicSimulation {
         wildtype: HaplotypeRef,
         population: Population,
         fitness_tables: Vec<HostRange>,
-        simulation_settings: SimulationParameters,
+        parameters: Parameters,
         generation: usize,
     ) -> Self {
-        let mutation_sampler = Binomial::new(
-            wildtype.get_length() as u64,
-            simulation_settings.mutation_rate,
-        )
-        .unwrap();
-        let recombination_sampler = Bernoulli::new(simulation_settings.recombination_rate).unwrap();
-        let infection_sampler = Bernoulli::new(simulation_settings.infection_fraction).unwrap();
+        let mutation_sampler =
+            Binomial::new(wildtype.get_length() as u64, parameters.mutation_rate).unwrap();
+        let recombination_sampler = Bernoulli::new(parameters.recombination_rate).unwrap();
+        let infection_sampler = Bernoulli::new(parameters.infection_fraction).unwrap();
         Self {
             wildtype,
             population,
             fitness_tables,
-            simulation_settings,
+            parameters,
             mutation_sampler,
             recombination_sampler,
             infection_sampler,
@@ -155,7 +154,7 @@ impl BasicSimulation {
                         match infectant_ref.get_base(position) {
                             Some(base) => {
                                 let dist = WeightedIndex::new(
-                                    self.simulation_settings.substitution_matrix[base as usize],
+                                    self.parameters.substitution_matrix[base as usize],
                                 )
                                 .unwrap();
                                 Some(dist.sample(&mut rng) as u8)
@@ -194,27 +193,25 @@ impl Simulation for BasicSimulation {
         self.population = population;
     }
 
-    fn set_settings(&mut self, simulation_settings: SimulationParameters) {
-        self.simulation_settings = simulation_settings;
+    fn set_parameters(&mut self, parameters: Parameters) {
+        self.parameters = parameters;
         self.mutation_sampler = Binomial::new(
             self.wildtype.get_length() as u64,
-            self.simulation_settings.mutation_rate,
+            self.parameters.mutation_rate,
         )
         .unwrap();
-        self.recombination_sampler =
-            Bernoulli::new(self.simulation_settings.recombination_rate).unwrap();
-        self.infection_sampler =
-            Bernoulli::new(self.simulation_settings.infection_fraction).unwrap();
+        self.recombination_sampler = Bernoulli::new(self.parameters.recombination_rate).unwrap();
+        self.infection_sampler = Bernoulli::new(self.parameters.infection_fraction).unwrap();
     }
 
     fn get_host_map(&self) -> HostMap {
-        let capacity = self.population.len() / self.simulation_settings.host_population_size + 1;
+        let capacity = self.population.len() / self.parameters.host_population_size + 1;
         let mut host_map: HostMap =
-            vec![Vec::with_capacity(capacity); self.simulation_settings.host_population_size];
+            vec![Vec::with_capacity(capacity); self.parameters.host_population_size];
         let mut rng = rand::thread_rng();
         (0..self.population.len()).for_each(|infectant| {
             if self.infection_sampler.sample(&mut rng) {
-                let host_id = rng.gen_range(0..self.simulation_settings.host_population_size);
+                let host_id = rng.gen_range(0..self.parameters.host_population_size);
                 host_map[host_id].push(infectant);
             }
         });
@@ -226,7 +223,7 @@ impl Simulation for BasicSimulation {
         // mutate infectants based on host cell assignment
         let sequence_length = self.wildtype.get_length();
 
-        if self.simulation_settings.recombination_rate > 0. {
+        if self.parameters.recombination_rate > 0. {
             // create recombination channel
             let (recombination_sender, recombination_receiver) = channel();
 
@@ -273,7 +270,7 @@ impl Simulation for BasicSimulation {
         // mutate infectants based on host cell assignment
         let sequence_length = self.wildtype.get_length();
 
-        if self.simulation_settings.recombination_rate > 0. {
+        if self.parameters.recombination_rate > 0. {
             // recombine infectants
             host_map.iter().for_each(|infectants: &Vec<usize>| {
                 self._recombine_infectants(sequence_length, infectants)
@@ -306,8 +303,7 @@ impl Simulation for BasicSimulation {
                     host.iter().for_each(|infectant| {
                         let fitness = self.population[infectant].get_fitness(fitness_table);
                         if let Ok(dist) = Poisson::new(
-                            fitness * self.simulation_settings.basic_reproductive_number
-                                / length as f64,
+                            fitness * self.parameters.basic_reproductive_number / length as f64,
                         ) {
                             unsafe {
                                 (offspring_ptr as *mut usize)
@@ -333,8 +329,7 @@ impl Simulation for BasicSimulation {
                     host.iter().for_each(|infectant| {
                         let fitness = self.population[infectant].get_fitness(fitness_table);
                         if let Ok(dist) = Poisson::new(
-                            fitness * self.simulation_settings.basic_reproductive_number
-                                / length as f64,
+                            fitness * self.parameters.basic_reproductive_number / length as f64,
                         ) {
                             offspring[*infectant] = dist.sample(&mut rng) as usize;
                         }
@@ -353,8 +348,8 @@ impl Simulation for BasicSimulation {
         let offspring_size: usize = offspring_map.iter().sum();
         let sample_size = (factor
             * min(
-                (offspring_size as f64 * self.simulation_settings.dilution) as usize,
-                self.simulation_settings.max_population,
+                (offspring_size as f64 * self.parameters.dilution) as usize,
+                self.parameters.max_population,
             ) as f64) as usize;
 
         log::info!(
@@ -377,12 +372,12 @@ impl Simulation for BasicSimulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::FitnessModelField;
     use crate::fitness::{
         ExponentialParameters, FitnessDistribution, FitnessModel, MutationCategoryWeights,
         UtilityFunction,
     };
     use crate::haplotype::Wildtype;
-    use crate::simulation_parameters::FitnessModelField;
     use test::Bencher;
 
     const DISTRIBUTION: FitnessDistribution =
@@ -404,7 +399,7 @@ mod tests {
 
     const POPULATION_SIZE: usize = 1000;
 
-    const SETTINGS: SimulationParameters = SimulationParameters {
+    const SETTINGS: Parameters = Parameters {
         mutation_rate: 1e-3,
         recombination_rate: 1e-5,
         substitution_matrix: [

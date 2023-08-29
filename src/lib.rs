@@ -11,9 +11,7 @@ pub mod historian;
 #[macro_use]
 pub mod population;
 pub mod ancestry;
+pub mod config;
 pub mod references;
 pub mod sample_writer;
 pub mod simulation;
-pub mod simulation_parameters;
-pub mod simulation_plan;
-pub mod simulation_settings;

@@ -1,12 +1,12 @@
 extern crate virolution;
 
 use std::fs;
+use virolution::config::{FitnessModelField, Parameters};
 use virolution::fitness::*;
 use virolution::haplotype::*;
 use virolution::population;
 use virolution::population::Population;
 use virolution::simulation::*;
-use virolution::simulation_parameters::*;
 
 fn main() {
     let sequence = vec![Some(0x00); 100];
@@ -38,7 +38,7 @@ fn main() {
     println!("ht4: {}", ht4.get_fitness(&fitness_table));
 
     let population: Population = population![wt.clone(); 10];
-    let simulation_settings = SimulationParameters {
+    let simulation_settings = Parameters {
         mutation_rate: 1e-6,
         recombination_rate: 0.,
         substitution_matrix: [
@@ -55,12 +55,12 @@ fn main() {
         fitness_model: FitnessModelField::SingleHost(fitness_model),
     };
     simulation_settings
-        .write_to_file("settings_example.yaml")
+        .write_to_file("parameters_example.yaml")
         .expect("Failed to write settings to file");
 
-    let settings = SimulationParameters::read_from_file("settings_example.yaml")
+    let settings = Parameters::read_from_file("parameters_example.yaml")
         .expect("Failed to read settings from file");
-    fs::remove_file("settings_example.yaml").expect("Unable to remove file.");
+    fs::remove_file("parameters_example.yaml").expect("Unable to remove file.");
     let fitness_tables = vec![(0..simulation_settings.host_population_size, fitness_table)];
     let mut simulation = BasicSimulation::new(wt, population, fitness_tables, settings.clone(), 0);
     let host_map = simulation.get_host_map();

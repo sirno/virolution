@@ -20,6 +20,7 @@ use std::ops::Range;
 use std::panic::catch_unwind;
 use std::rc::Rc;
 use virolution::args::*;
+use virolution::config::{FitnessModelField, Parameters, Schedule, Settings, SettingsError};
 use virolution::fitness::*;
 use virolution::haplotype::*;
 use virolution::historian::Historian;
@@ -28,9 +29,6 @@ use virolution::population::Population;
 use virolution::references::HaplotypeRef;
 use virolution::sample_writer::*;
 use virolution::simulation::*;
-use virolution::simulation_parameters::*;
-use virolution::simulation_plan::*;
-use virolution::simulation_settings::*;
 
 fn setup(args: &Args) {
     // setup logger
@@ -84,7 +82,7 @@ fn create_simulations(
     args: &Args,
     wildtype: &HaplotypeRef,
     fitness_tables: &[(Range<usize>, FitnessTable)],
-    parameters: &SimulationParameters,
+    parameters: &Parameters,
 ) -> Vec<Box<SimulationTrait>> {
     (0..args.n_compartments)
         .map(|compartment_idx| {
@@ -110,7 +108,7 @@ fn create_simulations(
 }
 
 #[cfg(feature = "parallel")]
-fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: SimulationPlan) {
+fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, schedule: Schedule) {
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
@@ -163,7 +161,7 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
 
         // write to output when sampling
         log::debug!("Process sampling...");
-        let sample_size = plan.get_sample_size(generation);
+        let sample_size = schedule.get_sample_size(generation);
         if sample_size > 0 {
             sample_writer
                 .sample_from_simulations(simulations, sample_size)
@@ -179,10 +177,10 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
         }
 
         // adjust settings if needed
-        if let Some(settings) = plan.get_settings(generation) {
+        if let Some(parameters) = schedule.get_settings(generation) {
             log::info!("Adjusting settings to:\n{}", settings);
             simulations.iter_mut().for_each(|simulation| {
-                simulation.set_settings(settings.clone());
+                simulation.set_parameters(parameters.clone());
             });
         }
 
@@ -209,7 +207,7 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
 
         // transfer between compartments
         log::debug!("Transfer between compartments...");
-        let transfer = plan.get_transfer_matrix(generation);
+        let transfer = schedule.get_transfer_matrix(generation);
         let populations: Vec<Population> = (0..args.n_compartments)
             .into_par_iter()
             .map(|target| {
@@ -238,7 +236,7 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, plan: Simulatio
 }
 
 #[cfg(not(feature = "parallel"))]
-fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPlan) {
+fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], schedule: Schedule) {
     let bar = match args.disable_progress_bar {
         true => None,
         false => {
@@ -293,7 +291,7 @@ fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPl
 
         // write to output when sampling
         log::debug!("Process sampling...");
-        let sample_size = plan.get_sample_size(generation);
+        let sample_size = schedule.get_sample_size(generation);
         if sample_size > 0 {
             sample_writer
                 .sample_from_simulations(simulations, sample_size)
@@ -309,10 +307,10 @@ fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPl
         }
 
         // adjust settings if needed
-        if let Some(settings) = plan.get_settings(generation) {
+        if let Some(settings) = schedule.get_settings(generation) {
             log::info!("Adjusting settings to:\n{}", settings);
             simulations.iter_mut().for_each(|simulation| {
-                simulation.set_settings(settings.clone());
+                simulation.set_parameters(settings.clone());
             });
         }
 
@@ -333,7 +331,7 @@ fn run(args: &Args, simulations: &mut [Box<SimulationTrait>], plan: SimulationPl
 
         // transfer between compartments
         log::debug!("Transfer between compartments...");
-        let transfer = plan.get_transfer_matrix(generation);
+        let transfer = schedule.get_transfer_matrix(generation);
 
         let populations: Vec<Population> = (0..args.n_compartments)
             .map(|target| {
@@ -368,14 +366,14 @@ fn main() {
     setup(&args);
 
     // load simulation settings
-    let settings: SimulationSettings = SimulationSettings::read_from_file(args.settings.as_str())
-        .unwrap_or_else(|err| match err {
-            SimulationSettingsError::IoError(err) => {
+    let settings: Settings =
+        Settings::read_from_file(args.settings.as_str()).unwrap_or_else(|err| match err {
+            SettingsError::IoError(err) => {
                 eprintln!("Unable to open settings from file '{}'.", args.settings);
                 eprintln!("Reason: {err}");
                 std::process::exit(1);
             }
-            SimulationSettingsError::YamlError(err) => {
+            SettingsError::YamlError(err) => {
                 eprintln!("Unable to load settings from file '{}'.", args.settings);
                 eprintln!("Reason: {err}");
                 std::process::exit(1);
@@ -390,10 +388,10 @@ fn main() {
     let wildtype = Wildtype::new(sequence.clone());
 
     // create and write fitness table
-    let fitness_tables = match &settings.simulation_parameters[0].fitness_model {
+    let fitness_tables = match &settings.parameters[0].fitness_model {
         FitnessModelField::SingleHost(fitness_model) => {
             vec![(
-                0..settings.simulation_parameters[0].host_population_size,
+                0..settings.parameters[0].host_population_size,
                 FitnessTable::from_model(&sequence, 4, fitness_model.clone()).unwrap_or_else(
                     |err| {
                         eprintln!("Unable to create fitness table.");
@@ -409,12 +407,9 @@ fn main() {
             for fitness_model_frac in fitness_models {
                 let fitness_model = fitness_model_frac.fitness_model.clone();
                 let n_hosts = (fitness_model_frac.fraction
-                    * settings.simulation_parameters[0].host_population_size as f64)
+                    * settings.parameters[0].host_population_size as f64)
                     .round() as usize;
-                let upper = min(
-                    lower + n_hosts,
-                    settings.simulation_parameters[0].host_population_size,
-                );
+                let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
                 fitness_tables.push((
                     lower..upper,
                     FitnessTable::from_model(&sequence, 4, fitness_model).unwrap_or_else(|err| {
@@ -441,11 +436,11 @@ fn main() {
         &args,
         &wildtype,
         fitness_tables.as_slice(),
-        &settings.simulation_parameters[0],
+        &settings.parameters[0],
     );
 
     // run simulation
-    run(&args, &mut simulations, settings.simulation_plan);
+    run(&args, &mut simulations, settings.schedule);
 
     // store tree if specified.
     log::info!("Storing tree...");

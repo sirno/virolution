@@ -1,17 +1,17 @@
 extern crate virolution;
 
 use std::path::PathBuf;
+
+use virolution::config::{FitnessModelField, Parameters, Schedule};
 use virolution::fitness::*;
 use virolution::haplotype::*;
 use virolution::population;
 use virolution::population::Population;
 use virolution::simulation::*;
-use virolution::simulation_parameters::*;
-use virolution::simulation_plan::*;
 
 fn main() {
     let plan_path = PathBuf::from_iter([env!("CARGO_MANIFEST_DIR"), "data/plan.csv"]);
-    let plan = SimulationPlan::read(plan_path.to_str().unwrap()).expect("Failed to read plan");
+    let plan = Schedule::read(plan_path.to_str().unwrap()).expect("Failed to read plan");
     let sequence = vec![Some(0x00); 5386];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
@@ -28,7 +28,7 @@ fn main() {
     let fitness_table = FitnessTable::from_model(&sequence, 4, fitness_model.clone()).unwrap();
 
     let wt = Wildtype::new(sequence);
-    let settings = SimulationParameters {
+    let parameters = Parameters {
         mutation_rate: 1e-6,
         recombination_rate: 1e-8,
         substitution_matrix: [
@@ -49,12 +49,12 @@ fn main() {
     let mut compartment_simulations: Vec<BasicSimulation> = (0..n_compartments)
         .map(|_| {
             let population = population![wt.clone(); 1_000_000];
-            let fitness_tables = vec![(0..settings.host_population_size, fitness_table.clone())];
+            let fitness_tables = vec![(0..parameters.host_population_size, fitness_table.clone())];
             BasicSimulation::new(
                 wt.clone(),
                 population,
                 fitness_tables,
-                settings.clone(),
+                parameters.clone(),
                 0,
             )
         })

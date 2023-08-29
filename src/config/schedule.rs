@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 
-use super::simulation_parameters::SimulationParameters;
+use super::parameters::Parameters;
 
 pub static TRANSFERS: phf::Map<&'static str, &[&[f64]]> = phf_map! {
     "migration_fwd" => MIGRATION_FWD,
@@ -100,25 +100,25 @@ impl<T> TransferMatrix<T> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SimulationPlan {
-    table: Vec<SimulationPlanRecord>,
+pub struct Schedule {
+    table: Vec<ScheduleRecord>,
     transfers: HashMap<String, TransferMatrix<f64>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-pub struct SimulationPlanRecord {
+pub struct ScheduleRecord {
     generation: String,
     event: String,
     value: String,
 }
 
 #[derive(Debug)]
-pub enum SimulationPlanReadError {
+pub enum ScheduleError {
     IoError(std::io::Error),
     CsvError(csv::Error),
 }
 
-impl Serialize for SimulationPlan {
+impl Serialize for Schedule {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -131,39 +131,37 @@ impl Serialize for SimulationPlan {
     }
 }
 
-impl<'de> Deserialize<'de> for SimulationPlan {
+impl<'de> Deserialize<'de> for Schedule {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let table: Vec<SimulationPlanRecord> =
-            Vec::<SimulationPlanRecord>::deserialize(deserializer)?;
+        let table: Vec<ScheduleRecord> = Vec::<ScheduleRecord>::deserialize(deserializer)?;
         Self::from_vec(table).map_err(|e| serde::de::Error::custom(format!("{:?}", e)))
     }
 }
 
-impl SimulationPlan {
-    pub fn read(filename: &str) -> Result<Self, SimulationPlanReadError> {
-        let mut reader =
-            BufReader::new(File::open(filename).map_err(SimulationPlanReadError::IoError)?);
-        SimulationPlan::from_reader(&mut reader)
+impl Schedule {
+    pub fn read(filename: &str) -> Result<Self, ScheduleError> {
+        let mut reader = BufReader::new(File::open(filename).map_err(ScheduleError::IoError)?);
+        Schedule::from_reader(&mut reader)
     }
 
-    pub fn from_reader(reader: &mut dyn std::io::Read) -> Result<Self, SimulationPlanReadError> {
+    pub fn from_reader(reader: &mut dyn std::io::Read) -> Result<Self, ScheduleError> {
         let mut reader = csv::ReaderBuilder::new()
             .delimiter(b';')
             .from_reader(reader);
 
         // Parse plan table
-        let table: Vec<SimulationPlanRecord> = reader
+        let table: Vec<ScheduleRecord> = reader
             .deserialize()
-            .collect::<Result<Vec<SimulationPlanRecord>, csv::Error>>()
-            .map_err(SimulationPlanReadError::CsvError)?;
+            .collect::<Result<Vec<ScheduleRecord>, csv::Error>>()
+            .map_err(ScheduleError::CsvError)?;
 
         Self::from_vec(table)
     }
 
-    pub fn from_vec(table: Vec<SimulationPlanRecord>) -> Result<Self, SimulationPlanReadError> {
+    pub fn from_vec(table: Vec<ScheduleRecord>) -> Result<Self, ScheduleError> {
         let mut transfers: HashMap<String, TransferMatrix<f64>> = table
             .iter()
             .filter_map(|record| {
@@ -204,9 +202,9 @@ impl SimulationPlan {
         }
     }
 
-    pub fn get_settings(&self, generation: usize) -> Option<SimulationParameters> {
+    pub fn get_settings(&self, generation: usize) -> Option<Parameters> {
         self.get_event_value("settings", generation)
-            .and_then(|settings_path| SimulationParameters::read_from_file(settings_path).ok())
+            .and_then(|settings_path| Parameters::read_from_file(settings_path).ok())
     }
 
     pub fn get_event_value(&self, event: &str, generation: usize) -> Option<&str> {
@@ -221,7 +219,7 @@ impl SimulationPlan {
     }
 }
 
-impl SimulationPlanRecord {
+impl ScheduleRecord {
     pub fn new(generation: &str, event: &str, value: &str) -> Self {
         Self {
             generation: generation.to_string(),
@@ -231,7 +229,7 @@ impl SimulationPlanRecord {
     }
 }
 
-fn match_generation(record: &SimulationPlanRecord, generation: usize) -> bool {
+fn match_generation(record: &ScheduleRecord, generation: usize) -> bool {
     match record.generation.parse::<usize>() {
         Ok(record_generation) => record_generation == generation,
         Err(_) => {
@@ -262,7 +260,7 @@ mod tests {
 4;transmission;root_bc
 5;transmission;root_cd"#;
 
-        let plan = SimulationPlan::from_reader(&mut plan_content.as_bytes()).unwrap();
+        let plan = Schedule::from_reader(&mut plan_content.as_bytes()).unwrap();
 
         assert_eq!(
             plan.get_transfer_matrix(0),
@@ -295,7 +293,7 @@ mod tests {
         let plan_content = r#"generation;event;value
 1;transmission;[[1, 2], [3, 4]]"#;
 
-        let plan = SimulationPlan::from_reader(&mut plan_content.as_bytes()).unwrap();
+        let plan = Schedule::from_reader(&mut plan_content.as_bytes()).unwrap();
         assert_eq!(
             plan.get_transfer_matrix(1),
             &TransferMatrix::from_vec(vec![vec![1.0, 2.0], vec![3.0, 4.0]])
@@ -309,7 +307,7 @@ mod tests {
 2;sample;200
 3;sample;300"#;
 
-        let plan = SimulationPlan::from_reader(&mut plan_content.as_bytes()).unwrap();
+        let plan = Schedule::from_reader(&mut plan_content.as_bytes()).unwrap();
 
         assert_eq!(plan.get_sample_size(0), 0);
         assert_eq!(plan.get_sample_size(1), 100);
@@ -324,7 +322,7 @@ mod tests {
 {} % 10;transmission;migration_fwd
 (5 + {}) % 10;transmission;migration_rev"#;
 
-        let plan = SimulationPlan::from_reader(&mut plan_content.as_bytes()).unwrap();
+        let plan = Schedule::from_reader(&mut plan_content.as_bytes()).unwrap();
 
         for i in 0..=1000 {
             if i % 200 == 0 {
