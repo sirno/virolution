@@ -10,10 +10,9 @@ use std::{
 
 use itertools::Itertools;
 
-use crate::{
-    barcode::BarcodeEntry, haplotype::FASTA_ENCODE, historian::Historian, population::Population,
-    simulation::SimulationTrait,
-};
+use crate::core::haplotype::FASTA_ENCODE;
+use crate::core::{Historian, Population};
+use crate::{barcode::BarcodeEntry, simulation::SimulationTrait};
 
 pub trait SampleWriter {
     /// Get the name of the experiment
@@ -266,7 +265,7 @@ mod tests {
 
     use super::*;
 
-    use crate::haplotype::Wildtype;
+    use crate::core::haplotype::Wildtype;
 
     fn get_population() -> Population {
         let wt1 = Wildtype::new(vec![Some(0x00); 10]);

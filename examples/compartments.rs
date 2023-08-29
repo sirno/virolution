@@ -3,11 +3,12 @@ extern crate virolution;
 use std::path::PathBuf;
 
 use virolution::config::{FitnessModelField, Parameters, Schedule};
-use virolution::fitness::*;
-use virolution::haplotype::*;
-use virolution::population;
-use virolution::population::Population;
+use virolution::core::fitness::*;
+use virolution::core::haplotype::*;
+use virolution::core::population::Population;
 use virolution::simulation::*;
+
+use virolution::population;
 
 fn main() {
     let plan_path = PathBuf::from_iter([env!("CARGO_MANIFEST_DIR"), "data/plan.csv"]);

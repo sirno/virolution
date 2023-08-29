@@ -10,9 +10,7 @@ use std::sync::mpsc::channel;
 use std::{cmp::min, ops::Range};
 
 use crate::config::Parameters;
-use crate::fitness::FitnessTable;
-use crate::haplotype::Haplotype;
-use crate::population::Population;
+use crate::core::{FitnessTable, Haplotype, Population};
 use crate::references::HaplotypeRef;
 
 pub type HostMap = Vec<Vec<usize>>;
@@ -373,11 +371,11 @@ impl Simulation for BasicSimulation {
 mod tests {
     use super::*;
     use crate::config::FitnessModelField;
-    use crate::fitness::{
+    use crate::core::fitness::{
         ExponentialParameters, FitnessDistribution, FitnessModel, MutationCategoryWeights,
         UtilityFunction,
     };
-    use crate::haplotype::Wildtype;
+    use crate::core::haplotype::Wildtype;
     use test::Bencher;
 
     const DISTRIBUTION: FitnessDistribution =

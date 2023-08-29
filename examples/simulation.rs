@@ -2,11 +2,12 @@ extern crate virolution;
 
 use std::fs;
 use virolution::config::{FitnessModelField, Parameters};
-use virolution::fitness::*;
-use virolution::haplotype::*;
-use virolution::population;
-use virolution::population::Population;
+use virolution::core::fitness::*;
+use virolution::core::haplotype::*;
+use virolution::core::Population;
 use virolution::simulation::*;
+
+use virolution::population;
 
 fn main() {
     let sequence = vec![Some(0x00); 100];

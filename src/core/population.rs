@@ -21,14 +21,14 @@ pub type Haplotypes = HashMap<usize, HaplotypeRef>;
 #[macro_export]
 macro_rules! population {
     () => {
-        $crate::population::Population::new()
+        $crate::core::Population::new()
     };
     ($haplotype:expr, $size:expr) => {
-        $crate::population::Population::from_haplotype($haplotype, $size)
+        $crate::core::Population::from_haplotype($haplotype, $size)
     };
     ($( $haplotype:expr ),+) => {
         {
-        let mut population = $crate::population::Population::new();
+        let mut population = $crate::core::Population::new();
         $(
             population.push($haplotype);
         )+
@@ -36,7 +36,7 @@ macro_rules! population {
     }
     };
     ($( $haplotype:expr ; $size:expr ),+) => {
-        $crate::population::Population::from_iter(vec![$( $crate::population::Population::from_haplotype($haplotype, $size) ),+])
+        $crate::core::Population::from_iter(vec![$( $crate::core::Population::from_haplotype($haplotype, $size) ),+])
     };
 }
 
@@ -263,7 +263,7 @@ impl Population {
 mod tests {
     use super::*;
 
-    use crate::haplotype::Wildtype;
+    use crate::core::haplotype::Wildtype;
 
     #[test]
     fn is_empty() {

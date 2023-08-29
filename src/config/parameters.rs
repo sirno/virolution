@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 
-use crate::fitness::FitnessModel;
+use crate::core::FitnessModel;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Parameters {
@@ -67,7 +67,7 @@ impl Parameters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fitness::*;
+    use crate::core::fitness::*;
 
     #[test]
     fn read_write_neutral() {

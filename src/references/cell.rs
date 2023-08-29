@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 
-use crate::haplotype::Haplotype;
 use block_id::{Alphabet, BlockId};
 use derive_more::{Deref, DerefMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::{Rc, Weak};
+
+use crate::core::Haplotype;
 
 #[derive(Clone, Deref, DerefMut)]
 pub struct HaplotypeRef(pub Rc<Haplotype>);

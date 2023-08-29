@@ -19,16 +19,18 @@ use std::io;
 use std::ops::Range;
 use std::panic::catch_unwind;
 use std::rc::Rc;
+
 use virolution::args::*;
 use virolution::config::{FitnessModelField, Parameters, Schedule, Settings, SettingsError};
-use virolution::fitness::*;
-use virolution::haplotype::*;
-use virolution::historian::Historian;
-use virolution::population;
-use virolution::population::Population;
 use virolution::references::HaplotypeRef;
 use virolution::sample_writer::*;
 use virolution::simulation::*;
+
+use virolution::core::haplotype::Symbol;
+use virolution::core::haplotype::{Wildtype, FASTA_DECODE};
+use virolution::core::{FitnessTable, Historian, Population};
+
+use virolution::population;
 
 fn setup(args: &Args) {
     // setup logger

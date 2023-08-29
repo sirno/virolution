@@ -1,27 +1,25 @@
+//! This module contains the Ancestry struct and its associated methods.
+//!
+//! The Ancestry struct is used to store the ancestors of a given node. It can
+//! be used to reconstruct the tree of individual ancestors for a single
+//! sampling time.
+
 use std::cell::RefCell;
 use std::collections::{HashMap, LinkedList};
 use std::rc::Rc;
 use std::rc::Weak;
 
-struct Ancestry {
+type Ancestors = Vec<usize>;
+
+pub struct Ancestry {
     ancestry: LinkedList<Ancestors>,
 }
 
-struct Ancestors {
-    ancestors: Vec<usize>,
-}
-
 struct AncestorsTreeBuilderNode {
-    children: Vec<RefCell<AncestorsTreeBuilderNode>>,
     pos: usize,
     dist: usize,
-}
-
-struct AncestorsTreeNode {
-    parent: Option<Weak<AncestorsTreeNode>>,
-    children: Vec<Rc<AncestorsTreeNode>>,
-    id: usize,
-    distance: usize,
+    name: Option<String>,
+    children: Vec<RefCell<AncestorsTreeBuilderNode>>,
 }
 
 trait DuplicateIndexMapExt {
@@ -31,7 +29,7 @@ trait DuplicateIndexMapExt {
 impl DuplicateIndexMapExt for Ancestors {
     fn duplicate_index_map(&self) -> HashMap<usize, Vec<usize>> {
         let mut indices: HashMap<usize, Vec<usize>> = HashMap::new();
-        for (i, &v) in self.ancestors.iter().enumerate() {
+        for (i, &v) in self.iter().enumerate() {
             indices.entry(v).or_insert(vec![]).push(i);
         }
         indices
@@ -49,18 +47,21 @@ impl Ancestry {
         self.ancestry.push_back(ancestors);
     }
 
-    fn get_tree(&self) -> AncestorsTreeBuilderNode {
+    /// Creates a tree of ancestors from the ancestors with the leaf nodes given
+    /// by the names.
+    fn get_tree(&self, names: &[&str]) -> AncestorsTreeBuilderNode {
         // create a list of singular nodes
-        let mut trees: LinkedList<RefCell<AncestorsTreeBuilderNode>> =
-            (0..self.ancestry.back().unwrap().ancestors.len())
-                .map(|pos| {
-                    RefCell::new(AncestorsTreeBuilderNode {
-                        children: Vec::new(),
-                        pos,
-                        dist: 0,
-                    })
+        let length = self.ancestry.back().unwrap().len();
+        let mut trees: LinkedList<RefCell<AncestorsTreeBuilderNode>> = (0..length)
+            .map(|pos| {
+                RefCell::new(AncestorsTreeBuilderNode {
+                    pos,
+                    dist: 0,
+                    name: Some(names[pos].to_string()),
+                    children: Vec::new(),
                 })
-                .collect();
+            })
+            .collect();
 
         // continuously merge nodes until there is only one node left
         for ancestors in self.ancestry.iter().rev() {
@@ -84,9 +85,10 @@ impl Ancestry {
                             .extract_if(|node| indices.contains(&node.borrow().pos))
                             .collect();
                         trees.push_back(RefCell::new(AncestorsTreeBuilderNode {
-                            children: children,
                             pos,
-                            dist: 1,
+                            dist: 0,
+                            name: None,
+                            children: children,
                         }));
                     }
                     _ => unreachable!(),

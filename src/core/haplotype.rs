@@ -19,8 +19,8 @@
 //!
 
 use super::fitness::FitnessTable;
-use super::references::DescendantsCell;
-use super::references::{HaplotypeRef, HaplotypeWeak};
+use crate::references::DescendantsCell;
+use crate::references::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
 use phf::phf_map;
 use seq_io::fasta::OwnedRecord;

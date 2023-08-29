@@ -1,6 +1,6 @@
 extern crate virolution;
 
-use virolution::haplotype::*;
+use virolution::core::haplotype::*;
 
 fn main() {
     let bytes = vec![Some(0x00); 4];

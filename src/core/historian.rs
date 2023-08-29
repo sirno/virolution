@@ -6,7 +6,7 @@
 //! without having to keep the entire history in memory of unobserved elements.
 //!
 
-use crate::population::Population;
+use crate::core::Population;
 use std::fmt;
 
 #[derive(Debug)]

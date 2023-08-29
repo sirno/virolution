@@ -5,12 +5,8 @@
 
 pub mod args;
 pub mod barcode;
-pub mod fitness;
-pub mod haplotype;
-pub mod historian;
 #[macro_use]
-pub mod population;
-pub mod ancestry;
+pub mod core;
 pub mod config;
 pub mod references;
 pub mod sample_writer;
