@@ -178,7 +178,7 @@ fn run(args: &Args, simulations: &mut Vec<Box<SimulationTrait>>, schedule: Sched
 
         // adjust settings if needed
         if let Some(parameters) = schedule.get_settings(generation) {
-            log::info!("Adjusting settings to:\n{}", settings);
+            log::info!("Adjusting settings to:\n{}", parameters);
             simulations.iter_mut().for_each(|simulation| {
                 simulation.set_parameters(parameters.clone());
             });
