@@ -257,6 +257,24 @@ impl Population {
             haplotypes,
         }
     }
+
+    /// Select a `Population` from the `Population` based on a vector of indices.
+    pub fn select(&self, indices: &Vec<usize>) -> Self {
+        let population: Vec<usize> = indices
+            .iter()
+            .map(|&index| self.population[index])
+            .collect();
+        let haplotypes: Haplotypes = population
+            .iter()
+            .unique()
+            .map(|&id| (id, self.haplotypes[&id].clone()))
+            .collect();
+
+        Self {
+            population,
+            haplotypes,
+        }
+    }
 }
 
 #[cfg(test)]

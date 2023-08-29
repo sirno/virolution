@@ -2,7 +2,7 @@ extern crate test;
 
 use itertools::Itertools;
 use rand::prelude::*;
-use rand_distr::{Bernoulli, Binomial, Poisson, WeightedIndex};
+use rand_distr::{Bernoulli, Binomial, Poisson, WeightedAliasIndex, WeightedIndex};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 #[cfg(feature = "parallel")]
@@ -35,6 +35,7 @@ pub trait Simulation {
     fn mutate_infectants(&mut self, host_map: &HostMap);
     fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize>;
 
+    fn sample_indices(&self, offspring_map: &[usize], factor: f64) -> Vec<usize>;
     fn subsample_population(&self, offspring_map: &[usize], dilution: f64) -> Population;
 
     fn print_population(&self) -> Vec<String>;
@@ -335,6 +336,24 @@ impl Simulation for BasicSimulation {
                 });
             });
         offspring
+    }
+
+    fn sample_indices(&self, offspring_map: &[usize], factor: f64) -> Vec<usize> {
+        if offspring_map.is_empty() {
+            return Vec::new();
+        }
+
+        let offspring_size: usize = offspring_map.iter().sum();
+        let sample_size = (factor
+            * min(
+                (offspring_size as f64 * self.parameters.dilution) as usize,
+                self.parameters.max_population,
+            ) as f64) as usize;
+
+        let mut rng = rand::thread_rng();
+        let sampler = WeightedAliasIndex::new(offspring_map.to_vec()).unwrap();
+
+        (0..sample_size).map(|_| sampler.sample(&mut rng)).collect()
     }
 
     fn subsample_population(&self, offspring_map: &[usize], factor: f64) -> Population {

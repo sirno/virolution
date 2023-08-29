@@ -39,7 +39,7 @@ impl Runner {
         let sequence = Self::load_sequence(args.sequence.as_str())?;
         let wildtype = Wildtype::new(sequence.clone());
 
-        let fitness_tables = Self::create_fitness_tables(&args, &settings, &sequence, &wildtype)?;
+        let fitness_tables = Self::create_fitness_tables(&settings, &sequence)?;
         Self::write_fitness_tables(&fitness_tables);
 
         // create individual compartments
@@ -147,10 +147,8 @@ impl Runner {
     }
 
     fn create_fitness_tables(
-        args: &Args,
         settings: &Settings,
         sequence: &Vec<Option<u8>>,
-        wildtype: &HaplotypeRef,
     ) -> Result<Vec<(Range<usize>, FitnessTable)>> {
         let fitness_tables = match &settings.parameters[0].fitness_model {
             FitnessModelField::SingleHost(fitness_model) => {
@@ -196,7 +194,7 @@ impl Runner {
     ) -> Vec<Box<SimulationTrait>> {
         (0..args.n_compartments)
             .map(|compartment_idx| {
-                let init_population: Population = if compartment_idx == 0 {
+                let init_population: Population = if compartment_idx >= 0 {
                     let initial_population_size = match args.initial_population_size {
                         Some(size) => size,
                         None => parameters.max_population,
@@ -448,13 +446,42 @@ impl Runner {
             log::debug!("Transfer between compartments...");
             let transfer = self.settings.schedule.get_transfer_matrix(generation);
 
+            let indices: Vec<Vec<Vec<usize>>> = (0..self.args.n_compartments)
+                .map(|target| {
+                    (0..self.args.n_compartments)
+                        .map(|origin| {
+                            self.simulations[origin]
+                                .sample_indices(&offsprings[origin], *transfer.get(target, origin))
+                        })
+                        .collect()
+                })
+                .collect();
+            println!("{:?}", indices);
+            let ancestors: Vec<usize> = indices
+                .iter()
+                .map(|t| {
+                    t.iter()
+                        .enumerate()
+                        .map(|(i, v)| {
+                            let n = self.simulations[..i]
+                                .iter()
+                                .map(|s| s.get_population().len())
+                                .sum::<usize>();
+                            v.iter().map(|a| n + (*a)).collect::<Vec<usize>>()
+                        })
+                        .flatten()
+                        .collect::<Vec<_>>()
+                })
+                .flatten()
+                .collect();
+            println!("{:?}", ancestors);
+            println!("{:?}", ancestors.len());
             let populations: Vec<Population> = (0..self.args.n_compartments)
                 .map(|target| {
                     Population::from_iter((0..self.args.n_compartments).map(|origin| {
-                        self.simulations[origin].subsample_population(
-                            &offsprings[origin],
-                            *transfer.get(target, origin),
-                        )
+                        self.simulations[origin]
+                            .get_population()
+                            .select(&indices[target][origin])
                     }))
                 })
                 .collect();
