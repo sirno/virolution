@@ -20,7 +20,7 @@ use crate::core::haplotype::{Symbol, Wildtype, FASTA_DECODE};
 use crate::core::{Ancestry, FitnessTable, Historian, Population};
 use crate::references::HaplotypeRef;
 use crate::sample_writer::{FastaSampleWriter, SampleWriter};
-use crate::simulation::{BasicSimulation, SimulationTrait};
+use crate::simulation::{BasicSimulation, HostMap, SimulationTrait};
 
 pub struct Runner {
     args: Args,
