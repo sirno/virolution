@@ -15,6 +15,7 @@
 - Moved all things related to `Settings` into config module
 - Moved several structures into core module
 - Move application control flow into runner module
+- Added individual ancestry tracing (this is costly...)
 
 ## 0.1.0 --- Rapid Expansion (Jul 26, 2023)
 

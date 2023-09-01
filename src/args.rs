@@ -42,6 +42,11 @@ pub struct Args {
     #[clap(long)]
     pub trees: Option<String>,
 
+    /// Path to optional ancestry tree file which contains the ancestry of each
+    /// individual at the last iteration. Format: Extended Newick
+    #[clap(long)]
+    pub ancestry: Option<String>,
+
     /// Number of compartments
     #[clap(long, default_value = "3")]
     pub n_compartments: usize,

@@ -17,16 +17,17 @@ use std::rc::Rc;
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::haplotype::{Symbol, Wildtype, FASTA_DECODE};
-use crate::core::{FitnessTable, Historian, Population};
+use crate::core::{Ancestry, FitnessTable, Historian, Population};
 use crate::references::HaplotypeRef;
 use crate::sample_writer::{FastaSampleWriter, SampleWriter};
-use crate::simulation::{BasicSimulation, HostMap, SimulationTrait};
+use crate::simulation::{BasicSimulation, SimulationTrait};
 
 pub struct Runner {
     args: Args,
     settings: Settings,
     wildtype: HaplotypeRef,
     simulations: Vec<Box<SimulationTrait>>,
+    ancestry: Option<Ancestry>,
 }
 
 impl Runner {
@@ -44,18 +45,21 @@ impl Runner {
 
         // create individual compartments
         println!("Creating {} compartments...", args.n_compartments);
-        let mut simulations: Vec<Box<SimulationTrait>> = Self::create_simulations(
+        let simulations: Vec<Box<SimulationTrait>> = Self::create_simulations(
             &args,
             &wildtype,
             fitness_tables.as_slice(),
             &settings.parameters[0],
         );
 
+        let ancestry: Option<Ancestry> = args.ancestry.as_ref().map(|_| Ancestry::new());
+
         Ok(Self {
             args,
             settings,
             wildtype,
             simulations,
+            ancestry,
         })
     }
 
@@ -91,6 +95,13 @@ impl Runner {
                     ])
                     .expect("Unable to write to samples file.")
             }
+        }
+
+        log::info!("Storing samples...");
+        if let Some(ancestry) = &self.ancestry && let Some(ancestry_file) = &self.args.ancestry {
+            let names: Vec<String> = self.simulations.iter().map(|s| s.get_population().iter().map(|h| h.get_block_id())).flatten().collect();
+            fs::write(ancestry_file, ancestry.get_tree(names.as_slice()))
+                .unwrap_or_else(|_| eprintln!("Unable to write ancestry file."));
         }
     }
 
@@ -446,6 +457,7 @@ impl Runner {
             log::debug!("Transfer between compartments...");
             let transfer = self.settings.schedule.get_transfer_matrix(generation);
 
+            // sample indices to transfer
             let indices: Vec<Vec<Vec<usize>>> = (0..self.args.n_compartments)
                 .map(|target| {
                     (0..self.args.n_compartments)
@@ -456,26 +468,31 @@ impl Runner {
                         .collect()
                 })
                 .collect();
-            println!("{:?}", indices);
-            let ancestors: Vec<usize> = indices
-                .iter()
-                .map(|t| {
-                    t.iter()
-                        .enumerate()
-                        .map(|(i, v)| {
-                            let n = self.simulations[..i]
-                                .iter()
-                                .map(|s| s.get_population().len())
-                                .sum::<usize>();
-                            v.iter().map(|a| n + (*a)).collect::<Vec<usize>>()
-                        })
-                        .flatten()
-                        .collect::<Vec<_>>()
-                })
-                .flatten()
-                .collect();
-            println!("{:?}", ancestors);
-            println!("{:?}", ancestors.len());
+
+            // store ancestry from indices
+            // TODO: ONLY WORKS WITH CONSTANT POPULATION SIZE
+            if let Some(ancestry) = &mut self.ancestry {
+                let ancestors: Vec<usize> = indices
+                    .iter()
+                    .map(|t| {
+                        t.iter()
+                            .enumerate()
+                            .map(|(i, v)| {
+                                let n = self.simulations[..i]
+                                    .iter()
+                                    .map(|s| s.get_population().len())
+                                    .sum::<usize>();
+                                v.iter().map(|a| n + (*a)).collect::<Vec<usize>>()
+                            })
+                            .flatten()
+                            .collect::<Vec<_>>()
+                    })
+                    .flatten()
+                    .collect();
+                ancestry.add_ancestors(ancestors);
+            }
+
+            // perform the migration and create new populations
             let populations: Vec<Population> = (0..self.args.n_compartments)
                 .map(|target| {
                     Population::from_iter((0..self.args.n_compartments).map(|origin| {
