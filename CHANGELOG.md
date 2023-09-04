@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 0.2.0 --- Treecherous Harmony (WIP)
+## 0.2.0 --- Treecherous Harmony (Sep 04, 2023)
 
 - Change encoding order to ATCG
 - Leaking the Historian
