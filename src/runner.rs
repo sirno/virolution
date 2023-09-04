@@ -98,8 +98,19 @@ impl Runner {
         }
 
         log::info!("Storing samples...");
-        if let Some(ancestry) = &self.ancestry && let Some(ancestry_file) = &self.args.ancestry {
-            let names: Vec<String> = self.simulations.iter().map(|s| s.get_population().iter().map(|h| h.get_block_id())).flatten().collect();
+        if let Some(ancestry) = &self.ancestry {
+            let ancestry_file = self.args.ancestry.as_ref().unwrap();
+            let names: Vec<String> = self
+                .simulations
+                .iter()
+                .enumerate()
+                .map(|(t, s)| {
+                    s.get_population()
+                        .iter()
+                        .map(move |h| format!("{}_{}", h.get_block_id(), t))
+                })
+                .flatten()
+                .collect();
             fs::write(ancestry_file, ancestry.get_tree(names.as_slice()))
                 .unwrap_or_else(|_| eprintln!("Unable to write ancestry file."));
         }
@@ -204,15 +215,13 @@ impl Runner {
         parameters: &Parameters,
     ) -> Vec<Box<SimulationTrait>> {
         (0..args.n_compartments)
-            .map(|compartment_idx| {
-                let init_population: Population = if compartment_idx >= 0 {
+            .map(|_compartment_idx| {
+                let init_population: Population = {
                     let initial_population_size = match args.initial_population_size {
                         Some(size) => size,
                         None => parameters.max_population,
                     };
                     population![wildtype.clone(); initial_population_size]
-                } else {
-                    Population::new()
                 };
                 BasicSimulation::new(
                     wildtype.clone(),

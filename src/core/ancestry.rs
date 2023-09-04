@@ -4,7 +4,6 @@
 //! be used to reconstruct the tree of individual ancestors for a single
 //! sampling time.
 
-use itertools::Itertools;
 use std::cell::RefCell;
 use std::collections::{HashMap, LinkedList};
 
