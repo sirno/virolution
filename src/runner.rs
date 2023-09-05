@@ -12,6 +12,7 @@ use std::fs;
 use std::io;
 use std::ops::Range;
 use std::panic::catch_unwind;
+use std::path::Path;
 use std::rc::Rc;
 
 use crate::args::Args;
@@ -41,7 +42,7 @@ impl Runner {
         let wildtype = Wildtype::new(sequence.clone());
 
         let fitness_tables = Self::create_fitness_tables(&settings, &sequence)?;
-        Self::write_fitness_tables(&fitness_tables);
+        Self::write_fitness_tables(&fitness_tables, Path::new(args.outdir.as_str()).parent());
 
         // create individual compartments
         println!("Creating {} compartments...", args.n_compartments);
@@ -78,9 +79,14 @@ impl Runner {
         log::info!("Finished storing tree.");
 
         log::info!("Storing sequences...");
+
+        let sequence_path = Path::new(self.args.outdir.as_str())
+            .parent()
+            .unwrap_or_else(|| Path::new("./"));
         for (compartment_id, compartment) in self.simulations.iter().enumerate() {
+            log::info!("Storing sequences for compartment {}...", compartment_id);
             let mut sequence_file = csv::WriterBuilder::new()
-                .from_path(format!("final.{}.csv", compartment_id))
+                .from_path(sequence_path.join(format!("final.{}.csv", compartment_id)))
                 .expect("Unable to create final sequence file.");
 
             sequence_file
@@ -97,8 +103,8 @@ impl Runner {
             }
         }
 
-        log::info!("Storing samples...");
         if let Some(ancestry) = &self.ancestry {
+            log::info!("Storing ancestry...");
             let ancestry_file = self.args.ancestry.as_ref().unwrap();
             let names: Vec<String> = self
                 .simulations
@@ -200,10 +206,15 @@ impl Runner {
         Ok(fitness_tables)
     }
 
-    fn write_fitness_tables(fitness_tables: &Vec<(Range<usize>, FitnessTable)>) {
+    fn write_fitness_tables(
+        fitness_tables: &Vec<(Range<usize>, FitnessTable)>,
+        path: Option<&Path>,
+    ) {
+        let sequence_path = path.unwrap_or_else(|| Path::new("./"));
         for (idx, (_, fitness_table)) in fitness_tables.iter().enumerate() {
             let name = format!("fitness_table_{}.npy", idx);
-            let mut fitness_file = io::BufWriter::new(fs::File::create(name).unwrap());
+            let mut fitness_file =
+                io::BufWriter::new(fs::File::create(sequence_path.join(name)).unwrap());
             fitness_table.write(&mut fitness_file).unwrap();
         }
     }
