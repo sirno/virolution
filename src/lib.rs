@@ -8,6 +8,7 @@ pub mod barcode;
 #[macro_use]
 pub mod core;
 pub mod config;
+pub mod readwrite;
 pub mod references;
 pub mod runner;
 pub mod sample_writer;

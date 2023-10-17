@@ -17,11 +17,14 @@ use std::rc::Rc;
 
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
-use crate::core::haplotype::{Symbol, Wildtype, FASTA_DECODE};
-use crate::core::{Ancestry, FitnessTable, Historian, Population};
+use crate::core::haplotype::{Symbol, FASTA_DECODE};
+use crate::core::{Ancestry, FitnessTable, Haplotype, Historian, Population};
+use crate::readwrite::HaplotypeIO;
 use crate::references::HaplotypeRef;
 use crate::sample_writer::{FastaSampleWriter, SampleWriter};
-use crate::simulation::{BasicSimulation, HostMap, SimulationTrait};
+#[cfg(feature = "parallel")]
+use crate::simulation::HostMap;
+use crate::simulation::{BasicSimulation, SimulationTrait};
 
 pub struct Runner {
     args: Args,
@@ -38,10 +41,9 @@ impl Runner {
         Self::setup_rayon(&args);
 
         let settings = Self::load_settings(&args.settings)?;
-        let sequence = Self::load_sequence(args.sequence.as_str())?;
-        let wildtype = Wildtype::new(sequence.clone());
+        let wildtype = Haplotype::load_wildtype(args.sequence.as_str())?;
 
-        let fitness_tables = Self::create_fitness_tables(&settings, &sequence)?;
+        let fitness_tables = Self::create_fitness_tables(&settings, &wildtype.get_sequence())?;
         Self::write_fitness_tables(&fitness_tables, Path::new(args.outdir.as_str()).parent());
 
         // create individual compartments
@@ -156,22 +158,6 @@ impl Runner {
         let settings: Settings = Settings::read_from_file(path)?;
         log::info!("Loaded settings\n{}", settings);
         Ok(settings)
-    }
-
-    fn load_sequence(path: &str) -> Result<Vec<Symbol>> {
-        let mut reader = fasta::Reader::from_path(path)?;
-        Ok(reader
-            .next()
-            .unwrap()
-            .expect("Unable to read sequence.")
-            .seq()
-            .iter()
-            .filter(|&&enc| enc != 0x0au8)
-            .map(|enc| match catch_unwind(|| Some(FASTA_DECODE[enc])) {
-                Ok(result) => result,
-                Err(_) => panic!("Unable to decode literal {enc}."),
-            })
-            .collect())
     }
 
     fn create_fitness_tables(
