@@ -19,6 +19,29 @@ will generate offspring. The number of offspring it can generate is drawn from
 a Poisson-distribution, where the expectation is the product of fitness and
 basic reproductive number, divided by the number of infectants in their host.
 
+## Installation
+
+Use rustup to select the nightly toolchain
+
+```bash
+rustup toolchain install nightly
+rustup default nightly
+```
+
+Use cargo to compile and run and install
+
+```bash
+cargo build
+cargo run -- --settings settings.yaml --sequence reference.fasta
+cargo install --path .
+```
+
+To utilize multiple cores, select the `parallel` feature, e.g.
+
+```bash
+cargo install --path . --features parallel
+```
+
 ## Simulation Parameters
 
 ```rust
