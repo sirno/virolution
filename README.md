@@ -22,7 +22,7 @@ basic reproductive number, divided by the number of infectants in their host.
 ## Simulation Parameters
 
 ```rust
-pub struct SimulationParameters {
+pub struct Parameters {
     pub mutation_rate: f64,
     pub recombination_rate: f64,
     pub host_population_size: usize,
@@ -39,37 +39,35 @@ pub struct SimulationParameters {
 
 ```yaml
 ---
-simulation_parameters:
-  mutation_rate: 1e-6
-  recombination_rate: 1e-4
-  host_population_size: 100000000
+parameters:
+- mutation_rate: 1e-6
+  recombination_rate: 0
+  host_population_size: 100000
   infection_fraction: 0.7
   basic_reproductive_number: 100.0
-  max_population: 100000000
+  max_population: 100000
   dilution: 0.02
   substitution_matrix:
     - [0.0, 1.0, 1.0, 1.0]
     - [1.0, 0.0, 1.0, 1.0]
     - [1.0, 1.0, 0.0, 1.0]
     - [1.0, 1.0, 1.0, 0.0]
-  fitness_model:
-    distribution: !Exponential
-        weights:
-          beneficial: 0.29
-          deleterious: 0.51
-          lethal: 0.2
-          neutral: 0.0
-        lambda_beneficial: 0.03
-        lambda_deleterious: 0.21
-    utility: Linear
-simulation_plan:
-  - generation: "(25 + {}) % 50"
-    event: transmission
-    value: migration_fwd
-  - generation: "{} % 50"
-    event: transmission
-    value: migration_rev
-  - generation: "{} % 200"
-    event: sample
-    value: 1000
+  fitness_model: !SingleHost
+        distribution: !Exponential
+            weights:
+              beneficial: 0.29
+              deleterious: 0.51
+              lethal: 0.2
+              neutral: 0.0
+            lambda_beneficial: 0.03
+            lambda_deleterious: 0.21
+        utility: !Algebraic
+            upper: 1.5
+schedule:
+- generation: '{} % 1'
+  event: transmission
+  value: "[[0.9, 0.1], [0.1, 0.9]]"
+- generation: '{} % 200'
+  event: sample
+  value: 1000
 ```
