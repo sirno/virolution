@@ -1,0 +1,57 @@
+parameters:
+- mutation_rate: 1e-6
+  recombination_rate: 0
+  host_population_size: 100000
+  infection_fraction: 0.7
+  basic_reproductive_number: 100.0
+  max_population: 100000
+  dilution: 0.02
+  substitution_matrix:
+    - - 0.0
+      - 1.0
+      - 1.0
+      - 1.0
+    - - 1.0
+      - 0.0
+      - 1.0
+      - 1.0
+    - - 1.0
+      - 1.0
+      - 0.0
+      - 1.0
+    - - 1.0
+      - 1.0
+      - 1.0
+      - 0.0
+  fitness_model: !MultiHost
+    - fraction: 0.5
+      fitness_model:
+        distribution: !Exponential
+            weights:
+              beneficial: 0.29
+              deleterious: 0.51
+              lethal: 0.2
+              neutral: 0.0
+            lambda_beneficial: 0.03
+            lambda_deleterious: 0.21
+        utility: !Algebraic
+            upper: 1.5
+    - fraction: 0.5
+      fitness_model:
+        distribution: !Exponential
+            weights:
+              beneficial: 0.29
+              deleterious: 0.51
+              lethal: 0.2
+              neutral: 0.0
+            lambda_beneficial: 0.03
+            lambda_deleterious: 0.21
+        utility: !Algebraic
+            upper: 1.5
+schedule:
+- generation: '{} % 1'
+  event: transmission
+  value: "[[0.9, 0.1], [0.1, 0.9]]"
+- generation: '{} % 200'
+  event: sample
+  value: 1000

@@ -1,0 +1,37 @@
+---
+parameters:
+- mutation_rate: 2.16e-5
+  recombination_rate: 0
+  host_population_size: 500
+  infection_fraction: 1.0
+  basic_reproductive_number: 6.0
+  max_population: 500
+  dilution: 1.0
+  substitution_matrix:
+    - - 0.0
+      - 0.24752475
+      - 0.11371137
+      - 0.09370937
+    - - 0.38363836
+      - 0.0
+      - 0.08910891
+      - 0.09150915
+    - - 0.21922192
+      - 0.11081108
+      - 0.0
+      - 0.24252425
+    - - 0.18228177
+      - 0.11488851
+      - 0.24477553
+      - 0.0
+  fitness_model: !SingleHost
+    distribution: !Neutral
+    utility: Linear
+schedule:
+- generation: '{} % 1'
+  event: transmission
+  value: '[[0.99, 0.01], [0.01, 0.99]]'
+- generation: '{} % 100'
+  event: sample
+  value: 100
+
