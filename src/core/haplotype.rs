@@ -27,7 +27,6 @@ use seq_io::fasta::OwnedRecord;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicIsize, Ordering};
-use std::sync::OnceLock;
 
 // #[derive(Clone, Debug, Deref)]
 pub type Symbol = Option<u8>;
@@ -68,7 +67,6 @@ pub struct Mutant {
     ancestor: HaplotypeRef,
     changes: HashMap<usize, (Symbol, Symbol)>,
     generation: usize,
-    fitness: OnceLock<f64>,
     descendants: DescendantsCell,
     dirty_descendants: AtomicIsize,
 }
@@ -82,7 +80,6 @@ pub struct Recombinant {
     left_position: usize,
     right_position: usize,
     generation: usize,
-    fitness: OnceLock<f64>,
     descendants: DescendantsCell,
     dirty_descendants: AtomicIsize,
 }
@@ -116,6 +113,12 @@ impl Haplotype {
                 .zip(changes.iter())
                 .map(|(pos, sym)| (*pos, (self.get_base(pos), *sym))),
         );
+
+        changes.iter().for_each(|(pos, change)| {
+            if change.0 == change.1 {
+                dbg!(pos, change);
+            }
+        });
 
         let descendant = Mutant::new(ancestor, wildtype.get_weak(), changes, generation);
 
@@ -345,8 +348,8 @@ impl Haplotype {
     pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
         match self {
             Haplotype::Wildtype(_wt) => 1.,
-            Haplotype::Mutant(ht) => *ht.get_fitness(fitness_table),
-            Haplotype::Recombinant(rc) => *rc.get_fitness(fitness_table),
+            Haplotype::Mutant(ht) => ht.get_fitness(fitness_table),
+            Haplotype::Recombinant(rc) => rc.get_fitness(fitness_table),
         }
     }
 
@@ -547,7 +550,6 @@ impl Mutant {
                 ancestor: ancestor.clone(),
                 changes: changes.clone(),
                 generation,
-                fitness: OnceLock::new(),
                 descendants: DescendantsCell::new(),
                 dirty_descendants: AtomicIsize::new(0),
             })
@@ -575,7 +577,6 @@ impl Mutant {
             ancestor,
             changes,
             generation,
-            fitness: OnceLock::new(),
             descendants: DescendantsCell::from_iter(descendants),
             dirty_descendants: AtomicIsize::new(0),
         }));
@@ -620,17 +621,15 @@ impl Mutant {
         mutations
     }
 
-    pub fn get_fitness(&self, fitness_table: &FitnessTable) -> &f64 {
-        self.fitness.get_or_init(|| {
-            let mut fitness = self.ancestor.get_fitness(fitness_table);
+    pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
+        let mut fitness = self.ancestor.get_fitness(fitness_table);
 
-            self.changes.iter().for_each(|(position, change)| {
-                fitness /= fitness_table.get_fitness(position, &change.0);
-                fitness *= fitness_table.get_fitness(position, &change.1);
-            });
+        self.changes.iter().for_each(|(position, change)| {
+            fitness /= fitness_table.get_fitness(position, &change.0);
+            fitness *= fitness_table.get_fitness(position, &change.1);
+        });
 
-            fitness_table.utility(fitness)
-        })
+        fitness_table.utility(fitness)
     }
 
     pub fn get_subtree(&self) -> String {
@@ -678,7 +677,6 @@ impl Recombinant {
                 left_position,
                 right_position,
                 generation,
-                fitness: OnceLock::new(),
                 descendants: DescendantsCell::new(),
                 dirty_descendants: AtomicIsize::new(0),
             })
@@ -722,17 +720,15 @@ impl Recombinant {
         mutations
     }
 
-    pub fn get_fitness(&self, fitness_table: &FitnessTable) -> &f64 {
-        self.fitness.get_or_init(|| {
-            let mutations = self.get_mutations();
-            let mut fitness = 1.;
+    pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
+        let mutations = self.get_mutations();
+        let mut fitness = 1.;
 
-            for (position, (_from, to)) in mutations {
-                fitness *= fitness_table.get_fitness(&position, &to);
-            }
+        for (position, (_from, to)) in mutations {
+            fitness *= fitness_table.get_fitness(&position, &to);
+        }
 
-            fitness_table.utility(fitness)
-        })
+        fitness_table.utility(fitness)
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
