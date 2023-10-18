@@ -11,5 +11,4 @@ pub mod config;
 pub mod readwrite;
 pub mod references;
 pub mod runner;
-pub mod sample_writer;
 pub mod simulation;
