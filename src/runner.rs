@@ -4,24 +4,20 @@ use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
-use seq_io::fasta;
-use seq_io::fasta::Record;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::fs;
 use std::io;
 use std::ops::Range;
-use std::panic::catch_unwind;
 use std::path::Path;
 use std::rc::Rc;
 
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
-use crate::core::haplotype::{Symbol, FASTA_DECODE};
 use crate::core::{Ancestry, FitnessTable, Haplotype, Historian, Population};
 use crate::readwrite::HaplotypeIO;
 use crate::references::HaplotypeRef;
-use crate::sample_writer::{FastaSampleWriter, SampleWriter};
+use crate::readwrite::{FastaSampleWriter, SampleWriter};
 #[cfg(feature = "parallel")]
 use crate::simulation::HostMap;
 use crate::simulation::{BasicSimulation, SimulationTrait};
