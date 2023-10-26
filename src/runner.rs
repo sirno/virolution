@@ -15,7 +15,7 @@ use std::rc::Rc;
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::{Ancestry, FitnessTable, Haplotype, Historian, Population};
-use crate::readwrite::HaplotypeIO;
+use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
 use crate::readwrite::{FastaSampleWriter, SampleWriter};
 #[cfg(feature = "parallel")]
@@ -214,7 +214,10 @@ impl Runner {
                         Some(size) => size,
                         None => parameters.max_population,
                     };
-                    population![wildtype.clone(); initial_population_size]
+                    match &args.initial_population_file {
+                        Some(file_name) => Population::read(file_name, wildtype.clone()).unwrap(),
+                        None => population![wildtype.clone(); initial_population_size],
+                    }
                 };
                 BasicSimulation::new(
                     wildtype.clone(),

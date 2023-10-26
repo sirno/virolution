@@ -19,11 +19,11 @@ pub struct Args {
     pub generations: usize,
 
     /// Path to settings. Format: YAML
-    #[clap(long)]
+    #[clap(long, default_value = "settings.yaml")]
     pub settings: String,
 
     /// Path to sequence. Format: FASTA
-    #[clap(long)]
+    #[clap(long, default_value = "reference.fasta")]
     pub sequence: String,
 
     /// Path to samples directory
@@ -55,11 +55,15 @@ pub struct Args {
     #[clap(long)]
     pub initial_population_size: Option<usize>,
 
+    /// Initial population source file
+    #[clap(long)]
+    pub initial_population_file: Option<String>,
+
     /// Disable progress bar
     #[clap(long)]
     pub disable_progress_bar: bool,
 
-    /// Number of threads
+    /// Number of threads.
     /// If not set, the number of threads is set to the number of logical cores
     #[clap(long)]
     pub threads: Option<usize>,
@@ -67,4 +71,9 @@ pub struct Args {
     /// Verbosity
     #[clap(long, short, action = clap::ArgAction::Count, default_value = "0")]
     pub verbose: u8,
+
+    /// Test mode for use during development
+    #[cfg(debug_assertions)]
+    #[clap(long)]
+    pub test: bool,
 }
