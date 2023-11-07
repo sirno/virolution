@@ -25,11 +25,11 @@ impl PopulationIO for Population {
 
         for record in reader.deserialize() {
             let record: HaplotypeRecord = record?;
-            let mutations = record.haplotype.split(";");
+            let mutations = record.haplotype.split(';');
             let mut positions: Vec<usize> = Vec::new();
             let mut changes: Vec<Symbol> = Vec::new();
             mutations.for_each(|mutation| {
-                let mut mutation = mutation.split(":");
+                let mut mutation = mutation.split(':');
                 let position = mutation.next().unwrap();
 
                 let mut change = mutation.next().unwrap().split("->");
@@ -43,7 +43,7 @@ impl PopulationIO for Population {
             let population = Population::from_haplotype(haplotype, record.count);
             populations.push(population);
         }
-        let population = Population::from_iter(populations.into_iter());
+        let population = Population::from_iter(populations);
         Ok(population)
     }
 

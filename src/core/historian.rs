@@ -57,3 +57,9 @@ impl Historian {
             .push(Box::new(SampleEvent::new(generation, compartment, sample)));
     }
 }
+
+impl Default for Historian {
+    fn default() -> Self {
+        Self::new()
+    }
+}

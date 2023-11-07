@@ -6,12 +6,20 @@ use super::HaplotypeWeak;
 #[derive(Debug, Deref)]
 pub struct DescendantsCell(Mutex<Vec<HaplotypeWeak>>);
 
-impl<'a> DescendantsCell {
+impl DescendantsCell {
     pub fn new() -> Self {
         Self(Mutex::new(Vec::new()))
     }
+}
 
-    pub fn from_iter(iter: impl IntoIterator<Item = HaplotypeWeak>) -> Self {
+impl FromIterator<HaplotypeWeak> for DescendantsCell {
+    fn from_iter<I: IntoIterator<Item=HaplotypeWeak>>(iter: I) -> Self {
         Self(Mutex::new(iter.into_iter().collect()))
+    }
+}
+
+impl Default for DescendantsCell {
+    fn default() -> Self {
+        Self::new()
     }
 }

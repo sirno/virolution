@@ -189,7 +189,7 @@ impl Population {
         let population: Vec<usize> = self
             .population
             .choose_multiple(rng, size)
-            .map(|&id| id)
+            .copied()
             .collect();
         let haplotypes: Haplotypes = population
             .iter()
@@ -259,7 +259,7 @@ impl Population {
     }
 
     /// Select a `Population` from the `Population` based on a vector of indices.
-    pub fn select(&self, indices: &Vec<usize>) -> Self {
+    pub fn select(&self, indices: &[usize]) -> Self {
         let population: Vec<usize> = indices
             .iter()
             .map(|&index| self.population[index])

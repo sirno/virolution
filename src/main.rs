@@ -17,6 +17,7 @@ fn main() {
     }
 
     let args = Args::parse();
+
     let mut runner = Runner::new(args).unwrap_or_else(|err| {
         eprintln!("Unable to init simulation: {err}.");
         std::process::exit(1);

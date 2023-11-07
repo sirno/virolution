@@ -30,9 +30,15 @@ impl DuplicateIndexMapExt for Ancestors {
     fn duplicate_index_map(&self) -> HashMap<usize, Vec<usize>> {
         let mut indices: HashMap<usize, Vec<usize>> = HashMap::new();
         for (i, &v) in self.iter().enumerate() {
-            indices.entry(v).or_insert(vec![]).push(i);
+            indices.entry(v).or_default().push(i);
         }
         indices
+    }
+}
+
+impl Default for Ancestry {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -136,7 +142,7 @@ impl Ancestry {
                     pos: 0,
                     dist: 0,
                     name: None,
-                    children: children,
+                    children,
                 })
             }
         };
@@ -165,7 +171,7 @@ impl AncestorsTreeNode {
             newick.push(')');
         }
         if self.name.is_some() {
-            newick.push_str(&self.name.as_ref().unwrap());
+            newick.push_str(self.name.as_ref().unwrap());
         }
         if self.dist > 0 {
             newick.push_str(&format!(":{}", self.dist));

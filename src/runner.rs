@@ -108,12 +108,11 @@ impl Runner {
                 .simulations
                 .iter()
                 .enumerate()
-                .map(|(t, s)| {
+                .flat_map(|(t, s)| {
                     s.get_population()
                         .iter()
                         .map(move |h| format!("{}_{}", h.get_block_id(), t))
                 })
-                .flatten()
                 .collect();
             fs::write(ancestry_file, ancestry.get_tree(names.as_slice()))
                 .unwrap_or_else(|_| eprintln!("Unable to write ancestry file."));
@@ -164,7 +163,7 @@ impl Runner {
             FitnessModelField::SingleHost(fitness_model) => {
                 vec![(
                     0..settings.parameters[0].host_population_size,
-                    FitnessTable::from_model(0, &sequence, 4, fitness_model.clone())?,
+                    FitnessTable::from_model(0, sequence, 4, fitness_model.clone())?,
                 )]
             }
             FitnessModelField::MultiHost(fitness_models) => {
@@ -178,7 +177,7 @@ impl Runner {
                     let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
                     fitness_tables.push((
                         lower..upper,
-                        FitnessTable::from_model(id, &sequence, 4, fitness_model)?,
+                        FitnessTable::from_model(id, sequence, 4, fitness_model)?,
                     ));
                     lower = upper;
                 }
@@ -189,7 +188,7 @@ impl Runner {
     }
 
     fn write_fitness_tables(
-        fitness_tables: &Vec<(Range<usize>, FitnessTable)>,
+        fitness_tables: &[(Range<usize>, FitnessTable)],
         path: Option<&Path>,
     ) {
         let sequence_path = path.unwrap_or_else(|| Path::new("./"));
@@ -479,20 +478,18 @@ impl Runner {
             if let Some(ancestry) = &mut self.ancestry {
                 let ancestors: Vec<usize> = indices
                     .iter()
-                    .map(|t| {
+                    .flat_map(|t| {
                         t.iter()
                             .enumerate()
-                            .map(|(i, v)| {
+                            .flat_map(|(i, v)| {
                                 let n = self.simulations[..i]
                                     .iter()
                                     .map(|s| s.get_population().len())
                                     .sum::<usize>();
                                 v.iter().map(|a| n + (*a)).collect::<Vec<usize>>()
                             })
-                            .flatten()
                             .collect::<Vec<_>>()
                     })
-                    .flatten()
                     .collect();
                 ancestry.add_ancestors(ancestors);
             }
