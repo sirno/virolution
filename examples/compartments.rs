@@ -26,7 +26,7 @@ fn main() {
     });
     let fitness_model = FitnessModel::new(distribution.clone(), UtilityFunction::Linear);
 
-    let fitness_table = FitnessTable::from_model(&sequence, 4, fitness_model.clone()).unwrap();
+    let fitness_table = FitnessTable::from_model(0, &sequence, 4, fitness_model.clone()).unwrap();
 
     let wt = Wildtype::new(sequence);
     let parameters = Parameters {

@@ -436,7 +436,7 @@ mod tests {
     fn setup_test_simulation() -> BasicSimulation {
         let sequence = vec![Some(0x00); 100];
 
-        let fitness_table = FitnessTable::from_model(&sequence, 4, FITNESS_MODEL).unwrap();
+        let fitness_table = FitnessTable::from_model(0,&sequence, 4, FITNESS_MODEL).unwrap();
         let fitness_tables = vec![(0..SETTINGS.host_population_size, fitness_table)];
 
         let wt = Wildtype::new(sequence);

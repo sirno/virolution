@@ -164,13 +164,13 @@ impl Runner {
             FitnessModelField::SingleHost(fitness_model) => {
                 vec![(
                     0..settings.parameters[0].host_population_size,
-                    FitnessTable::from_model(&sequence, 4, fitness_model.clone())?,
+                    FitnessTable::from_model(0, &sequence, 4, fitness_model.clone())?,
                 )]
             }
             FitnessModelField::MultiHost(fitness_models) => {
                 let mut fitness_tables = Vec::new();
                 let mut lower = 0;
-                for fitness_model_frac in fitness_models {
+                for (id, fitness_model_frac) in fitness_models.iter().enumerate() {
                     let fitness_model = fitness_model_frac.fitness_model.clone();
                     let n_hosts = (fitness_model_frac.fraction
                         * settings.parameters[0].host_population_size as f64)
@@ -178,7 +178,7 @@ impl Runner {
                     let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
                     fitness_tables.push((
                         lower..upper,
-                        FitnessTable::from_model(&sequence, 4, fitness_model)?,
+                        FitnessTable::from_model(id, &sequence, 4, fitness_model)?,
                     ));
                     lower = upper;
                 }

@@ -9,6 +9,7 @@ use std::fmt;
 
 #[derive(Clone)]
 pub struct FitnessTable {
+    id: usize,
     n_sites: usize,
     n_symbols: usize,
     table: Vec<f64>,
@@ -195,12 +196,14 @@ impl FileParameters {
 
 impl FitnessTable {
     pub fn new(
+        id: usize,
         n_sites: usize,
         n_symbols: usize,
         table: Vec<f64>,
         fitness_model: FitnessModel,
     ) -> Self {
         Self {
+            id,
             n_sites,
             n_symbols,
             table,
@@ -209,6 +212,7 @@ impl FitnessTable {
     }
 
     pub fn from_model(
+        id: usize,
         sequence: &Vec<Symbol>,
         n_symbols: usize,
         fitness_model: FitnessModel,
@@ -233,7 +237,7 @@ impl FitnessTable {
             });
         }
 
-        Ok(Self::new(n_sites, n_symbols, table, fitness_model))
+        Ok(Self::new(id, n_sites, n_symbols, table, fitness_model))
     }
 
     pub fn get_fitness(&self, position: &usize, symbol: &Symbol) -> f64 {
@@ -274,6 +278,7 @@ mod tests {
     fn create_neutral_table() {
         let sequence = vec![Some(0x00); 100];
         let fitness = FitnessTable::from_model(
+            0,
             &sequence,
             4,
             FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
@@ -299,6 +304,7 @@ mod tests {
         });
 
         let fitness = FitnessTable::from_model(
+            0,
             &sequence,
             4,
             FitnessModel::new(distribution, UtilityFunction::Linear),
@@ -317,6 +323,7 @@ mod tests {
     fn get_fitness() {
         let sequence = vec![Some(0x00); 100];
         let fitness = FitnessTable::from_model(
+            0,
             &sequence,
             4,
             FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
@@ -333,6 +340,7 @@ mod tests {
     #[test]
     fn get_fitness_indexing() {
         let table = FitnessTable {
+            id: 0,
             n_sites: 2,
             n_symbols: 4,
             table: vec![1., 2., 3., 4., 5., 6., 7., 8.],
@@ -363,6 +371,7 @@ mod tests {
         });
 
         let fitness = FitnessTable::from_model(
+            0,
             &sequence,
             4,
             FitnessModel::new(distribution, UtilityFunction::Linear),
