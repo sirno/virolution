@@ -27,6 +27,13 @@ use seq_io::fasta::OwnedRecord;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::OnceLock;
+
+pub static N_FITNESS_TABLES: OnceLock<usize> = OnceLock::new();
+
+pub fn set_number_of_fitness_tables(value: usize) -> Result<(), usize> {
+    N_FITNESS_TABLES.set(value)
+}
 
 // #[derive(Clone, Debug, Deref)]
 pub type Symbol = Option<u8>;

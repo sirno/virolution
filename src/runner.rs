@@ -15,6 +15,7 @@ use std::rc::Rc;
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::{Ancestry, FitnessTable, Haplotype, Historian, Population};
+use crate::core::haplotype::set_number_of_fitness_tables;
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
 use crate::readwrite::{FastaSampleWriter, SampleWriter};
@@ -161,6 +162,7 @@ impl Runner {
     ) -> Result<Vec<(Range<usize>, FitnessTable)>> {
         let fitness_tables = match &settings.parameters[0].fitness_model {
             FitnessModelField::SingleHost(fitness_model) => {
+                let _ = set_number_of_fitness_tables(1);
                 vec![(
                     0..settings.parameters[0].host_population_size,
                     FitnessTable::from_model(0, sequence, 4, fitness_model.clone())?,
@@ -169,6 +171,7 @@ impl Runner {
             FitnessModelField::MultiHost(fitness_models) => {
                 let mut fitness_tables = Vec::new();
                 let mut lower = 0;
+                let _ = set_number_of_fitness_tables(fitness_models.len());
                 for (id, fitness_model_frac) in fitness_models.iter().enumerate() {
                     let fitness_model = fitness_model_frac.fitness_model.clone();
                     let n_hosts = (fitness_model_frac.fraction
