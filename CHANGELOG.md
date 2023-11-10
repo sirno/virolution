@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.3.0 --- Mixed Performance (WIP)
+
+- Supply diverse initial population
+- Fixed, then introduced caching with multi host populations
+
 ## 0.2.0 --- Treecherous Harmony (Sep 04, 2023)
 
 - Change encoding order to ATCG
