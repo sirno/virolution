@@ -211,6 +211,11 @@ impl FitnessTable {
         }
     }
 
+    #[inline]
+    pub fn get_id(&self) -> usize {
+        self.id
+    }
+
     pub fn from_model(
         id: usize,
         sequence: &Vec<Symbol>,

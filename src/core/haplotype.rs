@@ -35,6 +35,12 @@ pub fn set_number_of_fitness_tables(value: usize) -> Result<(), usize> {
     N_FITNESS_TABLES.set(value)
 }
 
+fn make_fitness_cache() -> Vec<OnceLock<f64>> {
+    std::iter::repeat_with(OnceLock::new)
+        .take(*N_FITNESS_TABLES.get_or_init(|| 1))
+        .collect()
+}
+
 // #[derive(Clone, Debug, Deref)]
 pub type Symbol = Option<u8>;
 
@@ -74,6 +80,7 @@ pub struct Mutant {
     ancestor: HaplotypeRef,
     changes: HashMap<usize, (Symbol, Symbol)>,
     generation: usize,
+    fitness: Vec<OnceLock<f64>>,
     descendants: DescendantsCell,
     dirty_descendants: AtomicIsize,
 }
@@ -87,6 +94,7 @@ pub struct Recombinant {
     left_position: usize,
     right_position: usize,
     generation: usize,
+    fitness: Vec<OnceLock<f64>>,
     descendants: DescendantsCell,
     dirty_descendants: AtomicIsize,
 }
@@ -557,6 +565,7 @@ impl Mutant {
                 ancestor: ancestor.clone(),
                 changes: changes.clone(),
                 generation,
+                fitness: make_fitness_cache(),
                 descendants: DescendantsCell::new(),
                 dirty_descendants: AtomicIsize::new(0),
             })
@@ -584,6 +593,7 @@ impl Mutant {
             ancestor,
             changes,
             generation,
+            fitness: make_fitness_cache(),
             descendants: DescendantsCell::from_iter(descendants),
             dirty_descendants: AtomicIsize::new(0),
         }));
@@ -629,14 +639,16 @@ impl Mutant {
     }
 
     pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
-        let mut fitness = self.ancestor.get_fitness(fitness_table);
+        *self.fitness[fitness_table.get_id()].get_or_init(|| {
+            let mut fitness = self.ancestor.get_fitness(fitness_table);
 
-        self.changes.iter().for_each(|(position, change)| {
-            fitness /= fitness_table.get_fitness(position, &change.0);
-            fitness *= fitness_table.get_fitness(position, &change.1);
-        });
+            self.changes.iter().for_each(|(position, change)| {
+                fitness /= fitness_table.get_fitness(position, &change.0);
+                fitness *= fitness_table.get_fitness(position, &change.1);
+            });
 
-        fitness_table.utility(fitness)
+            fitness_table.utility(fitness)
+        })
     }
 
     pub fn get_subtree(&self) -> String {
@@ -684,6 +696,7 @@ impl Recombinant {
                 left_position,
                 right_position,
                 generation,
+                fitness: make_fitness_cache(),
                 descendants: DescendantsCell::new(),
                 dirty_descendants: AtomicIsize::new(0),
             })
@@ -728,14 +741,16 @@ impl Recombinant {
     }
 
     pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
-        let mutations = self.get_mutations();
-        let mut fitness = 1.;
+        *self.fitness[fitness_table.get_id()].get_or_init(|| {
+            let mutations = self.get_mutations();
+            let mut fitness = 1.;
 
-        for (position, (_from, to)) in mutations {
-            fitness *= fitness_table.get_fitness(&position, &to);
-        }
+            for (position, (_from, to)) in mutations {
+                fitness *= fitness_table.get_fitness(&position, &to);
+            }
 
-        fitness_table.utility(fitness)
+            fitness_table.utility(fitness)
+        })
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
