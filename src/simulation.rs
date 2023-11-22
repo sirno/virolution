@@ -297,20 +297,26 @@ impl Simulation for BasicSimulation {
         self.fitness_tables
             .par_iter()
             .for_each(|(range, fitness_table)| {
-                host_map[range.clone()].par_iter().for_each(|host| {
-                    let length = host.len();
-                    host.iter().for_each(|infectant| {
-                        let fitness = self.population[infectant].get_fitness(fitness_table);
-                        if let Ok(dist) = Poisson::new(
-                            fitness * self.parameters.basic_reproductive_number / length as f64,
-                        ) {
-                            unsafe {
-                                (offspring_ptr as *mut usize)
-                                    .add(*infectant)
-                                    .write(dist.sample(&mut rand::thread_rng()) as usize);
+                host_map[range.clone()].iter().for_each(|host| {
+                    let fitness_values: Vec<f64> = host
+                        .iter()
+                        .map(|infectant| self.population[infectant].get_fitness(fitness_table))
+                        .collect();
+                    let fitness_sum: f64 = fitness_values.iter().sum();
+                    host.iter()
+                        .zip(fitness_values.iter())
+                        .for_each(|(infectant, fitness)| {
+                            if let Ok(dist) = Poisson::new(
+                                fitness * self.parameters.basic_reproductive_number
+                                    / fitness_sum as f64,
+                            ) {
+                                unsafe {
+                                    (offspring_ptr as *mut usize)
+                                        .add(*infectant)
+                                        .write(dist.sample(&mut rand::thread_rng()) as usize);
+                                }
                             }
-                        }
-                    });
+                        });
                 });
             });
         offspring
@@ -324,15 +330,21 @@ impl Simulation for BasicSimulation {
             .iter()
             .for_each(|(range, fitness_table)| {
                 host_map[range.clone()].iter().for_each(|host| {
-                    let length = host.len();
-                    host.iter().for_each(|infectant| {
-                        let fitness = self.population[infectant].get_fitness(fitness_table);
-                        if let Ok(dist) = Poisson::new(
-                            fitness * self.parameters.basic_reproductive_number / length as f64,
-                        ) {
-                            offspring[*infectant] = dist.sample(&mut rng) as usize;
-                        }
-                    });
+                    let fitness_values: Vec<f64> = host
+                        .iter()
+                        .map(|infectant| self.population[infectant].get_fitness(fitness_table))
+                        .collect();
+                    let fitness_sum: f64 = fitness_values.iter().sum();
+                    host.iter()
+                        .zip(fitness_values.iter())
+                        .for_each(|(infectant, fitness)| {
+                            if let Ok(dist) = Poisson::new(
+                                fitness * self.parameters.basic_reproductive_number
+                                    / fitness_sum as f64,
+                            ) {
+                                offspring[*infectant] = dist.sample(&mut rng) as usize;
+                            }
+                        });
                 });
             });
         offspring
@@ -436,7 +448,7 @@ mod tests {
     fn setup_test_simulation() -> BasicSimulation {
         let sequence = vec![Some(0x00); 100];
 
-        let fitness_table = FitnessTable::from_model(0,&sequence, 4, FITNESS_MODEL).unwrap();
+        let fitness_table = FitnessTable::from_model(0, &sequence, 4, FITNESS_MODEL).unwrap();
         let fitness_tables = vec![(0..SETTINGS.host_population_size, fitness_table)];
 
         let wt = Wildtype::new(sequence);
