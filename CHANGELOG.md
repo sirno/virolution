@@ -4,6 +4,11 @@
 
 - Supply diverse initial population
 - Fixed, then introduced caching with multi host populations
+- Fixed, removed unwanted existence of defective interfering particels
+- In single threaded mode, the migration will now be computed more precisely,
+  i.e. there should be no more rounding errors when during transfer and very
+  small migration rates will cause sporadic migration depending on the size of
+  their residue.
 
 ## 0.2.0 --- Treecherous Harmony (Sep 04, 2023)
 
