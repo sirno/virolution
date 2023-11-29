@@ -7,7 +7,7 @@ use rand_distr::{Bernoulli, Binomial, Poisson, WeightedAliasIndex, WeightedIndex
 use rayon::prelude::*;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
-use std::{cmp::min, ops::Range};
+use std::{cmp::min, cmp::min_by, ops::Range};
 
 use crate::config::Parameters;
 use crate::core::{FitnessTable, Haplotype, Population};
@@ -35,7 +35,9 @@ pub trait Simulation {
     fn mutate_infectants(&mut self, host_map: &HostMap);
     fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize>;
 
-    fn sample_indices(&self, offspring_map: &[usize], factor: f64) -> Vec<usize>;
+    // methods that require `offspring_map` for processing
+    fn target_size(&self, offspring_map: &[usize]) -> f64;
+    fn sample_indices(&self, offspring_map: &[usize], factor: usize) -> Vec<usize>;
     fn subsample_population(&self, offspring_map: &[usize], dilution: f64) -> Population;
 
     fn print_population(&self) -> Vec<String>;
@@ -350,22 +352,33 @@ impl Simulation for BasicSimulation {
         offspring
     }
 
-    fn sample_indices(&self, offspring_map: &[usize], factor: f64) -> Vec<usize> {
+    /// Compute the target size for offspring dilution
+    ///
+    /// The return value is f64 so callers can decide how to round the values before
+    /// subsampling
+    fn target_size(&self, offspring_map: &[usize]) -> f64 {
+        if offspring_map.is_empty() {
+            return 0.0;
+        }
+
+        let offspring_size: usize = offspring_map.iter().sum();
+
+        min_by(
+            offspring_size as f64 * self.parameters.dilution,
+            self.parameters.max_population as f64,
+            |a, b| a.partial_cmp(b).unwrap(),
+        )
+    }
+
+    fn sample_indices(&self, offspring_map: &[usize], amount: usize) -> Vec<usize> {
         if offspring_map.is_empty() {
             return Vec::new();
         }
 
-        let offspring_size: usize = offspring_map.iter().sum();
-        let sample_size = (factor
-            * min(
-                (offspring_size as f64 * self.parameters.dilution) as usize,
-                self.parameters.max_population,
-            ) as f64) as usize;
-
         let mut rng = rand::thread_rng();
         let sampler = WeightedAliasIndex::new(offspring_map.to_vec()).unwrap();
 
-        (0..sample_size).map(|_| sampler.sample(&mut rng)).collect()
+        (0..amount).map(|_| sampler.sample(&mut rng)).collect()
     }
 
     fn subsample_population(&self, offspring_map: &[usize], factor: f64) -> Population {
@@ -374,18 +387,9 @@ impl Simulation for BasicSimulation {
             return Population::new();
         }
 
-        let offspring_size: usize = offspring_map.iter().sum();
-        let sample_size = (factor
-            * min(
-                (offspring_size as f64 * self.parameters.dilution) as usize,
-                self.parameters.max_population,
-            ) as f64) as usize;
+        let sample_size = (factor * self.target_size(offspring_map)) as usize;
 
-        log::info!(
-            "Subsampling population with {} offspring and {} sample size",
-            offspring_size,
-            sample_size
-        );
+        log::info!("Subsampling population to size {}", sample_size);
 
         self.population.sample(sample_size, offspring_map)
     }

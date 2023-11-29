@@ -97,6 +97,12 @@ impl<T> TransferMatrix<T> {
     pub fn get(&self, row: usize, col: usize) -> &T {
         &self.matrix[row * self.size + col]
     }
+
+    pub fn get_row(&self, row: usize) -> &[T] {
+        let begin = row * self.size;
+        let end = begin + self.size;
+        &self.matrix[begin..end]
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

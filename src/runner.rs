@@ -2,6 +2,7 @@ use anyhow::Result;
 
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
+use rand::prelude::*;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::cell::RefCell;
@@ -14,11 +15,11 @@ use std::rc::Rc;
 
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
-use crate::core::{Ancestry, FitnessTable, Haplotype, Historian, Population};
 use crate::core::haplotype::set_number_of_fitness_tables;
+use crate::core::{Ancestry, FitnessTable, Haplotype, Historian, Population};
+use crate::readwrite::{FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
-use crate::readwrite::{FastaSampleWriter, SampleWriter};
 #[cfg(feature = "parallel")]
 use crate::simulation::HostMap;
 use crate::simulation::{BasicSimulation, SimulationTrait};
@@ -190,10 +191,7 @@ impl Runner {
         Ok(fitness_tables)
     }
 
-    fn write_fitness_tables(
-        fitness_tables: &[(Range<usize>, FitnessTable)],
-        path: Option<&Path>,
-    ) {
+    fn write_fitness_tables(fitness_tables: &[(Range<usize>, FitnessTable)], path: Option<&Path>) {
         let sequence_path = path.unwrap_or_else(|| Path::new("./"));
         for (idx, (_, fitness_table)) in fitness_tables.iter().enumerate() {
             let name = format!("fitness_table_{}.npy", idx);
@@ -464,13 +462,47 @@ impl Runner {
             log::debug!("Transfer between compartments...");
             let transfer = self.settings.schedule.get_transfer_matrix(generation);
 
+            // choose transfer amounts
+            let target_sizes: Vec<f64> = (0..self.args.n_compartments)
+                .map(|target| self.simulations[target].target_size(&offsprings[target]))
+                .collect();
+            let migration_amount: Vec<Vec<usize>> = (0..self.args.n_compartments)
+                .map(|target| {
+                    (0..self.args.n_compartments)
+                        .map(|origin| {
+                            if target == origin {
+                                return 0;
+                            }
+
+                            let mut rng = rand::thread_rng();
+
+                            let migration_rate = transfer.get(target, origin);
+                            let migration_amount = target_sizes[target] * migration_rate;
+                            let residue =
+                                if rng.gen::<f64>() < migration_amount - migration_amount.floor() {
+                                    0
+                                } else {
+                                    1
+                                };
+                            migration_amount as usize + residue
+                        })
+                        .collect()
+                })
+                .collect();
+
             // sample indices to transfer
             let indices: Vec<Vec<Vec<usize>>> = (0..self.args.n_compartments)
                 .map(|target| {
                     (0..self.args.n_compartments)
                         .map(|origin| {
+                            let transfer_amount = if target == origin {
+                                target_sizes[target] as usize
+                                    - migration_amount[target].iter().sum::<usize>()
+                            } else {
+                                migration_amount[target][origin]
+                            };
                             self.simulations[origin]
-                                .sample_indices(&offsprings[origin], *transfer.get(target, origin))
+                                .sample_indices(&offsprings[origin], transfer_amount)
                         })
                         .collect()
                 })
