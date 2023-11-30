@@ -480,15 +480,17 @@ impl Runner {
                             let migration_amount = target_sizes[target] * migration_rate;
                             let residue =
                                 if rng.gen::<f64>() < migration_amount - migration_amount.floor() {
-                                    0
-                                } else {
                                     1
+                                } else {
+                                    0
                                 };
                             migration_amount as usize + residue
                         })
                         .collect()
                 })
                 .collect();
+
+            dbg!(&migration_amount);
 
             // sample indices to transfer
             let indices: Vec<Vec<Vec<usize>>> = (0..self.args.n_compartments)
