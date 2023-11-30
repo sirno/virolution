@@ -490,8 +490,6 @@ impl Runner {
                 })
                 .collect();
 
-            dbg!(&migration_amount);
-
             // sample indices to transfer
             let indices: Vec<Vec<Vec<usize>>> = (0..self.args.n_compartments)
                 .map(|target| {
