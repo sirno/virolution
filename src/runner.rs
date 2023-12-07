@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
@@ -43,6 +43,16 @@ impl Runner {
 
         let fitness_tables = Self::create_fitness_tables(&settings, &wildtype.get_sequence())?;
         Self::write_fitness_tables(&fitness_tables, Path::new(args.outdir.as_str()).parent());
+
+        // perform sanity checks
+        if !settings
+            .schedule
+            .check_transfer_table_sizes(args.n_compartments)
+        {
+            return Err(anyhow!(
+                "Incompatible transfer tables (they might be too small)"
+            ));
+        }
 
         // create individual compartments
         println!("Creating {} compartments...", args.n_compartments);

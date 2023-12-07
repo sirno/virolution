@@ -223,6 +223,10 @@ impl Schedule {
             None => None,
         }
     }
+
+    pub fn check_transfer_table_sizes(&self, min: usize) -> bool {
+        self.transfers.values().all(|t| t.size >= min)
+    }
 }
 
 impl ScheduleRecord {
