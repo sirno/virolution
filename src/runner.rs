@@ -17,7 +17,7 @@ use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::haplotype::set_number_of_fitness_tables;
 use crate::core::{Ancestry, FitnessTable, Haplotype, Historian, Population};
-use crate::readwrite::{FastaSampleWriter, SampleWriter};
+use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
 #[cfg(feature = "parallel")]
@@ -400,7 +400,7 @@ impl Runner {
         }
 
         let sample_writer: Box<dyn SampleWriter> = Box::new(
-            FastaSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
+            CsvSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
                 .unwrap_or_else(|err| {
                     eprintln!("Unable to create sample writer: {err}.");
                     std::process::exit(1);

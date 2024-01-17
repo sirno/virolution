@@ -12,3 +12,4 @@ pub mod readwrite;
 pub mod references;
 pub mod runner;
 pub mod simulation;
+pub mod stats;
