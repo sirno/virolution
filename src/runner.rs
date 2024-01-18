@@ -552,7 +552,7 @@ impl Runner {
                 .collect();
 
             // perform stat collection
-            if let Some(stats) = self.schedule.get_event_value("stats", generation) {
+            if let Some(stats) = self.settings.schedule.get_event_value("stats", generation) {
                 for stat in stats.split(",") {
                     match stat {
                         "diversity" => {
