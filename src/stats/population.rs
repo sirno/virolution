@@ -40,7 +40,7 @@ impl PopulationFrequencies for Population {
 
 /// Trait extension to compute distances between to Populations
 pub trait PopulationDistance {
-    fn distance(&self, other: Population) -> f64;
+    fn distance(&self, other: &Population) -> f64;
 }
 
 impl PopulationDistance for Population {
@@ -48,7 +48,7 @@ impl PopulationDistance for Population {
     ///
     /// The distances is the sum of absolutes of per-position nucleotide frequencies in each
     /// population.
-    fn distance(&self, other: Population) -> f64 {
+    fn distance(&self, other: &Population) -> f64 {
         self.frequencies()
             .iter()
             .zip(other.frequencies())

@@ -23,6 +23,7 @@ use crate::references::HaplotypeRef;
 #[cfg(feature = "parallel")]
 use crate::simulation::HostMap;
 use crate::simulation::{BasicSimulation, SimulationTrait};
+use crate::stats::population::{PopulationDistance, PopulationFrequencies};
 
 pub struct Runner {
     args: Args,
@@ -549,6 +550,34 @@ impl Runner {
                     }))
                 })
                 .collect();
+
+            // perform stat collection
+            if let Some(stats) = self.schedule.get_event_value("stats", generation) {
+                for stat in stats.split(",") {
+                    match stat {
+                        "diversity" => {
+                            let frequencies: Vec<Vec<f64>> = self
+                                .simulations
+                                .iter()
+                                .map(|sim| sim.get_population().frequencies())
+                                .collect();
+                            log::info!("frequencies={frequencies:?}");
+                        }
+                        "distance" => {
+                            let distances: Vec<f64> = self
+                                .simulations
+                                .iter()
+                                .cartesian_product(self.simulations.iter())
+                                .map(|(sim1, sim2)| {
+                                    sim1.get_population().distance(sim2.get_population())
+                                })
+                                .collect();
+                            log::info!("distance={distances:?}");
+                        }
+                        _ => {}
+                    }
+                }
+            }
 
             // update populations
             for (simulation, population) in self.simulations.iter_mut().zip(populations) {
