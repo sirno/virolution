@@ -64,6 +64,12 @@ impl Runner {
             &settings.parameters[0],
         );
 
+        // check if ancestry is requested and supported
+        if cfg!(feature = "parallel") && args.ancestry.is_some() {
+            log::warn!("Ancestry is not supported in parallel mode.");
+            std::process::exit(1);
+        }
+        // initialize ancestry if requested
         let ancestry: Option<Ancestry> = args.ancestry.as_ref().map(|_| Ancestry::new());
 
         Ok(Self {
