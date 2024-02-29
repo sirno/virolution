@@ -268,13 +268,26 @@ impl Runner {
             Rc::from_raw(ptr);
         }
 
-        let sample_writer: Box<dyn SampleWriter> = Box::new(
-            FastaSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian))
-                .unwrap_or_else(|err| {
-                    eprintln!("Unable to create sample writer: {err}.");
-                    std::process::exit(1);
-                }),
-        );
+        let sample_writer: Box<dyn SampleWriter> = match self.args.sampling_format.as_str() {
+            "fasta" => Box::new(
+                FastaSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
+                    .unwrap_or_else(|err| {
+                        eprintln!("Unable to create sample writer: {err}.");
+                        std::process::exit(1);
+                    }),
+            ),
+            "csv" => Box::new(
+                CsvSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
+                    .unwrap_or_else(|err| {
+                        eprintln!("Unable to create sample writer: {err}.");
+                        std::process::exit(1);
+                    }),
+            ),
+            &_ => {
+                eprintln!("Unknown sampling format.");
+                std::process::exit(1);
+            }
+        };
 
         for generation in 0..=self.args.generations {
             // logging
@@ -400,13 +413,26 @@ impl Runner {
             Rc::from_raw(ptr);
         }
 
-        let sample_writer: Box<dyn SampleWriter> = Box::new(
-            CsvSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
-                .unwrap_or_else(|err| {
-                    eprintln!("Unable to create sample writer: {err}.");
-                    std::process::exit(1);
-                }),
-        );
+        let sample_writer: Box<dyn SampleWriter> = match self.args.sampling_format.as_str() {
+            "fasta" => Box::new(
+                FastaSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
+                    .unwrap_or_else(|err| {
+                        eprintln!("Unable to create sample writer: {err}.");
+                        std::process::exit(1);
+                    }),
+            ),
+            "csv" => Box::new(
+                CsvSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
+                    .unwrap_or_else(|err| {
+                        eprintln!("Unable to create sample writer: {err}.");
+                        std::process::exit(1);
+                    }),
+            ),
+            &_ => {
+                eprintln!("Unknown sampling format.");
+                std::process::exit(1);
+            }
+        };
 
         for generation in 0..=self.args.generations {
             // logging

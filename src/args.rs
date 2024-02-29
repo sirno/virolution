@@ -30,6 +30,10 @@ pub struct Args {
     #[clap(long, default_value = "./samples")]
     pub outdir: String,
 
+    /// Sampling format
+    #[clap(long, default_value = "fasta")]
+    pub sampling_format: String,
+
     /// Path to fitness table
     #[clap(long, default_value = "fitness_table_{}.npy")]
     pub fitness_table: String,
