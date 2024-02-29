@@ -1,4 +1,3 @@
-use csv;
 use seq_io::fasta::{OwnedRecord, Record};
 use std::{
     cell::RefCell,

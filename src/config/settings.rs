@@ -63,7 +63,6 @@ mod tests {
 
     use crate::config::parameters::FitnessModelField;
     use crate::config::schedule::ScheduleRecord;
-    use crate::config::Schedule;
     use crate::core::fitness::FitnessModel;
 
     #[test]

@@ -1,4 +1,3 @@
-use csv;
 use evalexpr::context_map;
 use phf::phf_map;
 use serde::ser::SerializeSeq;

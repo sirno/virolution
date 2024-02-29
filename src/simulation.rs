@@ -7,7 +7,7 @@ use rand_distr::{Bernoulli, Binomial, Poisson, WeightedAliasIndex, WeightedIndex
 use rayon::prelude::*;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
-use std::{cmp::min, cmp::min_by, ops::Range};
+use std::{cmp::min_by, ops::Range};
 
 use crate::config::Parameters;
 use crate::core::{FitnessTable, Haplotype, Population};
