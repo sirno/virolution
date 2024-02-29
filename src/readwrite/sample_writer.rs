@@ -242,12 +242,21 @@ impl<'a> SampleWriter for CsvSampleWriter<'a> {
 
         // write header
         samples_file
-            .write_record(["haplotype", "count"])
+            .write_record([
+                "block_id",
+                "compartment_id",
+                "generation",
+                "haplotype",
+                "count",
+            ])
             .expect("Unable to write header to samples file.");
 
         for (haplotype_ref, haplotype_count) in population.iter().counts() {
             samples_file
                 .write_record(&[
+                    haplotype_ref.get_block_id().to_string(),
+                    compartment.to_string(),
+                    generation.to_string(),
                     haplotype_ref.as_ref().get_string(),
                     haplotype_count.to_string(),
                 ])
@@ -291,14 +300,14 @@ mod tests {
             .from_path(sample_path)
             .unwrap();
         let first_record = reader.records().next().unwrap().unwrap();
-        assert_eq!(first_record.len(), 2);
-        assert_eq!(first_record[0], "wt".to_string());
-        assert_eq!(first_record[1], "2".to_string());
+        assert_eq!(first_record.len(), 5);
+        assert_eq!(first_record[3], "wt".to_string());
+        assert_eq!(first_record[4], "2".to_string());
 
         let second_record = reader.records().next().unwrap().unwrap();
-        assert_eq!(second_record.len(), 2);
-        assert_eq!(second_record[0], "wt".to_string());
-        assert_eq!(second_record[1], "2".to_string());
+        assert_eq!(second_record.len(), 5);
+        assert_eq!(second_record[3], "wt".to_string());
+        assert_eq!(second_record[4], "2".to_string());
     }
 
     #[test]
