@@ -2,22 +2,24 @@
 
 This tool simulates a virus population under static selective pressure with
 single-nucleotide polymorphism and recombination in discrete generations.  The
-host population is kept constant for each generation, while the virus population
-may change in number and composition. Multiple simulations can be run in
-parallel with controlled mixing. As input, the simulation requires model
-parameters, a wildtype sequence and a file with a schedule for all migration and
-sampling events. As output, multiple fasta files with samples of the populations
-at each sampling event are generated.
+host population is kept constant for each generation, while the virus
+population may change in number and composition. Multiple simulations can be
+run in parallel with controlled mixing. As input, the simulation requires model
+parameters, a wildtype sequence and a file with a schedule for all migration
+and sampling events. As output, multiple fasta files with samples of the
+populations at each sampling event are generated.
 
 ## Details
 
-In each generation every virus can infect a randomly selected host with
-probability $r$. If multiple viruses infect the same host then each pair of
-infectants will recombine with probability $p_r$. Next each of the infectants
-can mutate on each site with probability $p_m$. Lastly, each of the infectants
-will generate offspring. The number of offspring it can generate is drawn from
-a Poisson-distribution, where the expectation is the product of fitness and
-basic reproductive number, divided by the number of infectants in their host.
+During each generation, every virus has the chance to infect a randomly chosen
+host, determined by the infection probability $r$ (`infection_fraction`). If a
+host is infected by multiple viruses, any pair of these viruses may recombine
+with a probability $p_r$ (`recombination_rate`). Each virus can then mutate at
+each genomic position with a probability $p_m$ (`mutation_rate`). Following
+these events, each virus will produce offspring. The number of offspring
+produced by each virus follows a Poisson distribution, the mean of which is
+calculated as the product of the virus's fitness and its basic reproductive
+number, adjusted by the number of viruses within the same host.
 
 ## Installation
 
