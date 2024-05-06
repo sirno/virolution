@@ -81,6 +81,8 @@ pub struct Mutant {
     changes: HashMap<usize, (Symbol, Symbol)>,
     generation: usize,
     fitness: Vec<OnceLock<f64>>,
+    #[cfg(feature = "epitope")]
+    epitope: OnceLock<Vec<u8>>,
     descendants: DescendantsCell,
     dirty_descendants: AtomicIsize,
 }
@@ -95,6 +97,8 @@ pub struct Recombinant {
     right_position: usize,
     generation: usize,
     fitness: Vec<OnceLock<f64>>,
+    #[cfg(feature = "epitope")]
+    epitope: OnceLock<Vec<u8>>,
     descendants: DescendantsCell,
     dirty_descendants: AtomicIsize,
 }
@@ -260,9 +264,8 @@ impl Haplotype {
         let mut descendants_guard = descendants.lock();
 
         // if there are dirty descendants, replace one of them
-        if dirty_descendants.load(Ordering::Relaxed) > 0 && let Some(idx) = descendants_guard
-            .iter()
-            .position(|x| !x.exists())
+        if dirty_descendants.load(Ordering::Relaxed) > 0
+            && let Some(idx) = descendants_guard.iter().position(|x| !x.exists())
         {
             descendants_guard[idx] = descendant;
             dirty_descendants.fetch_add(1, Ordering::Relaxed);
@@ -642,6 +645,8 @@ impl Mutant {
         *self.fitness[fitness_table.get_id()].get_or_init(|| {
             let mut fitness = self.ancestor.get_fitness(fitness_table);
 
+            // calculate fitness based on recent changes
+            // this may create a numerical error over time
             self.changes.iter().for_each(|(position, change)| {
                 fitness /= fitness_table.get_fitness(position, &change.0);
                 fitness *= fitness_table.get_fitness(position, &change.1);
@@ -649,6 +654,11 @@ impl Mutant {
 
             fitness_table.utility(fitness)
         })
+    }
+
+    #[cfg(feature = "epitope")]
+    pub fn get_epitope(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     pub fn get_subtree(&self) -> String {
