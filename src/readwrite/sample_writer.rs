@@ -9,8 +9,8 @@ use std::{
 
 use itertools::Itertools;
 
-use crate::core::haplotype::FASTA_ENCODE;
 use crate::core::{Historian, Population};
+use crate::encoding::STRICT_ENCODE;
 use crate::{barcode::BarcodeEntry, simulation::SimulationTrait};
 
 pub trait SampleWriter {
@@ -177,7 +177,7 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
                     .get_sequence()
                     .into_iter()
                     .map(|symbol| match symbol {
-                        Some(s) => FASTA_ENCODE[&s],
+                        Some(s) => STRICT_ENCODE[&s],
                         None => 0x2d,
                     })
                     .collect();

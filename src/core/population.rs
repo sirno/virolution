@@ -1,4 +1,3 @@
-//! Population module
 //!
 //! The population module contains the `Population` struct, which is a collection
 //! of haplotypes. The `Population` struct is used to represent the population

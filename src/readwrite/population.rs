@@ -1,5 +1,6 @@
 use crate::core::haplotype::Symbol;
 use crate::core::population::Population;
+use crate::encoding::DECODE;
 use crate::references::HaplotypeRef;
 use serde::Deserialize;
 
@@ -25,6 +26,10 @@ impl PopulationIO for Population {
 
         for record in reader.deserialize() {
             let record: HaplotypeRecord = record?;
+            dbg!(&record);
+            if record.haplotype == "wt" {
+                continue;
+            }
             let mutations = record.haplotype.split(';');
             let mut positions: Vec<usize> = Vec::new();
             let mut changes: Vec<Symbol> = Vec::new();
@@ -34,10 +39,10 @@ impl PopulationIO for Population {
 
                 let mut change = mutation.next().unwrap().split("->");
                 let _origin = change.next();
-                let target = change.next().unwrap();
+                let target = change.next().unwrap().chars().next().unwrap() as u8;
 
                 positions.push(position.parse::<usize>().unwrap());
-                changes.push(target.parse::<u8>().ok());
+                changes.push(DECODE.get(&target).copied());
             });
             let haplotype = wildtype.create_descendant(positions, changes, 0);
             let population = Population::from_haplotype(haplotype, record.count);

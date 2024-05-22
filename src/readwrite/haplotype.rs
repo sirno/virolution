@@ -1,4 +1,5 @@
-use crate::core::haplotype::{Haplotype, Symbol, Wildtype, FASTA_DECODE};
+use crate::core::haplotype::{Haplotype, Symbol, Wildtype};
+use crate::encoding::STRICT_DECODE;
 use crate::references::HaplotypeRef;
 use seq_io::fasta;
 use seq_io::fasta::Record;
@@ -18,7 +19,7 @@ impl HaplotypeIO for Haplotype {
             .seq()
             .iter()
             .filter(|&&enc| enc != 0x0au8)
-            .map(|enc| match catch_unwind(|| Some(FASTA_DECODE[enc])) {
+            .map(|enc| match catch_unwind(|| Some(STRICT_DECODE[enc])) {
                 Ok(result) => result,
                 Err(_) => panic!("Unable to decode literal {enc}."),
             })

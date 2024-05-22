@@ -1,0 +1,31 @@
+//!
+//! This module contains the encoding and decoding definitions for nucleotide
+//! symbols.
+//!
+
+use phf::phf_map;
+
+pub static STRICT_ENCODE: phf::Map<u8, u8> = phf_map! {
+    0x00u8 => 0x41,
+    0x01u8 => 0x54,
+    0x02u8 => 0x43,
+    0x03u8 => 0x47,
+};
+
+pub static STRICT_DECODE: phf::Map<u8, u8> = phf_map! {
+    0x41u8 => 0x00,
+    0x54u8 => 0x01,
+    0x43u8 => 0x02,
+    0x47u8 => 0x03,
+};
+
+pub static DECODE: phf::Map<u8, u8> = phf_map! {
+    0x41u8 => 0x00,
+    0x54u8 => 0x01,
+    0x43u8 => 0x02,
+    0x47u8 => 0x03,
+    0x00u8 => 0x00,
+    0x01u8 => 0x01,
+    0x02u8 => 0x02,
+    0x03u8 => 0x03,
+};

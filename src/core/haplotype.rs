@@ -19,6 +19,7 @@
 //!
 
 use super::fitness::FitnessTable;
+use crate::encoding::{STRICT_DECODE, STRICT_ENCODE};
 use crate::references::DescendantsCell;
 use crate::references::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
@@ -43,19 +44,6 @@ fn make_fitness_cache() -> Vec<OnceLock<f64>> {
 
 // #[derive(Clone, Debug, Deref)]
 pub type Symbol = Option<u8>;
-
-pub static FASTA_ENCODE: phf::Map<u8, u8> = phf_map! {
-    0x00u8 => 0x41,
-    0x01u8 => 0x54,
-    0x02u8 => 0x43,
-    0x03u8 => 0x47,
-};
-pub static FASTA_DECODE: phf::Map<u8, u8> = phf_map! {
-    0x41u8 => 0x00,
-    0x54u8 => 0x01,
-    0x43u8 => 0x02,
-    0x47u8 => 0x03,
-};
 
 #[derive(Debug)]
 pub enum Haplotype {
@@ -336,11 +324,25 @@ impl Haplotype {
         for (position, (from, to)) in mutations.iter() {
             match (from, to) {
                 (Some(f), Some(t)) => {
-                    out.push_str(format!(";{position}:{f}->{t}").as_str());
+                    out.push_str(
+                        format!(
+                            ";{position}:{}->{}",
+                            char::from(STRICT_ENCODE[f]),
+                            char::from(STRICT_ENCODE[t])
+                        )
+                        .as_str(),
+                    );
                 }
                 (None, Some(t)) => {
                     if let Some(wt_symbol) = wildtype[*position] {
-                        out.push_str(format!(";{position}:{wt_symbol}->{t}").as_str())
+                        out.push_str(
+                            format!(
+                                ";{position}:{}->{}",
+                                char::from(STRICT_ENCODE[&wt_symbol]),
+                                char::from(STRICT_ENCODE[t])
+                            )
+                            .as_str(),
+                        )
                     }
                 }
                 _ => {}
@@ -378,7 +380,7 @@ impl Haplotype {
                 .get_sequence()
                 .into_iter()
                 .map(|symbol| match symbol {
-                    Some(s) => FASTA_ENCODE[&s],
+                    Some(s) => STRICT_ENCODE[&s],
                     None => 0x2d,
                 })
                 .collect(),
