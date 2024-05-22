@@ -19,11 +19,10 @@
 //!
 
 use super::fitness::FitnessTable;
-use crate::encoding::{STRICT_DECODE, STRICT_ENCODE};
+use crate::encoding::STRICT_ENCODE;
 use crate::references::DescendantsCell;
 use crate::references::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
-use phf::phf_map;
 use seq_io::fasta::OwnedRecord;
 use std::collections::HashMap;
 use std::fmt;
@@ -90,6 +89,18 @@ pub struct Recombinant {
     descendants: DescendantsCell,
     dirty_descendants: AtomicIsize,
 }
+
+unsafe impl Send for Haplotype {}
+unsafe impl Sync for Haplotype {}
+
+unsafe impl Send for Wildtype {}
+unsafe impl Sync for Wildtype {}
+
+unsafe impl Send for Mutant {}
+unsafe impl Sync for Mutant {}
+
+unsafe impl Send for Recombinant {}
+unsafe impl Sync for Recombinant {}
 
 impl Drop for Haplotype {
     fn drop(&mut self) {
@@ -589,8 +600,8 @@ impl Mutant {
             .get_descendants()
             .lock()
             .iter()
-            .cloned()
             .filter(|x| x.exists())
+            .cloned()
             .collect();
         let new = HaplotypeRef::new(Haplotype::Mutant(Self {
             reference: old.get_weak(),

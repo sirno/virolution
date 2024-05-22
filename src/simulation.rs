@@ -101,7 +101,7 @@ impl BasicSimulation {
     fn _recombine_infectants(
         &self,
         sequence_length: usize,
-        infectants: &Vec<usize>,
+        infectants: &[usize],
     ) -> Vec<(usize, HaplotypeRef)> {
         let n_infectants = infectants.len();
 
@@ -341,8 +341,7 @@ impl Simulation for BasicSimulation {
                         .zip(fitness_values.iter())
                         .for_each(|(infectant, fitness)| {
                             if let Ok(dist) = Poisson::new(
-                                fitness * self.parameters.basic_reproductive_number
-                                    / fitness_sum as f64,
+                                fitness * self.parameters.basic_reproductive_number / fitness_sum,
                             ) {
                                 offspring[*infectant] = dist.sample(&mut rng) as usize;
                             }

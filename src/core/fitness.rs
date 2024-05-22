@@ -107,7 +107,7 @@ pub enum UtilityFunction {
 }
 
 impl ExponentialParameters {
-    fn create_table(&self, n_symbols: usize, sequence: &Vec<Symbol>) -> Vec<f64> {
+    fn create_table(&self, n_symbols: usize, sequence: &[Symbol]) -> Vec<f64> {
         let mut table = vec![-1.; sequence.len() * n_symbols];
         let mut rng = rand::thread_rng();
 
@@ -151,7 +151,7 @@ impl ExponentialParameters {
 }
 
 impl LognormalParameters {
-    fn create_table(&self, n_symbols: usize, sequence: &Vec<Symbol>) -> Vec<f64> {
+    fn create_table(&self, n_symbols: usize, sequence: &[Symbol]) -> Vec<f64> {
         let mut table = vec![-1.; sequence.len() * n_symbols];
         let mut rng = rand::thread_rng();
 
@@ -218,7 +218,7 @@ impl FitnessTable {
 
     pub fn from_model(
         id: usize,
-        sequence: &Vec<Symbol>,
+        sequence: &[Symbol],
         n_symbols: usize,
         fitness_model: FitnessModel,
     ) -> Result<Self, FitnessTableError> {

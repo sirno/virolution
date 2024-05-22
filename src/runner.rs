@@ -176,7 +176,7 @@ impl Runner {
 
     fn create_fitness_tables(
         settings: &Settings,
-        sequence: &Vec<Option<u8>>,
+        sequence: &[Option<u8>],
     ) -> Result<Vec<(Range<usize>, FitnessTable)>> {
         let fitness_tables = match &settings.parameters[0].fitness_model {
             FitnessModelField::SingleHost(fitness_model) => {
@@ -585,7 +585,7 @@ impl Runner {
 
             // perform stat collection
             if let Some(stats) = self.settings.schedule.get_event_value("stats", generation) {
-                for stat in stats.split(",") {
+                for stat in stats.split(',') {
                     match stat {
                         "diversity" => {
                             let frequencies: Vec<Vec<f64>> = self
