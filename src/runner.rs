@@ -232,7 +232,12 @@ impl Runner {
                         None => parameters.max_population,
                     };
                     match &args.initial_population_file {
-                        Some(file_name) => Population::read(file_name, wildtype.clone()).unwrap(),
+                        Some(file_name) => Population::read(file_name, wildtype.clone())
+                            .unwrap_or_else(|e| {
+                                eprintln!("Unable to read initial population file: {file_name}.");
+                                eprintln!("Error: {e}.");
+                                std::process::exit(1);
+                            }),
                         None => population![wildtype.clone(); initial_population_size],
                     }
                 };
