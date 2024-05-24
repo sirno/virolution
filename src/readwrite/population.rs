@@ -26,7 +26,6 @@ impl PopulationIO for Population {
 
         for record in reader.deserialize() {
             let record: HaplotypeRecord = record?;
-            dbg!(&record);
             if record.haplotype == "wt" {
                 continue;
             }
