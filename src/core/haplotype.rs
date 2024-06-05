@@ -86,6 +86,16 @@ pub struct Recombinant {
     dirty_descendants: AtomicIsize,
 }
 
+// We have to explicitly implement Send and Sync for Haplotype, because it contains several
+// read-only fields that are not thread-safe. For example, it may contain a HashMap, which reflects
+// the changes in the haplotype data, that is created during the construction of the Haplotype.
+// To my knowledge the only effect of these lines (right now) is that it silences the warning
+// that Arc references an object that is not Send and Sync.
+#[cfg(feature = "parallel")]
+unsafe impl Send for Haplotype {}
+#[cfg(feature = "parallel")]
+unsafe impl Sync for Haplotype {}
+
 impl Drop for Haplotype {
     fn drop(&mut self) {
         match self {

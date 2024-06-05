@@ -1,8 +1,4 @@
 #![allow(dead_code)]
-//! Synchronized haplotype reference and weak reference.
-//!
-//! This module provides synchronized reference and weak reference for haplotype data.
-//! It also implements Send and Sync for the haplotype data.
 
 use block_id::{Alphabet, BlockId};
 use derive_more::{Deref, DerefMut};
@@ -14,14 +10,6 @@ use crate::core::Haplotype;
 
 #[derive(Clone, Deref, DerefMut)]
 pub struct HaplotypeRef(pub Arc<Haplotype>);
-
-// We have to explicitly implement Send and Sync for Haplotype, because it contains several
-// read-only fields that are not thread-safe. For example, it may contain a HashMap, which reflects
-// the changes in the haplotype data, that is created during the construction of the Haplotype.
-// To my knowledge the only effect of these lines (right now) is that it silences the warning
-// that Arc references an object that is not Send and Sync.
-unsafe impl Send for Haplotype {}
-unsafe impl Sync for Haplotype {}
 
 thread_local! {
     pub static BLOCK_ID: BlockId<char> = BlockId::new(Alphabet::new(&("ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect::<Vec<char>>())), 0, 1);
