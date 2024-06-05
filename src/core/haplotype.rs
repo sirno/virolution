@@ -68,8 +68,6 @@ pub struct Mutant {
     changes: HashMap<usize, (Symbol, Symbol)>,
     generation: usize,
     fitness: Vec<OnceLock<f64>>,
-    #[cfg(feature = "epitope")]
-    epitope: OnceLock<Vec<u8>>,
     descendants: DescendantsCell,
     dirty_descendants: AtomicIsize,
 }
@@ -84,23 +82,9 @@ pub struct Recombinant {
     right_position: usize,
     generation: usize,
     fitness: Vec<OnceLock<f64>>,
-    #[cfg(feature = "epitope")]
-    epitope: OnceLock<Vec<u8>>,
     descendants: DescendantsCell,
     dirty_descendants: AtomicIsize,
 }
-
-unsafe impl Send for Haplotype {}
-unsafe impl Sync for Haplotype {}
-
-unsafe impl Send for Wildtype {}
-unsafe impl Sync for Wildtype {}
-
-unsafe impl Send for Mutant {}
-unsafe impl Sync for Mutant {}
-
-unsafe impl Send for Recombinant {}
-unsafe impl Sync for Recombinant {}
 
 impl Drop for Haplotype {
     fn drop(&mut self) {
@@ -187,6 +171,7 @@ impl Haplotype {
         }
     }
 
+    #[allow(dead_code)]
     fn try_unwrap_mutant(&self) -> Option<&Mutant> {
         match self {
             Haplotype::Mutant(ht) => Some(ht),
@@ -667,11 +652,6 @@ impl Mutant {
 
             fitness_table.utility(fitness)
         })
-    }
-
-    #[cfg(feature = "epitope")]
-    pub fn get_epitope(&self) -> Vec<u8> {
-        unimplemented!()
     }
 
     pub fn get_subtree(&self) -> String {
