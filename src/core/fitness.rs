@@ -3,6 +3,7 @@ use npyz::{NpyFile, WriterBuilder};
 use rand::prelude::*;
 use rand_distr::{Exp, WeightedIndex};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use std::error::Error;
 use std::fmt;
@@ -33,12 +34,14 @@ impl Error for FitnessTableError {
     }
 }
 
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum FitnessDistribution {
     Neutral,
     Exponential(ExponentialParameters),
     File(FileParameters),
     Lognormal(LognormalParameters),
+    Epistasis(EpistasisParameters),
     // Spikes,
     // Beta,
     // Empirical,
@@ -79,6 +82,12 @@ pub struct FileParameters {
     pub path: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct EpistasisParameters {
+    pub fitness_path: String,
+    pub epistasis_path: String,
+}
+
 impl MutationCategoryWeights {
     fn as_slice(&self) -> &[f64] {
         unsafe { std::slice::from_raw_parts(self as *const Self as *const f64, 4) }
@@ -105,6 +114,8 @@ pub enum UtilityFunction {
     Linear,
     Algebraic { upper: f64 },
 }
+
+pub type EpistasisMap = HashMap<(usize, u8, usize, u8), f64>;
 
 impl ExponentialParameters {
     fn create_table(&self, n_symbols: usize, sequence: &[Symbol]) -> Vec<f64> {
@@ -193,6 +204,31 @@ impl FileParameters {
             .collect()
     }
 }
+
+
+impl EpistasisParameters {
+    fn load_two_tables(&self, path1: &str, path2: &str) -> (Vec<f64>, EpistasisMap) {
+        // Load the first table as a Vec<f64>
+        let reader1 = NpyFile::new(std::fs::File::open(path1).unwrap()).unwrap();
+        let table1 = reader1
+            .data::<f64>()
+            .unwrap()
+            .map(|entry| entry.unwrap())
+            .collect();
+
+        // Load the second table as an EpistasisMap directly
+        let reader2 = NpyFile::new(std::fs::File::open(path2).unwrap()).unwrap();
+        let epistasis_map: EpistasisMap = reader2
+            .data::<((usize, u8, usize, u8), f64)>()
+            .unwrap()
+            .map(|entry| entry.unwrap())
+            .collect();
+
+        (table1, epistasis_map)
+    }
+}
+
+
 
 impl FitnessTable {
     pub fn new(
