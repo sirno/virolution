@@ -115,7 +115,7 @@ pub enum UtilityFunction {
     Algebraic { upper: f64 },
 }
 
-pub type EpistasisMap = HashMap<(usize, u8, usize, u8), f64>;
+pub type EpistasisMap = HashMap<(usize, Symbol, usize, Symbol), f64>;
 
 impl ExponentialParameters {
     fn create_table(&self, n_symbols: usize, sequence: &[Symbol]) -> Vec<f64> {
