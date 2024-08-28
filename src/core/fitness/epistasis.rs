@@ -4,9 +4,18 @@ use crate::core::haplotype::Symbol;
 use crate::errors::VirolutionError;
 use crate::references::HaplotypeRef;
 
-use super::init::FitnessModel;
+use super::init::{FitnessDistribution, FitnessModel};
 
 type EpistasisTableKey = (usize, Symbol);
+
+#[derive(npyz::Deserialize)]
+pub struct EpiEntry {
+    pos1: u64,
+    base1: u8,
+    pos2: u64,
+    base2: u8,
+    value: f64,
+}
 
 #[derive(Clone, Debug)]
 pub struct EpistasisTable {
@@ -15,20 +24,31 @@ pub struct EpistasisTable {
 
 impl EpistasisTable {
     pub fn from_model(model: &FitnessModel) -> Result<Self, VirolutionError> {
-        todo!()
+        let table = match &model.distribution {
+            FitnessDistribution::Epistatic(_, epi_params) => {
+                let entries = epi_params.load_table();
+                Self::from_vec(entries)
+            }
+            _ => {
+                return Err(VirolutionError::ImplementationError(
+                    "Model is not epistatic".to_string(),
+                ));
+            }
+        };
+        Ok(table)
     }
 
-    pub fn from_vec(entries: Vec<(usize, Symbol, usize, Symbol, f64)>) -> Self {
+    pub fn from_vec(entries: Vec<EpiEntry>) -> Self {
         let mut table: HashMap<EpistasisTableKey, HashMap<EpistasisTableKey, f64>> = HashMap::new();
-        for (pos1, base1, pos2, base2, value) in entries.iter() {
+        for entry in entries.iter() {
             table
-                .entry((*pos1, *base1))
+                .entry((entry.pos1 as usize, Some(entry.base1)))
                 .or_default()
-                .insert((*pos2, *base2), *value);
+                .insert((entry.pos2 as usize, Some(entry.base2)), entry.value);
             table
-                .entry((*pos2, *base2))
+                .entry((entry.pos2 as usize, Some(entry.base2)))
                 .or_default()
-                .insert((*pos1, *base1), *value);
+                .insert((entry.pos1 as usize, Some(entry.base1)), entry.value);
         }
         Self { table }
     }

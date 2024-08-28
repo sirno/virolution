@@ -29,13 +29,13 @@ impl FitnessTable {
     ) -> Result<Self, VirolutionError> {
         let n_sites = sequence.len();
         let table = match fitness_model.distribution {
+            FitnessDistribution::Neutral => vec![1.; n_sites * n_symbols],
             FitnessDistribution::Exponential(ref params) => {
                 params.create_table(n_symbols, sequence)
             }
             FitnessDistribution::Lognormal(ref params) => params.create_table(n_symbols, sequence),
             FitnessDistribution::File(ref params) => params.load_table(),
-            FitnessDistribution::Neutral => vec![1.; n_sites * n_symbols],
-            FitnessDistribution::Epistatic(_, _) => todo!(),
+            FitnessDistribution::Epistatic(ref params, _) => params.load_table(),
         };
 
         if table.len() != n_sites * n_symbols {

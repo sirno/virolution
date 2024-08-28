@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::haplotype::Symbol;
 
+use super::epistasis::EpiEntry;
 use super::utility::UtilityFunction;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -162,6 +163,17 @@ impl FileParameters {
         let reader = NpyFile::new(std::fs::File::open(&self.path).unwrap()).unwrap();
         reader
             .data::<f64>()
+            .unwrap()
+            .map(|entry| entry.unwrap())
+            .collect()
+    }
+}
+
+impl EpiFileParameters {
+    pub fn load_table(&self) -> Vec<EpiEntry> {
+        let reader = NpyFile::new(std::fs::File::open(&self.path).unwrap()).unwrap();
+        reader
+            .data::<EpiEntry>()
             .unwrap()
             .map(|entry| entry.unwrap())
             .collect()

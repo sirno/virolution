@@ -27,7 +27,7 @@ evalexpr = "8.2.0"
 indicatif = "0.17.5"
 itertools = "0.10.5"
 log = "0.4.19"
-npyz = "0.7.4"
+npyz = { version = "0.8.3", features = ["derive"] }
 parking_lot = "0.12.1"
 phf = { version = "0.11.2", features = ["macros"] }
 rand = { version = "0.8.5", features = ["alloc"] }
