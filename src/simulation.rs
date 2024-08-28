@@ -10,11 +10,11 @@ use std::sync::mpsc::channel;
 use std::{cmp::min_by, ops::Range};
 
 use crate::config::Parameters;
-use crate::core::{FitnessTable, Haplotype, Population};
+use crate::core::{FitnessProvider, Haplotype, Population};
 use crate::references::HaplotypeRef;
 
 pub type HostMap = Vec<Vec<usize>>;
-pub type HostRange = (Range<usize>, FitnessTable);
+pub type HostRange = (Range<usize>, FitnessProvider);
 
 #[cfg(feature = "parallel")]
 pub type SimulationTrait = dyn Simulation + Send + Sync;
@@ -43,6 +43,7 @@ pub trait Simulation {
     fn print_population(&self) -> Vec<String>;
 
     fn next_generation(&mut self) {
+        dbg!("next_generation");
         // increment generation counter
         self.increment_generation();
 
@@ -53,10 +54,14 @@ pub trait Simulation {
 
         // simulate infection
         let host_map = self.get_host_map();
+        dbg!(&host_map);
 
         // simulate replication and mutation
+        dbg!("mutate_infectants");
         self.mutate_infectants(&host_map);
+        dbg!(&self.get_population());
         let offspring_map = self.replicate_infectants(&host_map);
+        dbg!(&offspring_map);
 
         // subsample population
         self.set_population(self.subsample_population(&offspring_map, 1.));
@@ -66,7 +71,7 @@ pub trait Simulation {
 pub struct BasicSimulation {
     wildtype: HaplotypeRef,
     population: Population,
-    fitness_tables: Vec<HostRange>,
+    fitness_providers: Vec<HostRange>,
     parameters: Parameters,
     mutation_sampler: Binomial,
     recombination_sampler: Bernoulli,
@@ -78,7 +83,7 @@ impl BasicSimulation {
     pub fn new(
         wildtype: HaplotypeRef,
         population: Population,
-        fitness_tables: Vec<HostRange>,
+        fitness_providers: Vec<HostRange>,
         parameters: Parameters,
         generation: usize,
     ) -> Self {
@@ -89,7 +94,7 @@ impl BasicSimulation {
         Self {
             wildtype,
             population,
-            fitness_tables,
+            fitness_providers,
             parameters,
             mutation_sampler,
             recombination_sampler,
@@ -296,13 +301,13 @@ impl Simulation for BasicSimulation {
     fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
         let offspring_ptr = offspring.as_mut_ptr() as usize;
-        self.fitness_tables
+        self.fitness_providers
             .par_iter()
-            .for_each(|(range, fitness_table)| {
+            .for_each(|(range, fitness_provider)| {
                 host_map[range.clone()].iter().for_each(|host| {
                     let fitness_values: Vec<f64> = host
                         .iter()
-                        .map(|infectant| self.population[infectant].get_fitness(fitness_table))
+                        .map(|infectant| self.population[infectant].get_fitness(fitness_provider))
                         .collect();
                     let fitness_sum: f64 = fitness_values.iter().sum();
                     host.iter()
@@ -328,13 +333,13 @@ impl Simulation for BasicSimulation {
     fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
         let mut rng = rand::thread_rng();
-        self.fitness_tables
+        self.fitness_providers
             .iter()
-            .for_each(|(range, fitness_table)| {
+            .for_each(|(range, fitness_provider)| {
                 host_map[range.clone()].iter().for_each(|host| {
                     let fitness_values: Vec<f64> = host
                         .iter()
-                        .map(|infectant| self.population[infectant].get_fitness(fitness_table))
+                        .map(|infectant| self.population[infectant].get_fitness(fitness_provider))
                         .collect();
                     let fitness_sum: f64 = fitness_values.iter().sum();
                     host.iter()
@@ -405,10 +410,10 @@ impl Simulation for BasicSimulation {
 mod tests {
     use super::*;
     use crate::config::FitnessModelField;
-    use crate::core::fitness::{
+    use crate::core::fitness::init::{
         ExponentialParameters, FitnessDistribution, FitnessModel, MutationCategoryWeights,
-        UtilityFunction,
     };
+    use crate::core::fitness::utility::UtilityFunction;
     use crate::core::haplotype::Wildtype;
     use test::Bencher;
 
@@ -451,12 +456,13 @@ mod tests {
     fn setup_test_simulation() -> BasicSimulation {
         let sequence = vec![Some(0x00); 100];
 
-        let fitness_table = FitnessTable::from_model(0, &sequence, 4, FITNESS_MODEL).unwrap();
-        let fitness_tables = vec![(0..SETTINGS.host_population_size, fitness_table)];
+        let fitness_provider =
+            FitnessProvider::from_model(0, &sequence, 4, &FITNESS_MODEL).unwrap();
+        let fitness_providers = vec![(0..SETTINGS.host_population_size, fitness_provider)];
 
         let wt = Wildtype::new(sequence);
         let population: Population = crate::population![wt.clone(); POPULATION_SIZE];
-        BasicSimulation::new(wt, population, fitness_tables, SETTINGS, 0)
+        BasicSimulation::new(wt, population, fitness_providers, SETTINGS, 0)
     }
 
     #[test]

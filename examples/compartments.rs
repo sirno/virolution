@@ -3,7 +3,9 @@ extern crate virolution;
 use std::path::PathBuf;
 
 use virolution::config::{FitnessModelField, Parameters, Schedule};
-use virolution::core::fitness::*;
+use virolution::core::fitness::init::*;
+use virolution::core::fitness::utility::UtilityFunction;
+use virolution::core::fitness::FitnessProvider;
 use virolution::core::haplotype::*;
 use virolution::core::population::Population;
 use virolution::simulation::*;
@@ -26,7 +28,8 @@ fn main() {
     });
     let fitness_model = FitnessModel::new(distribution.clone(), UtilityFunction::Linear);
 
-    let fitness_table = FitnessTable::from_model(0, &sequence, 4, fitness_model.clone()).unwrap();
+    let fitness_provider = FitnessProvider::from_model(0, &sequence, 4, &fitness_model)
+        .expect("Failed to create fitness table");
 
     let wt = Wildtype::new(sequence);
     let parameters = Parameters {
@@ -50,11 +53,12 @@ fn main() {
     let mut compartment_simulations: Vec<BasicSimulation> = (0..n_compartments)
         .map(|_| {
             let population = population![wt.clone(); 1_000_000];
-            let fitness_tables = vec![(0..parameters.host_population_size, fitness_table.clone())];
+            let fitness_providers =
+                vec![(0..parameters.host_population_size, fitness_provider.clone())];
             BasicSimulation::new(
                 wt.clone(),
                 population,
-                fitness_tables,
+                fitness_providers,
                 parameters.clone(),
                 0,
             )

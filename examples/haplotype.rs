@@ -18,36 +18,27 @@ fn main() {
     println!("---get_base---");
     println!(
         "{:?}",
-        (0..4)
-            .into_iter()
-            .map(|idx| wt.get_base(&idx))
-            .collect::<Vec<Symbol>>()
+        (0..4).map(|idx| wt.get_base(&idx)).collect::<Vec<Symbol>>()
+    );
+    println!(
+        "{:?}",
+        (0..4).map(|idx| ht.get_base(&idx)).collect::<Vec<Symbol>>()
     );
     println!(
         "{:?}",
         (0..4)
-            .into_iter()
-            .map(|idx| ht.get_base(&idx))
-            .collect::<Vec<Symbol>>()
-    );
-    println!(
-        "{:?}",
-        (0..4)
-            .into_iter()
             .map(|idx| ht2.get_base(&idx))
             .collect::<Vec<Symbol>>()
     );
     println!(
         "{:?}",
         (0..4)
-            .into_iter()
             .map(|idx| ht3.get_base(&idx))
             .collect::<Vec<Symbol>>()
     );
     println!(
         "{:?}",
         (0..4)
-            .into_iter()
             .map(|idx| ht4.get_base(&idx))
             .collect::<Vec<Symbol>>()
     );

@@ -51,7 +51,7 @@ impl PopulationIO for Population {
         Ok(population)
     }
 
-    fn write(&self, path: &str) {
+    fn write(&self, _path: &str) {
         unimplemented!()
     }
 }

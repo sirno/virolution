@@ -9,7 +9,7 @@ pub mod fitness;
 pub mod haplotype;
 
 pub use ancestry::Ancestry;
-pub use fitness::{FitnessModel, FitnessTable, FitnessTableError};
+pub use fitness::FitnessProvider;
 pub use haplotype::Haplotype;
 pub use historian::Historian;
 pub use population::Population;

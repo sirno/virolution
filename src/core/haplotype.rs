@@ -18,7 +18,7 @@
 //!   combination of two parent haplotypes.
 //!
 
-use super::fitness::FitnessTable;
+use super::fitness::FitnessProvider;
 use crate::encoding::STRICT_ENCODE;
 use crate::references::DescendantsCell;
 use crate::references::{HaplotypeRef, HaplotypeWeak};
@@ -174,6 +174,10 @@ impl Haplotype {
         matches!(self, Haplotype::Recombinant(_))
     }
 
+    /// Unwraps the haplotype into a mutant.
+    ///
+    /// This function will panic if the haplotype is not a mutant and is only intended for internal
+    /// use while minimizing the tree.
     fn unwrap_mutant(&self) -> &Mutant {
         match self {
             Haplotype::Mutant(ht) => ht,
@@ -181,10 +185,21 @@ impl Haplotype {
         }
     }
 
-    #[allow(dead_code)]
-    fn try_unwrap_mutant(&self) -> Option<&Mutant> {
+    /// Returns a reference to the changes that are present in the haplotype if the type allows it.
+    pub fn try_get_changes(&self) -> Option<&HashMap<usize, (Symbol, Symbol)>> {
         match self {
-            Haplotype::Mutant(ht) => Some(ht),
+            Haplotype::Mutant(ht) => Some(&ht.changes),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to an ancestor if the type allows it.
+    ///
+    /// If there are multiple ancestors, in the future any ancestor may be returned.
+    pub fn try_get_ancestor(&self) -> Option<HaplotypeRef> {
+        match self {
+            Haplotype::Mutant(ht) => Some(ht.ancestor.clone()),
+            Haplotype::Recombinant(rc) => Some(rc.left_ancestor.clone()),
             _ => None,
         }
     }
@@ -307,8 +322,8 @@ impl Haplotype {
         let mutations = self.get_mutations();
         let mut sequence = self.get_wildtype_sequence();
 
-        for (position, (_, to)) in mutations {
-            sequence[position] = to;
+        for (position, new) in mutations {
+            sequence[position] = new;
         }
 
         sequence
@@ -327,14 +342,15 @@ impl Haplotype {
         let wildtype = self.get_wildtype_sequence();
 
         let mut out = String::new();
-        for (position, (from, to)) in mutations.iter() {
+        for (position, to) in mutations.iter() {
+            let from = wildtype[*position];
             match (from, to) {
                 (Some(f), Some(t)) => {
                     out.push_str(
                         format!(
                             ";{position}:{}->{}",
-                            char::from(STRICT_ENCODE[f]),
-                            char::from(STRICT_ENCODE[t])
+                            char::from(STRICT_ENCODE[&f]),
+                            char::from(STRICT_ENCODE[&t])
                         )
                         .as_str(),
                     );
@@ -345,7 +361,7 @@ impl Haplotype {
                             format!(
                                 ";{position}:{}->{}",
                                 char::from(STRICT_ENCODE[&wt_symbol]),
-                                char::from(STRICT_ENCODE[t])
+                                char::from(STRICT_ENCODE[&t])
                             )
                             .as_str(),
                         )
@@ -363,7 +379,12 @@ impl Haplotype {
         out
     }
 
-    pub fn get_mutations(&self) -> HashMap<usize, (Symbol, Symbol)> {
+    /// Returns a HashMap of mutations that are present in the haplotype.
+    ///
+    /// Calling this with large trees can be expensive, especially when there are many
+    /// recombinants. For every recombinant, both ancestors have to be traversed to find
+    /// the mutations that are present in the recombinant.
+    pub fn get_mutations(&self) -> HashMap<usize, Symbol> {
         match self {
             Haplotype::Wildtype(_wt) => HashMap::new(),
             Haplotype::Mutant(ht) => ht.get_mutations(),
@@ -371,11 +392,19 @@ impl Haplotype {
         }
     }
 
-    pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
+    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
         match self {
             Haplotype::Wildtype(_wt) => 1.,
-            Haplotype::Mutant(ht) => ht.get_fitness(fitness_table),
-            Haplotype::Recombinant(rc) => rc.get_fitness(fitness_table),
+            Haplotype::Mutant(ht) => ht.get_raw_fitness(fitness_provider),
+            Haplotype::Recombinant(rc) => rc.get_raw_fitness(fitness_provider),
+        }
+    }
+
+    pub fn get_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+        match self {
+            Haplotype::Wildtype(_wt) => 1.,
+            Haplotype::Mutant(ht) => ht.get_fitness(fitness_provider),
+            Haplotype::Recombinant(rc) => rc.get_fitness(fitness_provider),
         }
     }
 
@@ -625,6 +654,10 @@ impl Mutant {
         }
     }
 
+    pub fn iter_changes(&self) -> impl Iterator<Item = (&usize, &(Symbol, Symbol))> + '_ {
+        self.changes.iter()
+    }
+
     pub fn get_generation(&self) -> usize {
         self.generation
     }
@@ -633,35 +666,40 @@ impl Mutant {
         self.wildtype.upgrade().unwrap().get_length()
     }
 
-    pub fn get_mutations(&self) -> HashMap<usize, (Symbol, Symbol)> {
+    pub fn get_ancestor(&self) -> HaplotypeRef {
+        self.ancestor.clone()
+    }
+
+    pub fn get_changes(&self) -> &HashMap<usize, (Symbol, Symbol)> {
+        &self.changes
+    }
+
+    pub fn get_mutations(&self) -> HashMap<usize, Symbol> {
         let mut mutations = self.ancestor.get_mutations();
         let wt_ref = self.wildtype.upgrade().unwrap();
 
-        self.changes.iter().for_each(|(position, change)| {
+        self.changes.iter().for_each(|(position, (_, new))| {
             let wt_base = wt_ref.get_base(position);
-            if change.1 == wt_base {
+            if *new == wt_base {
                 mutations.remove(position);
             } else {
-                mutations.insert(*position, *change);
+                mutations.insert(*position, *new);
             }
         });
 
         mutations
     }
 
-    pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
-        *self.fitness[fitness_table.get_id()].get_or_init(|| {
-            let mut fitness = self.ancestor.get_fitness(fitness_table);
+    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+        *self
+            .fitness
+            .get(fitness_provider.id)
+            .unwrap()
+            .get_or_init(|| fitness_provider.get_fitness(&self.reference.upgrade().unwrap()))
+    }
 
-            // calculate fitness based on recent changes
-            // this may create a numerical error over time
-            self.changes.iter().for_each(|(position, change)| {
-                fitness /= fitness_table.get_fitness(position, &change.0);
-                fitness *= fitness_table.get_fitness(position, &change.1);
-            });
-
-            fitness_table.utility(fitness)
-        })
+    pub fn get_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+        fitness_provider.apply_utility(self.get_raw_fitness(fitness_provider))
     }
 
     pub fn get_subtree(&self) -> String {
@@ -732,7 +770,7 @@ impl Recombinant {
         self.wildtype.upgrade().unwrap().get_length()
     }
 
-    pub fn get_mutations(&self) -> HashMap<usize, (Symbol, Symbol)> {
+    pub fn get_mutations(&self) -> HashMap<usize, Symbol> {
         let left_mutations = self.left_ancestor.get_mutations();
         let right_mutations = self.right_ancestor.get_mutations();
 
@@ -753,17 +791,16 @@ impl Recombinant {
         mutations
     }
 
-    pub fn get_fitness(&self, fitness_table: &FitnessTable) -> f64 {
-        *self.fitness[fitness_table.get_id()].get_or_init(|| {
-            let mutations = self.get_mutations();
-            let mut fitness = 1.;
+    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+        *self
+            .fitness
+            .get(fitness_provider.id)
+            .unwrap()
+            .get_or_init(|| fitness_provider.get_fitness(&self.reference.upgrade().unwrap()))
+    }
 
-            for (position, (_from, to)) in mutations {
-                fitness *= fitness_table.get_fitness(&position, &to);
-            }
-
-            fitness_table.utility(fitness)
-        })
+    pub fn get_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+        fitness_provider.apply_utility(self.get_raw_fitness(fitness_provider))
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
@@ -955,6 +992,6 @@ mod tests {
         assert_eq!(d2, ht3);
         assert_eq!(d2.get_generation(), 3);
         assert_eq!(d2.get_mutations().len(), 1);
-        assert_eq!(d2.get_mutations().get(&0), Some(&(Some(0x00), Some(0x03))));
+        assert_eq!(d2.get_mutations().get(&0), Some(&Some(0x03)));
     }
 }

@@ -8,7 +8,6 @@ use rayon::prelude::*;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::fs;
-use std::io;
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
@@ -16,7 +15,7 @@ use std::rc::Rc;
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::haplotype::set_number_of_fitness_tables;
-use crate::core::{Ancestry, FitnessTable, Haplotype, Historian, Population};
+use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
@@ -42,8 +41,12 @@ impl Runner {
         let settings = Self::load_settings(&args.settings)?;
         let wildtype = Haplotype::load_wildtype(args.sequence.as_str())?;
 
-        let fitness_tables = Self::create_fitness_tables(&settings, &wildtype.get_sequence())?;
-        Self::write_fitness_tables(&fitness_tables, Path::new(args.outdir.as_str()).parent());
+        let provider_map = Self::create_fitness_providers(&settings, &wildtype.get_sequence())?;
+        let providers = provider_map
+            .iter()
+            .map(|(_range, provider)| provider)
+            .collect::<Vec<_>>();
+        Self::write_fitness_tables(&providers, Path::new(args.outdir.as_str()).parent());
 
         // perform sanity checks
         if !settings
@@ -57,12 +60,8 @@ impl Runner {
 
         // create individual compartments
         println!("Creating {} compartments...", args.n_compartments);
-        let simulations: Vec<Box<SimulationTrait>> = Self::create_simulations(
-            &args,
-            &wildtype,
-            fitness_tables.as_slice(),
-            &settings.parameters[0],
-        );
+        let simulations: Vec<Box<SimulationTrait>> =
+            Self::create_simulations(&args, &wildtype, &provider_map, &settings.parameters[0]);
 
         // check if ancestry is requested and supported
         if cfg!(feature = "parallel") && args.ancestry.is_some() {
@@ -174,54 +173,55 @@ impl Runner {
         Ok(settings)
     }
 
-    fn create_fitness_tables(
+    fn create_fitness_providers(
         settings: &Settings,
         sequence: &[Option<u8>],
-    ) -> Result<Vec<(Range<usize>, FitnessTable)>> {
+    ) -> Result<Vec<(Range<usize>, FitnessProvider)>> {
         let fitness_tables = match &settings.parameters[0].fitness_model {
             FitnessModelField::SingleHost(fitness_model) => {
                 let _ = set_number_of_fitness_tables(1);
                 vec![(
                     0..settings.parameters[0].host_population_size,
-                    FitnessTable::from_model(0, sequence, 4, fitness_model.clone())?,
+                    FitnessProvider::from_model(0, sequence, 4, &fitness_model)?,
                 )]
             }
             FitnessModelField::MultiHost(fitness_models) => {
                 let mut fitness_tables = Vec::new();
                 let mut lower = 0;
+
                 let _ = set_number_of_fitness_tables(fitness_models.len());
+
                 for (id, fitness_model_frac) in fitness_models.iter().enumerate() {
                     let fitness_model = fitness_model_frac.fitness_model.clone();
                     let n_hosts = (fitness_model_frac.fraction
                         * settings.parameters[0].host_population_size as f64)
                         .round() as usize;
                     let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
+
                     fitness_tables.push((
                         lower..upper,
-                        FitnessTable::from_model(id, sequence, 4, fitness_model)?,
+                        FitnessProvider::from_model(id, sequence, 4, &fitness_model)?,
                     ));
                     lower = upper;
                 }
+
                 fitness_tables
             }
         };
         Ok(fitness_tables)
     }
 
-    fn write_fitness_tables(fitness_tables: &[(Range<usize>, FitnessTable)], path: Option<&Path>) {
+    fn write_fitness_tables(providers: &[&FitnessProvider], path: Option<&Path>) {
         let sequence_path = path.unwrap_or_else(|| Path::new("./"));
-        for (idx, (_, fitness_table)) in fitness_tables.iter().enumerate() {
-            let name = format!("fitness_table_{}.npy", idx);
-            let mut fitness_file =
-                io::BufWriter::new(fs::File::create(sequence_path.join(name)).unwrap());
-            fitness_table.write(&mut fitness_file).unwrap();
-        }
+        providers.iter().for_each(|provider| {
+            provider.write(sequence_path).unwrap();
+        });
     }
 
     fn create_simulations(
         args: &Args,
         wildtype: &HaplotypeRef,
-        fitness_tables: &[(Range<usize>, FitnessTable)],
+        fitness_providers: &[(Range<usize>, FitnessProvider)],
         parameters: &Parameters,
     ) -> Vec<Box<SimulationTrait>> {
         (0..args.n_compartments)
@@ -244,7 +244,7 @@ impl Runner {
                 BasicSimulation::new(
                     wildtype.clone(),
                     init_population,
-                    fitness_tables.to_vec(),
+                    fitness_providers.to_vec(),
                     parameters.clone(),
                     0,
                 )

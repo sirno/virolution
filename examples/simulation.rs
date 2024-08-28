@@ -2,7 +2,9 @@ extern crate virolution;
 
 use std::fs;
 use virolution::config::{FitnessModelField, Parameters};
-use virolution::core::fitness::*;
+use virolution::core::fitness::init::*;
+use virolution::core::fitness::utility::UtilityFunction;
+use virolution::core::fitness::FitnessProvider;
 use virolution::core::haplotype::*;
 use virolution::core::Population;
 use virolution::simulation::*;
@@ -23,7 +25,7 @@ fn main() {
     });
     let fitness_model = FitnessModel::new(distribution.clone(), UtilityFunction::Linear);
 
-    let fitness_table = FitnessTable::from_model(0, &sequence, 4, fitness_model.clone()).unwrap();
+    let fitness_table = FitnessProvider::from_model(0, &sequence, 4, &fitness_model).unwrap();
 
     let wt = Wildtype::new(sequence);
     let ht = wt.create_descendant(vec![2], vec![Some(0x01)], 0);

@@ -1,0 +1,129 @@
+use std::collections::HashMap;
+
+use crate::core::haplotype::Symbol;
+use crate::errors::VirolutionError;
+use crate::references::HaplotypeRef;
+
+use super::init::FitnessModel;
+
+type EpistasisTableKey = (usize, Symbol);
+
+#[derive(Clone, Debug)]
+pub struct EpistasisTable {
+    table: HashMap<EpistasisTableKey, HashMap<EpistasisTableKey, f64>>,
+}
+
+impl EpistasisTable {
+    pub fn from_model(model: &FitnessModel) -> Result<Self, VirolutionError> {
+        todo!()
+    }
+
+    pub fn from_vec(entries: Vec<(usize, Symbol, usize, Symbol, f64)>) -> Self {
+        let mut table: HashMap<EpistasisTableKey, HashMap<EpistasisTableKey, f64>> = HashMap::new();
+        for (pos1, base1, pos2, base2, value) in entries.iter() {
+            table
+                .entry((*pos1, *base1))
+                .or_default()
+                .insert((*pos2, *base2), *value);
+            table
+                .entry((*pos2, *base2))
+                .or_default()
+                .insert((*pos1, *base1), *value);
+        }
+        Self { table }
+    }
+
+    pub fn write(&self, writer: &mut dyn std::io::Write) -> Result<(), VirolutionError> {
+        todo!()
+    }
+
+    /// Compute factor to update the fitness of a haplotype change based on the epistasis table
+    pub fn update_fitness(&self, haplotype: &HaplotypeRef) -> f64 {
+        // Callers should ensure that the haplotype is mutant
+        if !haplotype.is_mutant() {
+            panic!("Cannot update fitness of haplotype that is not mutant");
+        }
+
+        // If there are not changes then there is no update
+        let changes = match haplotype.try_get_changes() {
+            Some(changes) => changes,
+            None => {
+                return 1.;
+            }
+        };
+
+        // We evaluate this first, because if we do not need to evaluate any changes, we do not
+        // have to call `get_mutations` on the haplotype which can be expensive.
+        let candidate_changes = changes
+            .iter()
+            .filter(|(position, (old, new))| {
+                self.table.contains_key(&(**position, *old))
+                    || self.table.contains_key(&(**position, *new))
+            })
+            .collect::<HashMap<_, _>>();
+
+        // If no changes are present in the table, return the fitness
+        if candidate_changes.is_empty() {
+            return 1.;
+        }
+
+        // Collect all mutations of the haplotype
+        let mutations = haplotype.get_mutations();
+        let mut fitness = 1.;
+
+        // Add any epistatic effects
+        for (position, (old, new)) in &candidate_changes {
+            // Get any interactions of the current mutation
+            let interactions_add = self.table.get(&(**position, *new));
+            let interactions_remove = self.table.get(&(**position, *old));
+
+            // Apply any interactions
+            for (pos, current) in mutations.iter() {
+                // Deal with a rare case where two mutations have interactions with each
+                // other. In this case, we enforce that the interaction is only applied
+                // once, by enforcing an order when reading epistatic interactions.
+                if changes.contains_key(pos) && pos <= position {
+                    continue;
+                }
+
+                if pos != *position {
+                    if let Some(interaction) = interactions_add {
+                        // If there is an interaction, multiply the fitness
+                        if let Some(v) = interaction.get(&(*pos, *current)) {
+                            fitness *= v;
+                        }
+                    }
+
+                    if let Some(interaction) = interactions_remove {
+                        // If there is an interaction, divide the fitness
+                        if let Some(v) = interaction.get(&(*pos, *current)) {
+                            fitness /= v;
+                        }
+                    }
+                }
+            }
+        }
+
+        fitness
+    }
+
+    /// Compute the fitness contribution within the epistasis table for a given haplotype
+    pub fn compute_fitness(&self, haplotype: &HaplotypeRef) -> f64 {
+        let mut fitness = 1.;
+        let mutations = haplotype.get_mutations();
+        mutations.iter().for_each(|(position, current)| {
+            if let Some(interaction) = self.table.get(&(*position, *current)) {
+                interaction
+                    .iter()
+                    .filter(|((pos, base), _)| {
+                        // Enforce that the interaction is only applied once
+                        pos > position && mutations.get(pos) != Some(base)
+                    })
+                    .for_each(|(_, value)| {
+                        fitness *= value;
+                    });
+            }
+        });
+        fitness
+    }
+}

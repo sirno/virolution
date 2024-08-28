@@ -1,8 +1,7 @@
 //! This module contains the Ancestry struct and its associated methods.
 //!
-//! The Ancestry struct is used to store the ancestors of a given node. It can
-//! be used to reconstruct the tree of individual ancestors for a single
-//! sampling time.
+//! The Ancestry struct is used to store the ancestors of a given node. It can be used to
+//! reconstruct the tree of individual ancestors for a single sampling time.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, LinkedList};
