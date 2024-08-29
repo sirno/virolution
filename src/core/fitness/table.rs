@@ -35,7 +35,7 @@ impl FitnessTable {
             }
             FitnessDistribution::Lognormal(ref params) => params.create_table(n_symbols, sequence),
             FitnessDistribution::File(ref params) => params.load_table(),
-            FitnessDistribution::Epistatic(ref params, _) => params.load_table(),
+            FitnessDistribution::Epistatic(ref params) => params.load_table(),
         };
 
         if table.len() != n_sites * n_symbols {

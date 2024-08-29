@@ -25,8 +25,8 @@ pub struct EpistasisTable {
 impl EpistasisTable {
     pub fn from_model(model: &FitnessModel) -> Result<Self, VirolutionError> {
         let table = match &model.distribution {
-            FitnessDistribution::Epistatic(_, epi_params) => {
-                let entries = epi_params.load_table();
+            FitnessDistribution::Epistatic(epi_params) => {
+                let entries = epi_params.load_epistasis();
                 Self::from_vec(entries)
             }
             _ => {

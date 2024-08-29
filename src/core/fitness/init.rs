@@ -29,7 +29,7 @@ pub enum FitnessDistribution {
     Exponential(ExponentialParameters),
     File(FileParameters),
     Lognormal(LognormalParameters),
-    Epistatic(FileParameters, EpiFileParameters),
+    Epistatic(EpiFileParameters),
     // Spikes,
     // Beta,
     // Empirical,
@@ -73,6 +73,7 @@ pub struct FileParameters {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct EpiFileParameters {
     pub path: String,
+    pub epi_path: String,
 }
 
 impl MutationCategoryWeights {
@@ -170,7 +171,16 @@ impl FileParameters {
 }
 
 impl EpiFileParameters {
-    pub fn load_table(&self) -> Vec<EpiEntry> {
+    pub fn load_table(&self) -> Vec<f64> {
+        let reader = NpyFile::new(std::fs::File::open(&self.path).unwrap()).unwrap();
+        reader
+            .data::<f64>()
+            .unwrap()
+            .map(|entry| entry.unwrap())
+            .collect()
+    }
+
+    pub fn load_epistasis(&self) -> Vec<EpiEntry> {
         let reader = NpyFile::new(std::fs::File::open(&self.path).unwrap()).unwrap();
         reader
             .data::<EpiEntry>()

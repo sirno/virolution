@@ -48,7 +48,7 @@ impl FitnessProvider {
                 let table = FitnessTable::from_model(sequence, n_symbols, model)?;
                 FitnessFunction::NonEpistatic(table)
             }
-            FitnessDistribution::Epistatic(_, _) => {
+            FitnessDistribution::Epistatic(_) => {
                 let table = FitnessTable::from_model(sequence, n_symbols, model)?;
                 let epistasis = EpistasisTable::from_model(model)?;
                 FitnessFunction::SimpleEpistatic(table, epistasis)
