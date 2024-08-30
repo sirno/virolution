@@ -1,3 +1,4 @@
+use npyz::WriterBuilder;
 use std::collections::HashMap;
 
 use crate::core::haplotype::Symbol;
@@ -8,7 +9,7 @@ use super::init::{FitnessDistribution, FitnessModel};
 
 type EpistasisTableKey = (usize, Symbol);
 
-#[derive(npyz::Deserialize)]
+#[derive(npyz::Deserialize, npyz::Serialize, npyz::AutoSerialize)]
 pub struct EpiEntry {
     pos1: u64,
     base1: u8,
@@ -54,7 +55,47 @@ impl EpistasisTable {
     }
 
     pub fn write(&self, writer: &mut dyn std::io::Write) -> Result<(), VirolutionError> {
-        todo!()
+        // Convert the table to a vector of entries
+        let entries: Vec<EpiEntry> = self
+            .table
+            .iter()
+            .flat_map(|((pos1, base1), interactions)| {
+                interactions
+                    .iter()
+                    .filter_map(move |((pos2, base2), value)| {
+                        if pos1 > pos2 {
+                            None
+                        } else {
+                            Some(EpiEntry {
+                                pos1: *pos1 as u64,
+                                base1: base1.unwrap_or_default(),
+                                pos2: *pos2 as u64,
+                                base2: base2.unwrap_or_default(),
+                                value: *value,
+                            })
+                        }
+                    })
+            })
+            .collect();
+
+        // Setup Writer
+        let shape = vec![entries.len() as u64];
+        let mut npy_writer = npyz::WriteOptions::new()
+            .default_dtype()
+            .shape(&shape)
+            .writer(writer)
+            .begin_nd()
+            .map_err(|e| VirolutionError::InitializationError(format!("{}", e)))?;
+
+        // Write entries to file
+        npy_writer
+            .extend(entries)
+            .map_err(|e| VirolutionError::InitializationError(format!("{}", e)))?;
+        npy_writer
+            .finish()
+            .map_err(|e| VirolutionError::InitializationError(format!("{}", e)))?;
+
+        Ok(())
     }
 
     /// Compute factor to update the fitness of a haplotype change based on the epistasis table

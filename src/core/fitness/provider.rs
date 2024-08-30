@@ -11,6 +11,10 @@ use crate::core::haplotype::Symbol;
 use crate::errors::VirolutionError;
 use crate::references::HaplotypeRef;
 
+/// A provider of fitness values for haplotypes.
+///
+/// The fitness provider is responsible for computing the fitness of a haplotype based on its
+/// sequence and the fitness model.
 #[derive(Clone, Debug)]
 pub struct FitnessProvider {
     pub id: usize,
@@ -25,6 +29,10 @@ pub enum FitnessFunction {
 }
 
 impl FitnessProvider {
+    /// Create a new fitness provider from a fitness model.
+    ///
+    /// Fitness models can be specified in the configuration file. Available fitness models are
+    /// defined in `virolution::core::fitness::init`.
     pub fn from_model(
         id: usize,
         sequence: &[Symbol],
@@ -67,32 +75,20 @@ impl FitnessProvider {
                 let table_name = format!("fitness_table_{}.npy", self.id);
                 let mut table_file =
                     io::BufWriter::new(fs::File::create(path.join(table_name)).unwrap());
-                table.write(&mut table_file).map_err(|e| {
-                    VirolutionError::InitializationError(format!(
-                        "Failed to write fitness table: {}",
-                        e
-                    ))
-                })?;
+                table.write(&mut table_file)?;
             }
             FitnessFunction::SimpleEpistatic(table, epistasis) => {
                 let table_name = format!("fitness_table_{}.npy", self.id);
-                let mut table_file =
-                    io::BufWriter::new(fs::File::create(path.join(table_name)).unwrap());
-                table.write(&mut table_file).map_err(|e| {
-                    VirolutionError::InitializationError(format!(
-                        "Failed to write fitness table: {}",
-                        e
-                    ))
-                })?;
-                let epistasis_table_name = format!("fitness_table_{}.npy", self.id);
-                let mut epistasis_table_file =
-                    io::BufWriter::new(fs::File::create(path.join(epistasis_table_name)).unwrap());
-                epistasis.write(&mut epistasis_table_file).map_err(|e| {
-                    VirolutionError::InitializationError(format!(
-                        "Failed to write epistasis table: {}",
-                        e
-                    ))
-                })?;
+                let epistasis_name = format!("fitness_table_{}.npy", self.id);
+
+                let table_file = fs::File::create(path.join(table_name)).unwrap();
+                let epistasis_path = fs::File::create(path.join(epistasis_name)).unwrap();
+
+                let mut table_writer = io::BufWriter::new(table_file);
+                let mut epistasis_writer = io::BufWriter::new(epistasis_path);
+
+                table.write(&mut table_writer)?;
+                epistasis.write(&mut epistasis_writer)?;
             }
         }
         Ok(())
