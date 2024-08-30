@@ -181,7 +181,7 @@ impl EpiFileParameters {
     }
 
     pub fn load_epistasis(&self) -> Vec<EpiEntry> {
-        let reader = NpyFile::new(std::fs::File::open(&self.path).unwrap()).unwrap();
+        let reader = NpyFile::new(std::fs::File::open(&self.epi_path).unwrap()).unwrap();
         reader
             .data::<EpiEntry>()
             .unwrap()

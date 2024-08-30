@@ -1,4 +1,4 @@
-use npyz::WriterBuilder;
+use npyz::{DType, WriterBuilder};
 use std::collections::HashMap;
 
 use crate::core::haplotype::Symbol;
@@ -9,7 +9,7 @@ use super::init::{FitnessDistribution, FitnessModel};
 
 type EpistasisTableKey = (usize, Symbol);
 
-#[derive(npyz::Deserialize, npyz::Serialize, npyz::AutoSerialize)]
+#[derive(Debug, npyz::Deserialize, npyz::Serialize, npyz::AutoSerialize)]
 pub struct EpiEntry {
     pos1: u64,
     base1: u8,
