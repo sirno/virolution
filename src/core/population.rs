@@ -1,9 +1,9 @@
+//! Population module.
 //!
 //! The population module contains the `Population` struct, which is a collection
 //! of haplotypes. The `Population` struct is used to represent the population
 //! while only storing a single copy of each haplotype. This is done by storing
 //! a vector of indices that point to the haplotypes in the population.
-//!
 
 use itertools::Itertools;
 use rand::prelude::*;

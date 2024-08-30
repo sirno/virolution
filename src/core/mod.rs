@@ -1,6 +1,7 @@
 //! This module contains the core datatypes of the library.
 
 mod ancestry;
+mod cache;
 mod historian;
 
 #[macro_use]

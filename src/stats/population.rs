@@ -17,7 +17,7 @@ impl PopulationFrequencies for Population {
         let mut counts: Vec<i64> = vec![0; sequence_length * 4];
 
         for (haplotype_ref, haplotype_count) in self.iter().counts() {
-            for (pos, change) in haplotype_ref.as_ref().get_mutations() {
+            for (&pos, &change) in haplotype_ref.as_ref().get_mutations().iter() {
                 if let Some(symbol) = change {
                     counts[symbol as usize + 4 * pos] += haplotype_count as i64;
                 }

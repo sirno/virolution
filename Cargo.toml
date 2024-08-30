@@ -19,6 +19,7 @@ debug = true
 
 [dependencies]
 block-id = "0.1.2"
+cached = "0.53.1"
 clap = { version = "4.3.11", features = ["derive"] }
 csv = "1.2.2"
 derivative = "2.2.0"

@@ -18,16 +18,19 @@
 //!   combination of two parent haplotypes.
 //!
 
-use super::fitness::FitnessProvider;
-use crate::encoding::STRICT_ENCODE;
-use crate::references::DescendantsCell;
-use crate::references::{HaplotypeRef, HaplotypeWeak};
 use derivative::Derivative;
 use seq_io::fasta::OwnedRecord;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::OnceLock;
+
+use crate::encoding::STRICT_ENCODE;
+use crate::references::DescendantsCell;
+use crate::references::{HaplotypeRef, HaplotypeWeak};
+
+use super::cache::{CachedValue, VirolutionCache};
+use super::fitness::FitnessProvider;
 
 pub static N_FITNESS_TABLES: OnceLock<usize> = OnceLock::new();
 
@@ -322,7 +325,7 @@ impl Haplotype {
         let mutations = self.get_mutations();
         let mut sequence = self.get_wildtype_sequence();
 
-        for (position, new) in mutations {
+        for (&position, &new) in mutations.iter() {
             sequence[position] = new;
         }
 
@@ -384,9 +387,9 @@ impl Haplotype {
     /// Calling this with large trees can be expensive, especially when there are many
     /// recombinants. For every recombinant, both ancestors have to be traversed to find
     /// the mutations that are present in the recombinant.
-    pub fn get_mutations(&self) -> HashMap<usize, Symbol> {
+    pub fn get_mutations(&self) -> CachedValue<HashMap<usize, Symbol>> {
         match self {
-            Haplotype::Wildtype(_wt) => HashMap::new(),
+            Haplotype::Wildtype(_wt) => Default::default(),
             Haplotype::Mutant(ht) => ht.get_mutations(),
             Haplotype::Recombinant(rc) => rc.get_mutations(),
         }
@@ -674,8 +677,9 @@ impl Mutant {
         &self.changes
     }
 
-    pub fn get_mutations(&self) -> HashMap<usize, Symbol> {
-        let mut mutations = self.ancestor.get_mutations();
+    pub fn get_mutations(&self) -> CachedValue<HashMap<usize, Symbol>> {
+        let mut mutations = self.ancestor.get_mutations().unwrap().clone();
+
         let wt_ref = self.wildtype.upgrade().unwrap();
 
         self.changes.iter().for_each(|(position, (_, new))| {
@@ -687,7 +691,7 @@ impl Mutant {
             }
         });
 
-        mutations
+        CachedValue::new(mutations)
     }
 
     pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
@@ -770,25 +774,43 @@ impl Recombinant {
         self.wildtype.upgrade().unwrap().get_length()
     }
 
-    pub fn get_mutations(&self) -> HashMap<usize, Symbol> {
+    fn get_mutations_cache(
+    ) -> &'static ::cached::once_cell::sync::Lazy<VirolutionCache<HashMap<usize, Symbol>>> {
+        static MUTATIONS_CACHE: ::cached::once_cell::sync::Lazy<
+            VirolutionCache<HashMap<usize, Symbol>>,
+        > = ::cached::once_cell::sync::Lazy::new(|| VirolutionCache::new(100));
+        &MUTATIONS_CACHE
+    }
+
+    pub fn get_mutations(&self) -> CachedValue<HashMap<usize, Symbol>> {
+        let key = self.reference.get_id();
+
+        // try to use the cache first
+        let cache = Self::get_mutations_cache();
+        if let Some(mutations) = cache.cache_get(&key) {
+            return mutations;
+        }
+
+        // collect all mutations
         let left_mutations = self.left_ancestor.get_mutations();
         let right_mutations = self.right_ancestor.get_mutations();
 
         let mut mutations = HashMap::new();
 
-        for (position, change) in left_mutations {
+        for (&position, &change) in left_mutations.iter() {
             if position >= self.left_position && position < self.right_position {
                 mutations.insert(position, change);
             }
         }
 
-        for (position, change) in right_mutations {
+        for (&position, &change) in right_mutations.iter() {
             if position < self.left_position || position >= self.right_position {
                 mutations.insert(position, change);
             }
         }
 
-        mutations
+        // set and return computed value
+        cache.cache_set(key, mutations.clone())
     }
 
     pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {

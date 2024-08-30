@@ -43,7 +43,6 @@ pub trait Simulation {
     fn print_population(&self) -> Vec<String>;
 
     fn next_generation(&mut self) {
-        dbg!("next_generation");
         // increment generation counter
         self.increment_generation();
 
@@ -54,14 +53,10 @@ pub trait Simulation {
 
         // simulate infection
         let host_map = self.get_host_map();
-        dbg!(&host_map);
 
         // simulate replication and mutation
-        dbg!("mutate_infectants");
         self.mutate_infectants(&host_map);
-        dbg!(&self.get_population());
         let offspring_map = self.replicate_infectants(&host_map);
-        dbg!(&offspring_map);
 
         // subsample population
         self.set_population(self.subsample_population(&offspring_map, 1.));
