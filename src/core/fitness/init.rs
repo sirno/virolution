@@ -189,3 +189,57 @@ impl EpiFileParameters {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::table::FitnessTable;
+    use super::*;
+
+    #[test]
+    fn create_neutral_table() {
+        let sequence = vec![Some(0x00); 100];
+        let fitness = FitnessTable::from_model(
+            &sequence,
+            4,
+            &FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
+        )
+        .unwrap();
+        for position in 0..100 {
+            for s in 0..4 {
+                assert_eq!(fitness.get_value(&position, &Some(s)), 1.);
+                assert_eq!(fitness.get_value(&position, &None), 1.);
+            }
+        }
+    }
+
+    #[test]
+    fn create_exponential_table() {
+        let sequence = vec![Some(0x00); 100];
+        let distribution = FitnessDistribution::Exponential(ExponentialParameters {
+            weights: MutationCategoryWeights {
+                beneficial: 0.29,
+                deleterious: 0.51,
+                lethal: 0.2,
+                neutral: 0.,
+            },
+            lambda_beneficial: 0.03,
+            lambda_deleterious: 0.21,
+        });
+
+        let fitness = FitnessTable::from_model(
+            &sequence,
+            4,
+            &FitnessModel::new(distribution, UtilityFunction::Linear),
+        )
+        .unwrap();
+        for position in 0..100 {
+            for s in 0..4 {
+                if s == 0 {
+                    assert_eq!(fitness.get_value(&position, &Some(s)), 1.);
+                } else {
+                    assert_ne!(fitness.get_value(&position, &Some(s)), 1.);
+                }
+            }
+        }
+    }
+}

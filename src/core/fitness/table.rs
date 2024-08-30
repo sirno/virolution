@@ -111,48 +111,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn create_neutral_table() {
-        let sequence = vec![Some(0x00); 100];
-        let fitness = FitnessTable::from_model(
-            &sequence,
-            4,
-            &FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
-        )
-        .unwrap();
-        for val in fitness.table {
-            assert_eq!(val, 1.);
-        }
-    }
-
-    #[test]
-    fn create_exponential_table() {
-        let sequence = vec![Some(0x00); 100];
-        let distribution = FitnessDistribution::Exponential(ExponentialParameters {
-            weights: MutationCategoryWeights {
-                beneficial: 0.29,
-                deleterious: 0.51,
-                lethal: 0.2,
-                neutral: 0.,
-            },
-            lambda_beneficial: 0.03,
-            lambda_deleterious: 0.21,
-        });
-
-        let fitness = FitnessTable::from_model(
-            &sequence,
-            4,
-            &FitnessModel::new(distribution, UtilityFunction::Linear),
-        )
-        .unwrap();
-        for (idx, val) in fitness.table.into_iter().enumerate() {
-            if idx % 4 == 0 {
-                assert_eq!(val, 1.);
-            } else {
-                assert_ne!(val, 1.);
-            }
-        }
-    }
-    #[test]
     fn get_value() {
         let sequence = vec![Some(0x00); 100];
         let fitness = FitnessTable::from_model(

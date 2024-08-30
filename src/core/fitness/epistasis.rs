@@ -188,3 +188,6 @@ impl EpistasisTable {
         fitness
     }
 }
+
+#[cfg(test)]
+mod tests {}
