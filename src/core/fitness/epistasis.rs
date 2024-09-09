@@ -1,4 +1,4 @@
-use npyz::{DType, WriterBuilder};
+use npyz::WriterBuilder;
 use std::collections::HashMap;
 
 use crate::core::haplotype::Symbol;
