@@ -353,7 +353,7 @@ impl Haplotype {
                         format!(
                             ";{position}:{}->{}",
                             char::from(STRICT_ENCODE[&f]),
-                            char::from(STRICT_ENCODE[&t])
+                            char::from(STRICT_ENCODE[t])
                         )
                         .as_str(),
                     );
@@ -364,7 +364,7 @@ impl Haplotype {
                             format!(
                                 ";{position}:{}->{}",
                                 char::from(STRICT_ENCODE[&wt_symbol]),
-                                char::from(STRICT_ENCODE[&t])
+                                char::from(STRICT_ENCODE[t])
                             )
                             .as_str(),
                         )
@@ -678,7 +678,7 @@ impl Mutant {
     }
 
     pub fn get_mutations(&self) -> CachedValue<HashMap<usize, Symbol>> {
-        let mut mutations = self.ancestor.get_mutations().unwrap().clone();
+        let mut mutations = self.ancestor.get_mutations().clone_inner();
 
         let wt_ref = self.wildtype.upgrade().unwrap();
 

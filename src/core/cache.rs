@@ -30,10 +30,11 @@ impl<T> CachedValue<T> {
 
 impl<T> CachedValue<T>
 where
-    T: std::fmt::Debug,
+    T: std::fmt::Debug + std::clone::Clone,
 {
-    pub fn unwrap(self) -> T {
-        Arc::try_unwrap(self.0).unwrap()
+    #[inline]
+    pub fn clone_inner(self) -> T {
+        Arc::unwrap_or_clone(self.0)
     }
 }
 
@@ -50,7 +51,7 @@ impl<T> VirolutionCache<T> {
 
     pub fn cache_get(&self, key: &usize) -> Option<CachedValue<T>> {
         let mut cache = self.cache.lock().unwrap();
-        cache.cache_get(&key).cloned()
+        cache.cache_get(key).cloned()
     }
 
     pub fn cache_set(&self, key: usize, value: T) -> CachedValue<T> {
