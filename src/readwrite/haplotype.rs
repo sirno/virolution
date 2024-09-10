@@ -3,7 +3,6 @@ use crate::encoding::STRICT_DECODE;
 use crate::references::HaplotypeRef;
 use seq_io::fasta;
 use seq_io::fasta::Record;
-use std::panic::catch_unwind;
 
 pub trait HaplotypeIO {
     fn load_wildtype(path: &str) -> Result<HaplotypeRef, fasta::Error>;
@@ -18,10 +17,10 @@ impl HaplotypeIO for Haplotype {
             .expect("Unable to read sequence.")
             .seq()
             .iter()
-            .filter(|&&enc| enc != 0x0au8)
-            .map(|enc| match catch_unwind(|| Some(STRICT_DECODE[enc])) {
-                Ok(result) => result,
-                Err(_) => panic!("Unable to decode literal {enc}."),
+            .filter(|&&enc| enc != 0x0au8 && enc != 0x0du8)
+            .map(|enc| match STRICT_DECODE.get(enc) {
+                Some(result) => Some(*result),
+                None => panic!("Unable to decode literal {enc}."),
             })
             .collect();
         Ok(Wildtype::new(sequence))
