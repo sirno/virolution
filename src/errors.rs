@@ -2,10 +2,13 @@
 
 use std::fmt;
 
+pub type Result<T> = std::result::Result<T, VirolutionError>;
+
 #[derive(Clone, Debug)]
 pub enum VirolutionError {
     ImplementationError(String),
     InitializationError(String),
+    ReadError(String),
 }
 
 impl fmt::Display for VirolutionError {
@@ -16,6 +19,9 @@ impl fmt::Display for VirolutionError {
             }
             VirolutionError::InitializationError(message) => {
                 write!(f, "InitializationError: {}", message)
+            }
+            VirolutionError::ReadError(message) => {
+                write!(f, "ReadError: {}", message)
             }
         }
     }
