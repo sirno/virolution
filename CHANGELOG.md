@@ -1,6 +1,12 @@
 # CHANGELOG
 
-## 0.3.0 --- Mixed Performance (WIP)
+## 0.4.0 --- Epistatic Evolution (WIP)
+
+- Added epistatic interactions
+- Added preliminary cached fitness evaluation for recombinants
+- Huge performance improvements when collecting all mutations
+
+## 0.3.0 --- Mixed Performance (May 06, 2024)
 
 - Supply diverse initial population
 - Fixed, then introduced caching with multi host populations
