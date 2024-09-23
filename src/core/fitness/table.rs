@@ -93,13 +93,13 @@ impl FitnessTable {
             .shape(shape)
             .writer(writer)
             .begin_nd()
-            .map_err(|e| VirolutionError::InitializationError(format!("{}", e)))?;
+            .map_err(|e| VirolutionError::WriteError(format!("{}", e)))?;
         npy_writer
             .extend(self.table.clone())
-            .map_err(|e| VirolutionError::InitializationError(format!("{}", e)))?;
+            .map_err(|e| VirolutionError::WriteError(format!("{}", e)))?;
         npy_writer
             .finish()
-            .map_err(|e| VirolutionError::InitializationError(format!("{}", e)))?;
+            .map_err(|e| VirolutionError::WriteError(format!("{}", e)))?;
         Ok(())
     }
 }

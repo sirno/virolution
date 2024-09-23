@@ -212,9 +212,17 @@ impl Runner {
     }
 
     fn write_fitness_tables(providers: &[&FitnessProvider], path: Option<&Path>) {
-        let sequence_path = path.unwrap_or_else(|| Path::new("./"));
+        let write_path = path.unwrap_or_else(|| Path::new("./"));
+
+        // create output directory
+        fs::create_dir_all(write_path).unwrap_or_else(|_| {
+            eprintln!("Unable to create output directory.");
+            std::process::exit(1);
+        });
+
+        // write fitness tables
         providers.iter().for_each(|provider| {
-            provider.write(sequence_path).unwrap();
+            provider.write(write_path).unwrap();
         });
     }
 

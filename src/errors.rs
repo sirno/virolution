@@ -9,6 +9,7 @@ pub enum VirolutionError {
     ImplementationError(String),
     InitializationError(String),
     ReadError(String),
+    WriteError(String),
 }
 
 impl fmt::Display for VirolutionError {
@@ -22,6 +23,9 @@ impl fmt::Display for VirolutionError {
             }
             VirolutionError::ReadError(message) => {
                 write!(f, "ReadError: {}", message)
+            }
+            VirolutionError::WriteError(message) => {
+                write!(f, "WriteError: {}", message)
             }
         }
     }

@@ -85,15 +85,15 @@ impl EpistasisTable {
             .shape(&shape)
             .writer(writer)
             .begin_nd()
-            .map_err(|e| VirolutionError::InitializationError(format!("{}", e)))?;
+            .map_err(|e| VirolutionError::WriteError(format!("{}", e)))?;
 
         // Write entries to file
         npy_writer
             .extend(entries)
-            .map_err(|e| VirolutionError::InitializationError(format!("{}", e)))?;
+            .map_err(|e| VirolutionError::WriteError(format!("{}", e)))?;
         npy_writer
             .finish()
-            .map_err(|e| VirolutionError::InitializationError(format!("{}", e)))?;
+            .map_err(|e| VirolutionError::WriteError(format!("{}", e)))?;
 
         Ok(())
     }
