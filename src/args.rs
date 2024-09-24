@@ -26,9 +26,9 @@ pub struct Args {
     #[clap(long, default_value = "reference.fasta")]
     pub sequence: String,
 
-    /// Path to samples directory
-    #[clap(long, default_value = "./samples")]
-    pub outdir: String,
+    /// Path to output directory
+    #[clap(long)]
+    pub outdir: Option<String>,
 
     /// Sampling format
     #[clap(long, default_value = "fasta")]
@@ -40,7 +40,7 @@ pub struct Args {
 
     /// Path to log file
     #[clap(long, default_value = "virolution.log")]
-    pub log_file: String,
+    pub logfile: String,
 
     /// Path to optional tree file. Format: Extended Newick
     #[clap(long)]

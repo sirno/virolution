@@ -1,7 +1,8 @@
 # CHANGELOG
 
-## 0.4.0 --- Epistatic Evolution (WIP)
+## 0.4.0 --- Epistatic Transaction (WIP)
 
+- Changed where output is stored: everything is now stored in `--outdir`
 - Added epistatic interactions
 - Added preliminary cached fitness evaluation for recombinants
 - Huge performance improvements when collecting all mutations

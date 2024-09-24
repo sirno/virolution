@@ -46,7 +46,7 @@ impl Runner {
             .iter()
             .map(|(_range, provider)| provider)
             .collect::<Vec<_>>();
-        Self::write_fitness_tables(&providers, Path::new(args.outdir.as_str()).parent());
+        Self::write_fitness_tables(&providers, args.outdir.as_ref().map(|p| Path::new(p)));
 
         // perform sanity checks
         if !settings
@@ -96,9 +96,13 @@ impl Runner {
 
         log::info!("Storing sequences...");
 
-        let sequence_path = Path::new(self.args.outdir.as_str())
-            .parent()
-            .unwrap_or_else(|| Path::new("./"));
+        let sequence_path = self
+            .args
+            .outdir
+            .as_ref()
+            .map(|p| Path::new(p))
+            .unwrap_or(Path::new("./"));
+
         for (compartment_id, compartment) in self.simulations.iter().enumerate() {
             log::info!("Storing sequences for compartment {}...", compartment_id);
             let mut sequence_file = csv::WriterBuilder::new()
@@ -145,7 +149,13 @@ impl Runner {
             1 => log::LevelFilter::Debug,
             _ => log::LevelFilter::Trace,
         };
-        simple_logging::log_to_file(args.log_file.as_str(), log_level).unwrap_or_else(|_| {
+        let log_path = args
+            .outdir
+            .as_ref()
+            .map(|p| Path::new(p).join(args.logfile.as_str()))
+            .unwrap_or_else(|| Path::new(args.logfile.as_str()).to_path_buf());
+
+        simple_logging::log_to_file(log_path, log_level).unwrap_or_else(|_| {
             eprintln!("Unable to open log file.");
             std::process::exit(1);
         });
@@ -214,12 +224,6 @@ impl Runner {
     fn write_fitness_tables(providers: &[&FitnessProvider], path: Option<&Path>) {
         let write_path = path.unwrap_or_else(|| Path::new("./"));
 
-        // create output directory
-        fs::create_dir_all(write_path).unwrap_or_else(|_| {
-            eprintln!("Unable to create output directory.");
-            std::process::exit(1);
-        });
-
         // write fitness tables
         providers.iter().for_each(|provider| {
             provider.write(write_path).unwrap();
@@ -287,16 +291,23 @@ impl Runner {
             Rc::from_raw(ptr);
         }
 
+        let samples_dir: String = self
+            .args
+            .outdir
+            .as_ref()
+            .map(|p| Path::new(p).join("samples").to_string_lossy().to_string())
+            .unwrap_or_else(|| "samples".to_string());
+
         let sample_writer: Box<dyn SampleWriter> = match self.args.sampling_format.as_str() {
             "fasta" => Box::new(
-                FastaSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
+                FastaSampleWriter::new(&self.args.name, &samples_dir, Some(historian.clone()))
                     .unwrap_or_else(|err| {
                         eprintln!("Unable to create sample writer: {err}.");
                         std::process::exit(1);
                     }),
             ),
             "csv" => Box::new(
-                CsvSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
+                CsvSampleWriter::new(&self.args.name, &samples_dir, Some(historian.clone()))
                     .unwrap_or_else(|err| {
                         eprintln!("Unable to create sample writer: {err}.");
                         std::process::exit(1);
@@ -432,16 +443,23 @@ impl Runner {
             Rc::from_raw(ptr);
         }
 
+        let samples_dir: String = self
+            .args
+            .outdir
+            .as_ref()
+            .map(|p| Path::new(p).join("samples").to_string_lossy().to_string())
+            .unwrap_or_else(|| "samples".to_string());
+
         let sample_writer: Box<dyn SampleWriter> = match self.args.sampling_format.as_str() {
             "fasta" => Box::new(
-                FastaSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
+                FastaSampleWriter::new(&self.args.name, &samples_dir, Some(historian.clone()))
                     .unwrap_or_else(|err| {
                         eprintln!("Unable to create sample writer: {err}.");
                         std::process::exit(1);
                     }),
             ),
             "csv" => Box::new(
-                CsvSampleWriter::new(&self.args.name, &self.args.outdir, Some(historian.clone()))
+                CsvSampleWriter::new(&self.args.name, &samples_dir, Some(historian.clone()))
                     .unwrap_or_else(|err| {
                         eprintln!("Unable to create sample writer: {err}.");
                         std::process::exit(1);
