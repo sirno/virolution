@@ -194,6 +194,10 @@ impl Simulation for BasicSimulation {
         self.population = population;
     }
 
+    /// Set the parameters for the simulation
+    ///
+    /// WARNING: Currently this method does only reinitialize part of the simulation. Do not use
+    /// without revising its implementation.
     fn set_parameters(&mut self, parameters: Parameters) {
         self.parameters = parameters;
         self.mutation_sampler = Binomial::new(

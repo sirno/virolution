@@ -35,10 +35,17 @@ use super::fitness::FitnessProvider;
 pub static N_FITNESS_TABLES: OnceLock<usize> = OnceLock::new();
 
 pub fn set_number_of_fitness_tables(value: usize) -> Result<(), usize> {
+    if N_FITNESS_TABLES.get().is_some() {
+        eprintln!("Trying to set `N_FITNESS_TABLES`, which has already been set.");
+    }
     N_FITNESS_TABLES.set(value)
 }
 
 fn make_fitness_cache() -> Vec<OnceLock<f64>> {
+    // warn if the number of fitness providers has not been explicitly set at runtime
+    if N_FITNESS_TABLES.get().is_none() {
+        eprintln!("`N_FITNESS_TABLES` is not set, using default value of 1.");
+    }
     std::iter::repeat_with(OnceLock::new)
         .take(*N_FITNESS_TABLES.get_or_init(|| 1))
         .collect()
