@@ -19,11 +19,11 @@ pub struct Args {
     pub generations: usize,
 
     /// Path to settings. Format: YAML
-    #[clap(long, default_value = "settings.yaml")]
+    #[clap(long)]
     pub settings: String,
 
     /// Path to sequence. Format: FASTA
-    #[clap(long, default_value = "reference.fasta")]
+    #[clap(long)]
     pub sequence: String,
 
     /// Path to output directory
@@ -48,6 +48,7 @@ pub struct Args {
 
     /// Path to optional ancestry tree file which contains the ancestry of each
     /// individual at the last iteration. Format: Extended Newick
+    /// WARNING: Currently only works with constant population size...
     #[clap(long)]
     pub ancestry: Option<String>,
 

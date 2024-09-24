@@ -34,19 +34,27 @@ pub struct Runner {
 
 impl Runner {
     pub fn new(args: Args) -> Result<Runner> {
+        // create output directory
+        if let Some(outdir) = args.outdir.as_ref() {
+            fs::create_dir_all(outdir)?;
+        }
+
+        // setup logger and rayon when in parallel mode
         Self::setup_logger(&args);
         #[cfg(feature = "parallel")]
         Self::setup_rayon(&args);
 
+        // load settings and reference
         let settings = Self::load_settings(&args.settings)?;
         let wildtype = Haplotype::load_wildtype(args.sequence.as_str())?;
 
+        // initialize fitness
         let provider_map = Self::create_fitness_providers(&settings, &wildtype.get_sequence())?;
         let providers = provider_map
             .iter()
             .map(|(_range, provider)| provider)
             .collect::<Vec<_>>();
-        Self::write_fitness_tables(&providers, args.outdir.as_ref().map(|p| Path::new(p)));
+        Self::write_fitness_tables(&providers, args.outdir.as_ref().map(Path::new));
 
         // perform sanity checks
         if !settings

@@ -79,7 +79,7 @@ impl FitnessProvider {
             }
             FitnessFunction::SimpleEpistatic(table, epistasis) => {
                 let table_name = format!("fitness_table_{}.npy", self.id);
-                let epistasis_name = format!("fitness_table_{}.npy", self.id);
+                let epistasis_name = format!("epistasis_table_{}.npy", self.id);
 
                 let table_file = fs::File::create(path.join(table_name)).unwrap();
                 let epistasis_path = fs::File::create(path.join(epistasis_name)).unwrap();
