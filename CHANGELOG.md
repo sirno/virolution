@@ -3,6 +3,8 @@
 ## 0.4.0 --- Epistatic Transaction (WIP)
 
 - Changed where output is stored: everything is now stored in `--outdir`
+- Paths contained in the settings file will now be loaded relative to the
+  settings file
 - Added epistatic interactions
 - Added preliminary cached fitness evaluation for recombinants
 - Huge performance improvements when collecting all mutations

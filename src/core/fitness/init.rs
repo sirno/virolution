@@ -21,6 +21,23 @@ impl FitnessModel {
             utility,
         }
     }
+
+    /// Prepend a path to the file paths in the fitness model.
+    ///
+    /// This is used to make sure that paths can be defined relative to the configuration files
+    /// location.
+    pub(crate) fn prepend_path(&mut self, path: &str) {
+        match &mut self.distribution {
+            FitnessDistribution::File(params) => {
+                params.path = format!("{}/{}", path, params.path);
+            }
+            FitnessDistribution::Epistatic(params) => {
+                params.path = format!("{}/{}", path, params.path);
+                params.epi_path = format!("{}/{}", path, params.epi_path);
+            }
+            _ => {}
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

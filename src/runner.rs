@@ -24,6 +24,8 @@ use crate::simulation::HostMap;
 use crate::simulation::{BasicSimulation, SimulationTrait};
 use crate::stats::population::{PopulationDistance, PopulationFrequencies};
 
+static NSYMBOLS: usize = 4;
+
 pub struct Runner {
     args: Args,
     settings: Settings,
@@ -49,7 +51,9 @@ impl Runner {
         let wildtype = Haplotype::load_wildtype(args.sequence.as_str())?;
 
         // initialize fitness
-        let provider_map = Self::create_fitness_providers(&settings, &wildtype.get_sequence())?;
+        let settings_path = Path::new(&args.settings).parent();
+        let provider_map =
+            Self::create_fitness_providers(&settings, &wildtype.get_sequence(), settings_path)?;
         let providers = provider_map
             .iter()
             .map(|(_range, provider)| provider)
@@ -194,31 +198,46 @@ impl Runner {
     fn create_fitness_providers(
         settings: &Settings,
         sequence: &[Option<u8>],
+        path: Option<&Path>,
     ) -> Result<Vec<(Range<usize>, FitnessProvider)>> {
-        let fitness_tables = match &settings.parameters[0].fitness_model {
+        let default_settings = &settings.parameters[0];
+        let fitness_tables = match &default_settings.fitness_model {
             FitnessModelField::SingleHost(fitness_model) => {
-                let _ = set_number_of_fitness_tables(1);
+                let mut fitness_model = fitness_model.clone();
+
+                // paths within fitness model should be relative to the settings file
+                if let Some(path) = path {
+                    fitness_model.prepend_path(path.to_str().unwrap());
+                }
+
+                let _ = set_number_of_fitness_tables(1).is_ok();
                 vec![(
-                    0..settings.parameters[0].host_population_size,
-                    FitnessProvider::from_model(0, sequence, 4, &fitness_model)?,
+                    0..default_settings.host_population_size,
+                    FitnessProvider::from_model(0, sequence, NSYMBOLS, &fitness_model)?,
                 )]
             }
             FitnessModelField::MultiHost(fitness_models) => {
                 let mut fitness_tables = Vec::new();
                 let mut lower = 0;
 
-                let _ = set_number_of_fitness_tables(fitness_models.len());
+                let _ = set_number_of_fitness_tables(fitness_models.len()).is_ok();
 
                 for (id, fitness_model_frac) in fitness_models.iter().enumerate() {
-                    let fitness_model = fitness_model_frac.fitness_model.clone();
+                    let mut fitness_model = fitness_model_frac.fitness_model.clone();
+
+                    // paths within fitness model should be relative to the settings file
+                    if let Some(path) = path {
+                        fitness_model.prepend_path(path.to_str().unwrap());
+                    }
+
                     let n_hosts = (fitness_model_frac.fraction
-                        * settings.parameters[0].host_population_size as f64)
+                        * default_settings.host_population_size as f64)
                         .round() as usize;
                     let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
 
                     fitness_tables.push((
                         lower..upper,
-                        FitnessProvider::from_model(id, sequence, 4, &fitness_model)?,
+                        FitnessProvider::from_model(id, sequence, NSYMBOLS, &fitness_model)?,
                     ));
                     lower = upper;
                 }
