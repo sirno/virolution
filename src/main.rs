@@ -26,41 +26,56 @@ fn main() {
     runner.start();
 }
 
-/// TODO: These tests should run for multiple feature flags
 #[cfg(test)]
 mod tests {
     use std::process::Command;
 
-    struct Cleanup<'a> {
+    /// Create a temporary directory for testing and clean it up after the test
+    struct TmpDir<'a> {
         dir: &'a str,
     }
 
-    impl<'a> Drop for Cleanup<'a> {
+    impl<'a> TmpDir<'a> {
+        fn new(dir: &'a str) -> Self {
+            std::fs::create_dir(dir).unwrap();
+            TmpDir { dir }
+        }
+    }
+
+    impl<'a> Drop for TmpDir<'a> {
         fn drop(&mut self) {
             std::fs::remove_dir_all(self.dir).unwrap();
         }
     }
 
+    #[cfg(feature = "parallel")]
+    static RUN_CMD: [&str; 4] = ["run", "--features", "parallel", "--"];
+
+    #[cfg(not(feature = "parallel"))]
+    static RUN_CMD: [&str; 2] = ["run", "--"];
+
+    static DEFAULT_ARGS: [&str; 5] = [
+        "--disable-progress-bar",
+        "--n-compartments",
+        "2",
+        "--generations",
+        "1",
+    ];
+
     /// Test invocation of program for singlehost setup with 1 generation
     #[test]
     fn test_singlehost() {
-        let tmp_dir = ".tmp_singlehost";
-        let _cleanup = Cleanup { dir: tmp_dir };
+        let tmp = TmpDir::new(".tmp_singlehost");
         let output = Command::new("cargo")
+            .args(RUN_CMD)
+            .args(DEFAULT_ARGS)
             .args([
-                "run",
-                "--",
-                "--disable-progress-bar",
                 "--settings",
-                "test/singlehost/singlehost.yaml",
+                "tests/singlehost/singlehost.yaml",
                 "--sequence",
-                "test/singlehost/ref.fasta",
-                "--generations",
-                "1",
-                "--n-compartments",
-                "2",
+                "tests/singlehost/ref.fasta",
                 "--outdir",
-                tmp_dir,
+                tmp.dir,
             ])
             .output()
             .expect("Failed to execute command");
@@ -68,31 +83,25 @@ mod tests {
         assert!(output.status.success());
 
         // Check if output files are created
-        assert!(std::path::Path::new(&format!("{}/fitness_table_0.npy", tmp_dir)).exists());
-        assert!(std::path::Path::new(&format!("{}/virolution.log", tmp_dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/fitness_table_0.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/virolution.log", tmp.dir)).exists());
     }
 
     /// Test invocation of program for multihost setup with 1 generation
     #[test]
     fn test_multihost() {
-        let tmp_dir = ".tmp_multihost";
-        let _cleanup = Cleanup { dir: tmp_dir };
+        let tmp = TmpDir::new(".tmp_multihost");
 
         let output = Command::new("cargo")
+            .args(RUN_CMD)
+            .args(DEFAULT_ARGS)
             .args([
-                "run",
-                "--",
-                "--disable-progress-bar",
                 "--settings",
-                "test/multihost/multihost.yaml",
+                "tests/multihost/multihost.yaml",
                 "--sequence",
-                "test/multihost/ref.fasta",
-                "--generations",
-                "1",
-                "--n-compartments",
-                "2",
+                "tests/multihost/ref.fasta",
                 "--outdir",
-                tmp_dir,
+                tmp.dir,
             ])
             .output()
             .expect("Failed to execute command");
@@ -100,30 +109,25 @@ mod tests {
         assert!(output.status.success());
 
         // Check if output files are created
-        assert!(std::path::Path::new(&format!("{}/fitness_table_0.npy", tmp_dir)).exists());
-        assert!(std::path::Path::new(&format!("{}/fitness_table_1.npy", tmp_dir)).exists());
-        assert!(std::path::Path::new(&format!("{}/virolution.log", tmp_dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/fitness_table_0.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/fitness_table_1.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/virolution.log", tmp.dir)).exists());
     }
 
     /// Test invocation of program for epistasis setup with 1 generation
     #[test]
     fn test_epistasis() {
-        let tmp_dir = ".tmp_epistasis";
+        let tmp = TmpDir::new(".tmp_epistasis");
         let output = Command::new("cargo")
+            .args(RUN_CMD)
+            .args(DEFAULT_ARGS)
             .args([
-                "run",
-                "--",
-                "--disable-progress-bar",
                 "--settings",
-                "test/epistasis/epistasis.yaml",
+                "tests/epistasis/epistasis.yaml",
                 "--sequence",
-                "test/epistasis/ref.fasta",
-                "--generations",
-                "1",
-                "--n-compartments",
-                "2",
+                "tests/epistasis/ref.fasta",
                 "--outdir",
-                tmp_dir,
+                tmp.dir,
             ])
             .output()
             .expect("Failed to execute command");
@@ -131,8 +135,8 @@ mod tests {
         assert!(output.status.success());
 
         // Check if output files are created
-        assert!(std::path::Path::new(&format!("{}/fitness_table_0.npy", tmp_dir)).exists());
-        assert!(std::path::Path::new(&format!("{}/epistasis_table_0.npy", tmp_dir)).exists());
-        assert!(std::path::Path::new(&format!("{}/virolution.log", tmp_dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/fitness_table_0.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/epistasis_table_0.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/virolution.log", tmp.dir)).exists());
     }
 }
