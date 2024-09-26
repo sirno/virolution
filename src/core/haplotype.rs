@@ -110,7 +110,9 @@ impl Drop for Haplotype {
     fn drop(&mut self) {
         match self {
             Haplotype::Wildtype(_wt) => {}
-            Haplotype::Mutant(ht) => ht.ancestor.increment_dirty_descendants(),
+            Haplotype::Mutant(mt) => {
+                mt.ancestor.increment_dirty_descendants();
+            }
             Haplotype::Recombinant(rc) => {
                 rc.left_ancestor.increment_dirty_descendants();
                 rc.right_ancestor.increment_dirty_descendants();
@@ -172,26 +174,18 @@ impl Haplotype {
         recombinant
     }
 
-    pub fn is_wildtype(&self) -> bool {
-        matches!(self, Haplotype::Wildtype(_))
-    }
-
-    pub fn is_mutant(&self) -> bool {
+    pub(crate) fn is_mutant(&self) -> bool {
         matches!(self, Haplotype::Mutant(_))
-    }
-
-    pub fn is_recombinant(&self) -> bool {
-        matches!(self, Haplotype::Recombinant(_))
     }
 
     /// Unwraps the haplotype into a mutant.
     ///
     /// This function will panic if the haplotype is not a mutant and is only intended for internal
     /// use while minimizing the tree.
-    fn unwrap_mutant(&self) -> &Mutant {
+    pub(crate) fn try_unwrap_mutant(&self) -> Option<&Mutant> {
         match self {
-            Haplotype::Mutant(ht) => ht,
-            _ => panic!("Haplotype is not a mutant."),
+            Haplotype::Mutant(ht) => Some(ht),
+            _ => None,
         }
     }
 
@@ -206,10 +200,10 @@ impl Haplotype {
     /// Returns a reference to an ancestor if the type allows it.
     ///
     /// If there are multiple ancestors, in the future any ancestor may be returned.
-    pub fn try_get_ancestor(&self) -> Option<HaplotypeRef> {
+    pub fn try_get_ancestor(&self) -> Option<&HaplotypeRef> {
         match self {
-            Haplotype::Mutant(ht) => Some(ht.ancestor.clone()),
-            Haplotype::Recombinant(rc) => Some(rc.left_ancestor.clone()),
+            Haplotype::Mutant(ht) => Some(&ht.ancestor),
+            Haplotype::Recombinant(rc) => Some(&rc.left_ancestor),
             _ => None,
         }
     }
@@ -231,7 +225,7 @@ impl Haplotype {
         }
     }
 
-    fn get_ancestors(&self) -> (Option<HaplotypeRef>, Option<HaplotypeRef>) {
+    pub fn get_ancestors(&self) -> (Option<HaplotypeRef>, Option<HaplotypeRef>) {
         match self {
             Haplotype::Mutant(ht) => (Some(ht.ancestor.clone()), None),
             Haplotype::Recombinant(rc) => (
@@ -250,29 +244,7 @@ impl Haplotype {
         }
     }
 
-    fn valid_descendants(&self) -> usize {
-        match self {
-            Haplotype::Wildtype(wt) => wt
-                .descendants
-                .lock()
-                .len()
-                .checked_add_signed(wt.dirty_descendants.load(Ordering::Relaxed))
-                .expect("Number of descendants overflowed."),
-            Haplotype::Mutant(mt) => mt
-                .descendants
-                .lock()
-                .len()
-                .checked_add_signed(mt.dirty_descendants.load(Ordering::Relaxed))
-                .expect("Number of descendants overflowed."),
-            Haplotype::Recombinant(rc) => rc
-                .descendants
-                .lock()
-                .len()
-                .checked_add_signed(rc.dirty_descendants.load(Ordering::Relaxed))
-                .expect("Number of descendants overflowed."),
-        }
-    }
-
+    /// Returns the number of descendants.
     fn add_descendant(&self, descendant: HaplotypeWeak) {
         let (descendants, dirty_descendants) = match self {
             Haplotype::Wildtype(wt) => (&wt.descendants, &wt.dirty_descendants),
@@ -294,22 +266,13 @@ impl Haplotype {
         descendants_guard.push(descendant);
     }
 
-    fn increment_dirty_descendants(&self) {
+    pub(crate) fn increment_dirty_descendants(&self) {
         let dirty_descendants = match self {
             Haplotype::Wildtype(wt) => &wt.dirty_descendants,
             Haplotype::Mutant(ht) => &ht.dirty_descendants,
             Haplotype::Recombinant(rc) => &rc.dirty_descendants,
         };
         dirty_descendants.fetch_sub(1, Ordering::Relaxed);
-    }
-
-    fn decrement_dirty_descendants(&self) {
-        let dirty_descendants = match self {
-            Haplotype::Wildtype(wt) => &wt.dirty_descendants,
-            Haplotype::Mutant(ht) => &ht.dirty_descendants,
-            Haplotype::Recombinant(rc) => &rc.dirty_descendants,
-        };
-        dirty_descendants.fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn get_base(&self, position: &usize) -> Symbol {
@@ -446,117 +409,11 @@ impl Haplotype {
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
-        self.prune_descendants();
         match self {
             Haplotype::Wildtype(wt) => wt.get_subtree(),
             Haplotype::Mutant(ht) => ht.get_subtree(),
             Haplotype::Recombinant(rc) => rc.get_subtree(ancestor),
         }
-    }
-
-    pub fn prune_tree(&self) {
-        self.prune_descendants();
-        self.get_descendants()
-            .lock()
-            .iter()
-            .filter_map(|x| x.upgrade())
-            .for_each(|x| x.prune_tree());
-    }
-
-    fn prune_descendants(&self) {
-        let mut descendants_guard = self.get_descendants().lock();
-        for idx in 0..descendants_guard.len() {
-            if let Some(descendant) = descendants_guard[idx].upgrade() {
-                let new = Haplotype::prune_descendant(descendant);
-                descendants_guard[idx] = new.get_weak();
-            }
-        }
-    }
-
-    fn prune_descendant(descendant: HaplotypeRef) -> HaplotypeRef {
-        let mut current = descendant;
-        let mut chain: Vec<HaplotypeRef> = vec![current.clone()];
-
-        // find chain of non-recombinant descendants
-        loop {
-            if current.get_strong_count() > 3 {
-                // two internal references and the one that maintains the chain
-                // if there are more than 3, then outside references exist and
-                // we do not want to squash past this node
-                break;
-            }
-
-            if !current.is_mutant() {
-                break;
-            }
-
-            if current.valid_descendants() != 1 {
-                break;
-            }
-
-            let inner = current.unwrap_mutant();
-
-            let next = inner
-                .descendants
-                .lock()
-                .iter()
-                .filter_map(|x| x.upgrade())
-                .next()
-                .unwrap();
-
-            if !next.is_mutant() {
-                break;
-            }
-
-            chain.push(next.clone());
-            current = next;
-        }
-
-        // if there is nothing to prune, return
-        if chain.len() == 1 {
-            return current.clone();
-        }
-
-        // aggregate changes
-        let mut changes: HashMap<usize, (Symbol, Symbol)> = HashMap::new();
-        for current in chain.iter().rev() {
-            let inner = current.unwrap_mutant();
-            inner
-                .changes
-                .iter()
-                .for_each(|(position, change)| match changes.get_mut(position) {
-                    Some((from, _to)) => *from = change.0,
-                    None => {
-                        changes.insert(*position, *change);
-                    }
-                });
-        }
-
-        // extract ancestor and wildtype
-        let first = chain.first().unwrap();
-        let ancestor = first.get_ancestors().0.unwrap();
-        let wildtype = first.get_wildtype().get_weak();
-
-        // extract descendants and generation
-        let last = chain.last().unwrap();
-        let generation = last.get_generation();
-
-        // create new node
-        unsafe {
-            Mutant::new_and_replace(
-                last.get_reference().clone(),
-                ancestor.clone(),
-                wildtype,
-                changes,
-                generation,
-            );
-        }
-
-        // decrement dirty descendant count of the ancestor because it
-        // will be incremented when the old node is dropped
-        ancestor.decrement_dirty_descendants();
-
-        last.clone()
     }
 }
 
@@ -622,23 +479,31 @@ impl Mutant {
         })
     }
 
-    /// this is not thread-safe
-    unsafe fn new_and_replace(
-        old: HaplotypeRef,
+    /// Creates a new mutant haplotype and replaces `last` with it.
+    ///
+    /// This function is not thread-safe and should only be called by a single thread at a time.
+    pub(crate) unsafe fn new_and_replace(
+        last: &Mutant,
         ancestor: HaplotypeRef,
         wildtype: HaplotypeWeak,
         changes: HashMap<usize, (Symbol, Symbol)>,
         generation: usize,
     ) {
-        let descendants: Vec<HaplotypeWeak> = old
-            .get_descendants()
+        // collect all descendants that are still alive
+        let descendants: Vec<HaplotypeWeak> = last
+            .descendants
             .lock()
             .iter()
             .filter(|x| x.exists())
             .cloned()
             .collect();
+
+        // make the ancestor aware of the new descendant
+        ancestor.add_descendant(last.reference.clone());
+
+        // create new node
         let new = HaplotypeRef::new(Haplotype::Mutant(Self {
-            reference: old.get_weak(),
+            reference: last.reference.clone(),
             wildtype,
             ancestor,
             changes,
@@ -648,12 +513,11 @@ impl Mutant {
             dirty_descendants: AtomicIsize::new(0),
         }));
 
-        let old_ptr = old.as_ptr() as *mut Haplotype;
+        let old_ptr = last.reference.as_ptr() as *mut Haplotype;
         let new_ptr = new.as_ptr() as *mut Haplotype;
 
-        // evil hack to replace the old reference with the new one and keep
-        // the reference count and reference pointer...
-        // LOL
+        // replace the old reference with the new one
+        // this swaps the reference count of the old reference for the new one
         std::ptr::swap(old_ptr, new_ptr);
     }
 
@@ -736,6 +600,69 @@ impl Mutant {
         }
 
         format!("({descendants}){node}")
+    }
+
+    pub(crate) fn try_merge_node(&self) {
+        let n_descendants = self
+            .descendants
+            .lock()
+            .len()
+            .checked_add_signed(self.dirty_descendants.load(Ordering::Relaxed))
+            .expect("Number of descendants overflowed.");
+
+        let descendant = match n_descendants {
+            1 => self
+                .descendants
+                .lock()
+                .iter()
+                .filter_map(|x| x.upgrade())
+                .next(),
+            _ => None,
+        };
+
+        let merger: [Option<&Mutant>; 3] = [
+            descendant.as_ref().and_then(|x| x.try_unwrap_mutant()),
+            Some(self),
+            self.ancestor.try_unwrap_mutant(),
+        ];
+
+        // if there is nothing to merge, return
+        if merger[0].is_none() && merger[2].is_none() {
+            return;
+        }
+
+        // aggregate changes
+        let changes: HashMap<usize, (Symbol, Symbol)> = merger
+            .iter()
+            .rev()
+            .flatten()
+            .flat_map(|x| x.changes.iter())
+            .map(|(position, change)| (*position, *change))
+            .collect();
+
+        // last is the node furthest away from the wildtype
+        // this node should be replaced, it is the node that may still be
+        // visible
+        let last = *merger.iter().flatten().next().unwrap();
+
+        // first is the node closest to the wildtype
+        let first = *merger.iter().rev().flatten().next().unwrap();
+
+        // determine generation
+        let generation = last.get_generation();
+
+        // extract ancestor and wildtype
+        let ancestor = first.ancestor.clone();
+        let wildtype = first.wildtype.clone();
+
+        // // we need to decrement the dirty descendants of the ancestor
+        // // because it will be decremented when the previous node gets removed
+        // ancestor.decrement_dirty_descendants();
+
+        // create new node
+        unsafe {
+            Mutant::new_and_replace(last, ancestor, wildtype, changes, generation);
+        };
     }
 }
 
@@ -975,20 +902,18 @@ mod tests {
     }
 
     #[test]
-    fn pruning_simple() {
+    fn merge_nodes() {
         let bytes = vec![Some(0x00), Some(0x00), Some(0x00), Some(0x00)];
         let wt = Wildtype::new(bytes);
 
-        let ht = wt.create_descendant(vec![0], vec![Some(0x01)], 1);
-        let ht2 = ht.create_descendant(vec![0], vec![Some(0x02)], 2);
+        let ht1 = wt.create_descendant(vec![0], vec![Some(0x01)], 1);
+        let ht2 = ht1.create_descendant(vec![0], vec![Some(0x02)], 2);
         let ht3 = ht2.create_descendant(vec![0], vec![Some(0x03)], 3);
 
-        // outside references exist to ht and ht2
-        // nothing should be squashed
-        wt.prune_tree();
+        let ht1weak = ht1.get_weak();
+        let ht2weak = ht2.get_weak();
 
-        assert_eq!(wt.valid_descendants(), 1);
-
+        // get ht1 from descendants as d1
         let d1 = wt
             .get_descendants()
             .lock()
@@ -997,30 +922,28 @@ mod tests {
             .upgrade()
             .unwrap();
 
-        assert_eq!(d1, ht);
+        assert_eq!(d1, ht1);
 
+        // drop d1
+        // this should not trigger nodes to be merged
         drop(d1);
 
-        // drop the outside references
-        drop(ht);
+        assert_eq!(ht2.try_get_ancestor().unwrap(), &ht1);
+
+        // drop the outside references to ht1 and ht2
+        // this should trigger ht1 to be merged with ht2 first
+        // and then ht2 to be merged with ht3
+
+        drop(ht1);
+
+        assert!(!ht1weak.exists());
+
         drop(ht2);
 
-        // ht and ht2 should be squashed
-        wt.prune_tree();
+        assert!(!ht2weak.exists());
 
-        assert_eq!(wt.valid_descendants(), 1);
-
-        let d2 = wt
-            .get_descendants()
-            .lock()
-            .first()
-            .unwrap()
-            .upgrade()
-            .unwrap();
-
-        assert_eq!(d2, ht3);
-        assert_eq!(d2.get_generation(), 3);
-        assert_eq!(d2.get_mutations().len(), 1);
-        assert_eq!(d2.get_mutations().get(&0), Some(&Some(0x03)));
+        assert_eq!(ht3.get_generation(), 3);
+        assert_eq!(ht3.get_mutations().len(), 1);
+        assert_eq!(ht3.get_mutations().get(&0), Some(&Some(0x03)));
     }
 }

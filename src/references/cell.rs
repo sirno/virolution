@@ -81,6 +81,16 @@ impl Hash for HaplotypeRef {
     }
 }
 
+impl Drop for HaplotypeRef {
+    fn drop(&mut self) {
+        if Rc::strong_count(&self.0) == 2
+            && let Some(mutant) = self.try_unwrap_mutant()
+        {
+            mutant.try_merge_node();
+        }
+    }
+}
+
 #[derive(Clone, Deref, DerefMut)]
 pub struct HaplotypeWeak(Weak<Haplotype>);
 
