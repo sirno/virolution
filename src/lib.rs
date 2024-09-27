@@ -10,6 +10,7 @@ pub mod core;
 pub mod config;
 pub mod encoding;
 pub mod errors;
+pub mod python;
 pub mod readwrite;
 pub mod references;
 pub mod runner;

@@ -244,7 +244,6 @@ impl Haplotype {
         }
     }
 
-    /// Returns the number of descendants.
     fn add_descendant(&self, descendant: HaplotypeWeak) {
         let (descendants, dirty_descendants) = match self {
             Haplotype::Wildtype(wt) => (&wt.descendants, &wt.dirty_descendants),
