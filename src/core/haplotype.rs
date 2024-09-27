@@ -617,43 +617,30 @@ impl Mutant {
                 .iter()
                 .filter_map(|x| x.upgrade())
                 .next(),
-            _ => None,
+            _ => return,
         };
 
-        let merger: [Option<&Mutant>; 3] = [
-            descendant.as_ref().and_then(|x| x.try_unwrap_mutant()),
-            Some(self),
-            self.ancestor.try_unwrap_mutant(),
-        ];
+        let descendant_inner = match descendant.as_ref().and_then(|x| x.try_unwrap_mutant()) {
+            Some(x) => x,
+            None => return,
+        };
 
-        // if there is nothing to merge, return
-        if merger[0].is_none() && merger[2].is_none() {
-            return;
-        }
+        let merger: [&Mutant; 2] = [descendant_inner, self];
 
         // aggregate changes
         let changes: HashMap<usize, (Symbol, Symbol)> = merger
             .iter()
             .rev()
-            .flatten()
             .flat_map(|x| x.changes.iter())
             .map(|(position, change)| (*position, *change))
             .collect();
 
-        // last is the node furthest away from the wildtype
-        // this node should be replaced, it is the node that may still be
-        // visible
-        let last = *merger.iter().flatten().next().unwrap();
-
-        // first is the node closest to the wildtype
-        let first = *merger.iter().rev().flatten().next().unwrap();
-
         // determine generation
-        let generation = last.get_generation();
+        let generation = descendant_inner.get_generation();
 
         // extract ancestor and wildtype
-        let ancestor = first.ancestor.clone();
-        let wildtype = first.wildtype.clone();
+        let ancestor = self.ancestor.clone();
+        let wildtype = self.wildtype.clone();
 
         // // we need to decrement the dirty descendants of the ancestor
         // // because it will be decremented when the previous node gets removed
@@ -661,7 +648,7 @@ impl Mutant {
 
         // create new node
         unsafe {
-            Mutant::new_and_replace(last, ancestor, wildtype, changes, generation);
+            Mutant::new_and_replace(descendant_inner, ancestor, wildtype, changes, generation);
         };
     }
 }
