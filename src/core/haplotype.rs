@@ -933,4 +933,54 @@ mod tests {
         assert_eq!(ht3.get_mutations().len(), 1);
         assert_eq!(ht3.get_mutations().get(&0), Some(&Some(0x03)));
     }
+
+    #[test]
+    #[cfg(feature = "parallel")]
+    fn merge_nodes_stress() {
+        use rand::prelude::*;
+        use std::sync::Mutex;
+
+        let n_sites = 7;
+        let n_symbols = 4;
+
+        let bytes = vec![Some(0x00); n_sites];
+        let wt = Wildtype::new(bytes);
+
+        let n_mutations = 100000;
+        let pop_size = 11;
+        let pop: Vec<Mutex<HaplotypeRef>> = (0..pop_size).map(|_| Mutex::new(wt.clone())).collect();
+
+        rayon::scope(|s| {
+            // spawn mutator thread
+            s.spawn(|_| {
+                let mut rng = rand::thread_rng();
+
+                for i in 0..n_mutations {
+                    let from = rng.gen_range(0..pop_size);
+                    let to = rng.gen_range(0..pop_size);
+
+                    let descendant = {
+                        let ht = pop[from].lock().expect("Failed to lock ancestor.");
+                        let pos = i % n_sites;
+                        let sym = ht.get_base(&pos).unwrap();
+
+                        ht.create_descendant(vec![pos], vec![Some((sym + 1) % n_symbols as u8)], i)
+                    };
+
+                    let mut field = pop[to].lock().expect("Failed to field.");
+                    *field = descendant;
+                }
+            });
+            // spawn reader thread
+            s.spawn(|_| {
+                for _ in 0..n_mutations {
+                    let mut rng = rand::thread_rng();
+                    let index = rng.gen_range(0..pop_size);
+                    let ht = pop[index].lock().expect("Failed to lock haplotype.");
+                    let sequence = ht.get_sequence();
+                    assert_eq!(sequence.len(), n_sites);
+                }
+            });
+        });
+    }
 }
