@@ -20,25 +20,33 @@
 
 use derivative::Derivative;
 use seq_io::fasta::OwnedRecord;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::encoding::STRICT_ENCODE;
+use crate::errors::{Result, VirolutionError};
 use crate::references::DescendantsCell;
 use crate::references::{HaplotypeRef, HaplotypeWeak};
+use macros::require_deferred_drop;
 
 use super::cache::{CachedValue, VirolutionCache};
 use super::fitness::FitnessProvider;
 
 pub static N_FITNESS_TABLES: OnceLock<usize> = OnceLock::new();
 
-pub fn set_number_of_fitness_tables(value: usize) -> Result<(), usize> {
+pub fn set_number_of_fitness_tables(value: usize) -> Result<()> {
     if N_FITNESS_TABLES.get().is_some() {
         eprintln!("Trying to set `N_FITNESS_TABLES`, which has already been set.");
     }
-    N_FITNESS_TABLES.set(value)
+    N_FITNESS_TABLES.set(value).map_err(|_| {
+        VirolutionError::ImplementationError(
+            "Failed to set the number of fitness tables.".to_string(),
+        )
+    })
 }
 
 fn make_fitness_cache() -> Vec<OnceLock<f64>> {
@@ -61,16 +69,17 @@ pub enum Haplotype {
     Recombinant(Recombinant),
 }
 
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct Wildtype {
     reference: HaplotypeWeak,
     sequence: Vec<Symbol>,
     descendants: DescendantsCell,
-    dirty_descendants: AtomicIsize,
+    // number of descendants that have died, we can replace their weak references
+    _dirty_descendants: AtomicIsize,
 }
 
-#[derive(Debug)]
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Mutant {
     reference: HaplotypeWeak,
     wildtype: HaplotypeWeak,
@@ -79,7 +88,14 @@ pub struct Mutant {
     generation: usize,
     fitness: Vec<OnceLock<f64>>,
     descendants: DescendantsCell,
-    dirty_descendants: AtomicIsize,
+    // number of descendants that have died, we can replace their weak references
+    _dirty_descendants: AtomicIsize,
+    // synchronization for merging nodes while allowing for parallel access
+    // ask to defer drop
+    _defer_drop: Arc<Mutex<usize>>,
+    // request deferred drop
+    #[derivative(Debug = "ignore")]
+    _drop: Cell<Option<HaplotypeRef>>,
 }
 
 #[derive(Debug)]
@@ -93,7 +109,8 @@ pub struct Recombinant {
     generation: usize,
     fitness: Vec<OnceLock<f64>>,
     descendants: DescendantsCell,
-    dirty_descendants: AtomicIsize,
+    // number of descendants that have died, we can replace their weak references
+    _dirty_descendants: AtomicIsize,
 }
 
 // We have to explicitly implement Send and Sync for Haplotype, because it contains several
@@ -112,6 +129,8 @@ impl Drop for Haplotype {
             Haplotype::Wildtype(_wt) => {}
             Haplotype::Mutant(mt) => {
                 mt.ancestor.increment_dirty_descendants();
+                dbg!("Dropping mutant.");
+                dbg!(mt as *const Mutant);
             }
             Haplotype::Recombinant(rc) => {
                 rc.left_ancestor.increment_dirty_descendants();
@@ -247,9 +266,9 @@ impl Haplotype {
     /// Returns the number of descendants.
     fn add_descendant(&self, descendant: HaplotypeWeak) {
         let (descendants, dirty_descendants) = match self {
-            Haplotype::Wildtype(wt) => (&wt.descendants, &wt.dirty_descendants),
-            Haplotype::Mutant(ht) => (&ht.descendants, &ht.dirty_descendants),
-            Haplotype::Recombinant(rc) => (&rc.descendants, &rc.dirty_descendants),
+            Haplotype::Wildtype(wt) => (&wt.descendants, &wt._dirty_descendants),
+            Haplotype::Mutant(ht) => (&ht.descendants, &ht._dirty_descendants),
+            Haplotype::Recombinant(rc) => (&rc.descendants, &rc._dirty_descendants),
         };
 
         let mut descendants_guard = descendants.lock();
@@ -268,9 +287,9 @@ impl Haplotype {
 
     pub(crate) fn increment_dirty_descendants(&self) {
         let dirty_descendants = match self {
-            Haplotype::Wildtype(wt) => &wt.dirty_descendants,
-            Haplotype::Mutant(ht) => &ht.dirty_descendants,
-            Haplotype::Recombinant(rc) => &rc.dirty_descendants,
+            Haplotype::Wildtype(wt) => &wt._dirty_descendants,
+            Haplotype::Mutant(ht) => &ht._dirty_descendants,
+            Haplotype::Recombinant(rc) => &rc._dirty_descendants,
         };
         dirty_descendants.fetch_sub(1, Ordering::Relaxed);
     }
@@ -425,7 +444,7 @@ impl Wildtype {
                 reference: reference.clone(),
                 sequence: sequence.clone(),
                 descendants: DescendantsCell::new(),
-                dirty_descendants: AtomicIsize::new(0),
+                _dirty_descendants: AtomicIsize::new(0),
             })
         })
     }
@@ -474,7 +493,9 @@ impl Mutant {
                 generation,
                 fitness: make_fitness_cache(),
                 descendants: DescendantsCell::new(),
-                dirty_descendants: AtomicIsize::new(0),
+                _dirty_descendants: AtomicIsize::new(0),
+                _defer_drop: Arc::new(Mutex::new(0)),
+                _drop: Cell::new(None),
             })
         })
     }
@@ -502,7 +523,7 @@ impl Mutant {
         ancestor.add_descendant(last.reference.clone());
 
         // create new node
-        let new = HaplotypeRef::new(Haplotype::Mutant(Self {
+        let tmp_ref = HaplotypeRef::new(Haplotype::Mutant(Self {
             reference: last.reference.clone(),
             wildtype,
             ancestor,
@@ -510,15 +531,29 @@ impl Mutant {
             generation,
             fitness: make_fitness_cache(),
             descendants: DescendantsCell::from_iter(descendants),
-            dirty_descendants: AtomicIsize::new(0),
+            _dirty_descendants: AtomicIsize::new(0),
+            _defer_drop: last._defer_drop.clone(),
+            _drop: Cell::new(None),
         }));
 
-        let old_ptr = last.reference.as_ptr() as *mut Haplotype;
-        let new_ptr = new.as_ptr() as *mut Haplotype;
+        let old_ptr = last.reference.as_ptr() as *mut Mutant;
+        let new_ptr = tmp_ref.as_ptr() as *mut Mutant;
+
+        // synchronize swapping and deference with other threads
+        let guard = last._defer_drop.lock().unwrap();
 
         // replace the old reference with the new one
         // this swaps the reference count of the old reference for the new one
         std::ptr::swap(old_ptr, new_ptr);
+
+        // this will move ownership of the `tmp_ref` to `_drop` if it is required
+        dbg!("---------Requesting deferred drop.");
+        dbg!(old_ptr);
+        dbg!(new_ptr);
+        if *guard > 0 {
+            dbg!("-- -- -- Setting deferred drop.");
+            (*new_ptr)._drop.set(Some(tmp_ref));
+        }
     }
 
     pub fn get_base(&self, position: &usize) -> Symbol {
@@ -548,10 +583,15 @@ impl Mutant {
         &self.changes
     }
 
+    /// Returns a HashMap of mutations that are present in the haplotype.
+    #[require_deferred_drop]
     pub fn get_mutations(&self) -> CachedValue<HashMap<usize, Symbol>> {
+        let key = &self.changes as *const _;
         let mut mutations = self.ancestor.get_mutations().clone_inner();
 
         let wt_ref = self.wildtype.upgrade().unwrap();
+
+        assert_eq!(&self.changes as *const _, key);
 
         self.changes.iter().for_each(|(position, (_, new))| {
             let wt_base = wt_ref.get_base(position);
@@ -607,7 +647,7 @@ impl Mutant {
             .descendants
             .lock()
             .len()
-            .checked_add_signed(self.dirty_descendants.load(Ordering::Relaxed))
+            .checked_add_signed(self._dirty_descendants.load(Ordering::Relaxed))
             .expect("Number of descendants overflowed.");
 
         let descendant = match n_descendants {
@@ -651,6 +691,52 @@ impl Mutant {
             Mutant::new_and_replace(descendant_inner, ancestor, wildtype, changes, generation);
         };
     }
+
+    /// Defers the drop of the haplotype if it is required
+    // fn request_deferred_drop(&self, reference: HaplotypeRef, guard: MutexGuard<AtomicIsize>) {
+    //     dbg!("Request deferred drop.");
+    //     // dbg!(self as *const Mutant);
+    //     // dbg!(&guard);
+    //     if guard.load(Ordering::SeqCst) > 0 {
+    //         dbg!(&reference);
+    //         self._drop.set(Some(reference));
+    //     }
+    // }
+
+    /// Notifies that any drop needs to be deferred
+    fn require_deferred_drop(&self) {
+        let mut guard = self._defer_drop.lock().unwrap();
+        dbg!("Requiring deferred drop.");
+        dbg!(self as *const Mutant);
+        *guard += 1;
+    }
+
+    /// Check if a drop has been deferred and if any other thread has requested deferred drop.
+    /// If no other thread has requested deferred drop, the drop will be executed.
+    fn inquire_deferred_drop(&self) -> Result<Option<HaplotypeRef>> {
+        let mut guard = self._defer_drop.lock().unwrap();
+        dbg!("Inquiring deferred drop.");
+        dbg!(self as *const Mutant);
+        // dbg!(self as *const Mutant);
+
+        match *guard {
+            0 => Err(VirolutionError::ImplementationError(
+                "Defered drop should be required before inquire.".to_string(),
+            )),
+            1 => {
+                *guard -= 1;
+                let drop = self._drop.take();
+                if drop.is_some() {
+                    dbg!("-  -  -  Executing deferred drop.");
+                }
+                Ok(drop)
+            }
+            _ => {
+                *guard -= 1;
+                Ok(None)
+            }
+        }
+    }
 }
 
 impl Recombinant {
@@ -674,7 +760,7 @@ impl Recombinant {
                 generation,
                 fitness: make_fitness_cache(),
                 descendants: DescendantsCell::new(),
-                dirty_descendants: AtomicIsize::new(0),
+                _dirty_descendants: AtomicIsize::new(0),
             })
         })
     }
@@ -939,6 +1025,7 @@ mod tests {
     fn merge_nodes_stress() {
         use rand::prelude::*;
         use std::sync::Mutex;
+        use std::thread;
 
         let n_sites = 7;
         let n_symbols = 4;
@@ -946,13 +1033,15 @@ mod tests {
         let bytes = vec![Some(0x00); n_sites];
         let wt = Wildtype::new(bytes);
 
+        // memory corruption should be found in this many iterations...
         let n_mutations = 100000;
+        let n_reads = 10000;
+
         let pop_size = 11;
         let pop: Vec<Mutex<HaplotypeRef>> = (0..pop_size).map(|_| Mutex::new(wt.clone())).collect();
 
-        rayon::scope(|s| {
-            // spawn mutator thread
-            s.spawn(|_| {
+        thread::scope(|s| {
+            s.spawn(|| {
                 let mut rng = rand::thread_rng();
 
                 for i in 0..n_mutations {
@@ -971,9 +1060,8 @@ mod tests {
                     *field = descendant;
                 }
             });
-            // spawn reader thread
-            s.spawn(|_| {
-                for _ in 0..n_mutations {
+            s.spawn(|| {
+                for _ in 0..n_reads {
                     let mut rng = rand::thread_rng();
                     let index = rng.gen_range(0..pop_size);
                     let ht = pop[index].lock().expect("Failed to lock haplotype.");

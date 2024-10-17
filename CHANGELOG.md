@@ -8,6 +8,8 @@
 - Added epistatic interactions
 - Added preliminary cached fitness evaluation for recombinants
 - Huge performance improvements when collecting all mutations
+- Tree will now merge internal nodes when possible
+- Methods that access data have to be annotated with `#[require_deferred_drop]`
 
 ## 0.3.0 --- Mixed Performance (May 06, 2024)
 
