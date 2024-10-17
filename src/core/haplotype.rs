@@ -556,6 +556,7 @@ impl Mutant {
         }
     }
 
+    #[require_deferred_drop]
     pub fn get_base(&self, position: &usize) -> Symbol {
         match self.changes.get(position) {
             Some((_from, to)) => *to,
@@ -682,10 +683,6 @@ impl Mutant {
         let ancestor = self.ancestor.clone();
         let wildtype = self.wildtype.clone();
 
-        // // we need to decrement the dirty descendants of the ancestor
-        // // because it will be decremented when the previous node gets removed
-        // ancestor.decrement_dirty_descendants();
-
         // create new node
         unsafe {
             Mutant::new_and_replace(descendant_inner, ancestor, wildtype, changes, generation);
@@ -693,12 +690,8 @@ impl Mutant {
     }
 
     /// Defers the drop of the haplotype if it is required
-    // fn request_deferred_drop(&self, reference: HaplotypeRef, guard: MutexGuard<AtomicIsize>) {
-    //     dbg!("Request deferred drop.");
-    //     // dbg!(self as *const Mutant);
-    //     // dbg!(&guard);
-    //     if guard.load(Ordering::SeqCst) > 0 {
-    //         dbg!(&reference);
+    // fn request_deferred_drop(&self, reference: HaplotypeRef, guard: &MutexGuard<usize>) {
+    //     if **guard > 0 {
     //         self._drop.set(Some(reference));
     //     }
     // }
@@ -706,8 +699,6 @@ impl Mutant {
     /// Notifies that any drop needs to be deferred
     fn require_deferred_drop(&self) {
         let mut guard = self._defer_drop.lock().unwrap();
-        dbg!("Requiring deferred drop.");
-        dbg!(self as *const Mutant);
         *guard += 1;
     }
 
@@ -715,9 +706,6 @@ impl Mutant {
     /// If no other thread has requested deferred drop, the drop will be executed.
     fn inquire_deferred_drop(&self) -> Result<Option<HaplotypeRef>> {
         let mut guard = self._defer_drop.lock().unwrap();
-        dbg!("Inquiring deferred drop.");
-        dbg!(self as *const Mutant);
-        // dbg!(self as *const Mutant);
 
         match *guard {
             0 => Err(VirolutionError::ImplementationError(
