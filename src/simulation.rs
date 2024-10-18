@@ -11,25 +11,26 @@ use std::{cmp::min_by, ops::Range};
 
 use crate::config::Parameters;
 use crate::core::{FitnessProvider, Haplotype, Population};
+use crate::encoding::Symbol;
 use crate::references::HaplotypeRef;
 
 pub type HostMap = Vec<Vec<usize>>;
-pub type HostRange = (Range<usize>, FitnessProvider);
+pub type HostRange<S> = (Range<usize>, FitnessProvider<S>);
 
 #[cfg(feature = "parallel")]
-pub type SimulationTrait = dyn Simulation + Send + Sync;
+pub type SimulationTrait<S> = dyn Simulation<S> + Send + Sync;
 #[cfg(not(feature = "parallel"))]
-pub type SimulationTrait = dyn Simulation;
+pub type SimulationTrait<S> = dyn Simulation<S>;
 
-pub trait Simulation {
+pub trait Simulation<S: Symbol> {
     fn increment_generation(&mut self);
 
     fn set_parameters(&mut self, parameters: Parameters);
 
     fn get_generation(&self) -> usize;
 
-    fn get_population(&self) -> &Population;
-    fn set_population(&mut self, population: Population);
+    fn get_population(&self) -> &Population<S>;
+    fn set_population(&mut self, population: Population<S>);
 
     fn get_host_map(&self) -> HostMap;
     fn mutate_infectants(&mut self, host_map: &HostMap);
@@ -38,7 +39,7 @@ pub trait Simulation {
     // methods that require `offspring_map` for processing
     fn target_size(&self, offspring_map: &[usize]) -> f64;
     fn sample_indices(&self, offspring_map: &[usize], factor: usize) -> Vec<usize>;
-    fn subsample_population(&self, offspring_map: &[usize], dilution: f64) -> Population;
+    fn subsample_population(&self, offspring_map: &[usize], dilution: f64) -> Population<S>;
 
     fn print_population(&self) -> Vec<String>;
 
@@ -63,10 +64,10 @@ pub trait Simulation {
     }
 }
 
-pub struct BasicSimulation {
-    wildtype: HaplotypeRef,
-    population: Population,
-    fitness_providers: Vec<HostRange>,
+pub struct BasicSimulation<S: Symbol> {
+    wildtype: HaplotypeRef<S>,
+    population: Population<S>,
+    fitness_providers: Vec<HostRange<S>>,
     parameters: Parameters,
     mutation_sampler: Binomial,
     recombination_sampler: Bernoulli,
@@ -74,11 +75,11 @@ pub struct BasicSimulation {
     generation: usize,
 }
 
-impl BasicSimulation {
+impl<S: Symbol> BasicSimulation<S> {
     pub fn new(
-        wildtype: HaplotypeRef,
-        population: Population,
-        fitness_providers: Vec<HostRange>,
+        wildtype: HaplotypeRef<S>,
+        population: Population<S>,
+        fitness_providers: Vec<HostRange<S>>,
         parameters: Parameters,
         generation: usize,
     ) -> Self {
@@ -102,7 +103,7 @@ impl BasicSimulation {
         &self,
         sequence_length: usize,
         infectants: &[usize],
-    ) -> Vec<(usize, HaplotypeRef)> {
+    ) -> Vec<(usize, HaplotypeRef<S>)> {
         let n_infectants = infectants.len();
 
         if n_infectants <= 1 {
@@ -135,7 +136,7 @@ impl BasicSimulation {
         &self,
         sequence_length: usize,
         infectants: &[usize],
-    ) -> Vec<(usize, HaplotypeRef)> {
+    ) -> Vec<(usize, HaplotypeRef<S>)> {
         infectants
             .iter()
             .filter_map(|infectant| {
@@ -152,16 +153,12 @@ impl BasicSimulation {
                     .iter()
                     .map(|position| {
                         let mut rng = rand::thread_rng();
-                        match infectant_ref.get_base(position) {
-                            Some(base) => {
-                                let dist = WeightedIndex::new(
-                                    self.parameters.substitution_matrix[base as usize],
-                                )
-                                .unwrap();
-                                Some(dist.sample(&mut rng) as u8)
-                            }
-                            None => None,
-                        }
+                        let dist = WeightedIndex::new(
+                            self.parameters.substitution_matrix
+                                [*infectant_ref.get_base(position).index()],
+                        )
+                        .unwrap();
+                        S::decode(&(dist.sample(&mut rng) as u8))
                     })
                     .collect();
 
@@ -177,7 +174,7 @@ impl BasicSimulation {
     }
 }
 
-impl Simulation for BasicSimulation {
+impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     fn increment_generation(&mut self) {
         self.generation += 1;
     }
@@ -186,11 +183,11 @@ impl Simulation for BasicSimulation {
         self.generation
     }
 
-    fn get_population(&self) -> &Population {
+    fn get_population(&self) -> &Population<S> {
         &self.population
     }
 
-    fn set_population(&mut self, population: Population) {
+    fn set_population(&mut self, population: Population<S>) {
         self.population = population;
     }
 
@@ -313,8 +310,7 @@ impl Simulation for BasicSimulation {
                         .zip(fitness_values.iter())
                         .for_each(|(infectant, fitness)| {
                             if let Ok(dist) = Poisson::new(
-                                fitness * self.parameters.basic_reproductive_number
-                                    / fitness_sum as f64,
+                                fitness * self.parameters.basic_reproductive_number / fitness_sum,
                             ) {
                                 unsafe {
                                     (offspring_ptr as *mut usize)
@@ -384,7 +380,7 @@ impl Simulation for BasicSimulation {
         (0..amount).map(|_| sampler.sample(&mut rng)).collect()
     }
 
-    fn subsample_population(&self, offspring_map: &[usize], factor: f64) -> Population {
+    fn subsample_population(&self, offspring_map: &[usize], factor: f64) -> Population<S> {
         // if there is no offspring, return empty population
         if offspring_map.is_empty() {
             return Population::new();
@@ -414,6 +410,7 @@ mod tests {
     };
     use crate::core::fitness::utility::UtilityFunction;
     use crate::core::haplotype::Wildtype;
+    use crate::encoding::Nucleotide as Nt;
     use test::Bencher;
 
     const DISTRIBUTION: FitnessDistribution =
@@ -452,15 +449,14 @@ mod tests {
         fitness_model: FitnessModelField::SingleHost(FITNESS_MODEL),
     };
 
-    fn setup_test_simulation() -> BasicSimulation {
-        let sequence = vec![Some(0x00); 100];
+    fn setup_test_simulation() -> BasicSimulation<Nt> {
+        let sequence = vec![Nt::A; 100];
 
-        let fitness_provider =
-            FitnessProvider::from_model(0, &sequence, 4, &FITNESS_MODEL).unwrap();
+        let fitness_provider = FitnessProvider::from_model(0, &sequence, &FITNESS_MODEL).unwrap();
         let fitness_providers = vec![(0..SETTINGS.host_population_size, fitness_provider)];
 
         let wt = Wildtype::new(sequence);
-        let population: Population = crate::population![wt.clone(); POPULATION_SIZE];
+        let population: Population<Nt> = crate::population![wt.clone(); POPULATION_SIZE];
         BasicSimulation::new(wt, population, fitness_providers, SETTINGS, 0)
     }
 
@@ -481,7 +477,7 @@ mod tests {
     #[test]
     fn set_population() {
         let mut simulation = setup_test_simulation();
-        let population: Population = crate::population![simulation.wildtype.clone(); 42];
+        let population: Population<Nt> = crate::population![simulation.wildtype.clone(); 42];
         simulation.set_population(population.clone());
         assert_eq!(simulation.population.len(), 42);
         assert_eq!(simulation.population, population);

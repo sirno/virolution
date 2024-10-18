@@ -1,13 +1,13 @@
 use npyz::WriterBuilder;
 use std::collections::HashMap;
 
-use crate::core::haplotype::Symbol;
+use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
 use crate::references::HaplotypeRef;
 
 use super::init::{FitnessDistribution, FitnessModel};
 
-type EpistasisTableKey = (usize, Symbol);
+type EpistasisTableKey<S> = (usize, S);
 
 #[derive(Debug, npyz::Deserialize, npyz::Serialize, npyz::AutoSerialize)]
 pub struct EpiEntry {
@@ -19,11 +19,11 @@ pub struct EpiEntry {
 }
 
 #[derive(Clone, Debug)]
-pub struct EpistasisTable {
-    table: HashMap<EpistasisTableKey, HashMap<EpistasisTableKey, f64>>,
+pub struct EpistasisTable<S: Symbol> {
+    table: HashMap<EpistasisTableKey<S>, HashMap<EpistasisTableKey<S>, f64>>,
 }
 
-impl EpistasisTable {
+impl<S: Symbol> EpistasisTable<S> {
     pub fn from_model(model: &FitnessModel) -> Result<Self, VirolutionError> {
         let table = match &model.distribution {
             FitnessDistribution::Epistatic(epi_params) => {
@@ -40,16 +40,17 @@ impl EpistasisTable {
     }
 
     pub fn from_vec(entries: Vec<EpiEntry>) -> Self {
-        let mut table: HashMap<EpistasisTableKey, HashMap<EpistasisTableKey, f64>> = HashMap::new();
+        let mut table: HashMap<EpistasisTableKey<S>, HashMap<EpistasisTableKey<S>, f64>> =
+            HashMap::new();
         for entry in entries.iter() {
             table
-                .entry((entry.pos1 as usize, Some(entry.base1)))
+                .entry((entry.pos1 as usize, S::decode(&entry.base1)))
                 .or_default()
-                .insert((entry.pos2 as usize, Some(entry.base2)), entry.value);
+                .insert((entry.pos2 as usize, S::decode(&entry.base2)), entry.value);
             table
-                .entry((entry.pos2 as usize, Some(entry.base2)))
+                .entry((entry.pos2 as usize, S::decode(&entry.base2)))
                 .or_default()
-                .insert((entry.pos1 as usize, Some(entry.base1)), entry.value);
+                .insert((entry.pos1 as usize, S::decode(&entry.base1)), entry.value);
         }
         Self { table }
     }
@@ -68,9 +69,9 @@ impl EpistasisTable {
                         } else {
                             Some(EpiEntry {
                                 pos1: *pos1 as u64,
-                                base1: base1.unwrap_or_default(),
+                                base1: base1.encode(),
                                 pos2: *pos2 as u64,
-                                base2: base2.unwrap_or_default(),
+                                base2: base2.encode(),
                                 value: *value,
                             })
                         }
@@ -99,7 +100,7 @@ impl EpistasisTable {
     }
 
     /// Compute factor to update the fitness of a haplotype change based on the epistasis table
-    pub fn update_fitness(&self, haplotype: &HaplotypeRef) -> f64 {
+    pub fn update_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
         // Callers should ensure that the haplotype is mutant
         if !haplotype.is_mutant() {
             panic!("Cannot update fitness of haplotype that is not mutant");
@@ -150,14 +151,14 @@ impl EpistasisTable {
                 if pos != *position {
                     if let Some(interaction) = interactions_add {
                         // If there is an interaction, multiply the fitness
-                        if let Some(v) = interaction.get(&(*pos, *current)) {
+                        if let Some(v) = interaction.get(&(*pos, S::decode(current))) {
                             fitness *= v;
                         }
                     }
 
                     if let Some(interaction) = interactions_remove {
                         // If there is an interaction, divide the fitness
-                        if let Some(v) = interaction.get(&(*pos, *current)) {
+                        if let Some(v) = interaction.get(&(*pos, S::decode(current))) {
                             fitness /= v;
                         }
                     }
@@ -169,16 +170,16 @@ impl EpistasisTable {
     }
 
     /// Compute the fitness contribution within the epistasis table for a given haplotype
-    pub fn compute_fitness(&self, haplotype: &HaplotypeRef) -> f64 {
+    pub fn compute_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
         let mut fitness = 1.;
         let mutations = haplotype.get_mutations();
         mutations.iter().for_each(|(position, current)| {
-            if let Some(interaction) = self.table.get(&(*position, *current)) {
+            if let Some(interaction) = self.table.get(&(*position, S::decode(current))) {
                 interaction
                     .iter()
                     .filter(|((pos, base), _)| {
                         // Enforce that the interaction is only applied once
-                        pos > position && mutations.get(pos) != Some(base)
+                        pos > position && mutations.get(pos) != Some(&(*base.index() as u8))
                     })
                     .for_each(|(_, value)| {
                         fitness *= value;

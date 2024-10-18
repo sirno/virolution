@@ -3,10 +3,9 @@ use rand::distributions::{Distribution, WeightedIndex};
 use rand_distr::Exp;
 use serde::{Deserialize, Serialize};
 
-use crate::core::haplotype::Symbol;
-
 use super::epistasis::EpiEntry;
 use super::utility::UtilityFunction;
+use crate::encoding::Symbol;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct FitnessModel {
@@ -100,7 +99,7 @@ impl MutationCategoryWeights {
 }
 
 impl ExponentialParameters {
-    pub fn create_table(&self, n_symbols: usize, sequence: &[Symbol]) -> Vec<f64> {
+    pub fn create_table<S: Symbol>(&self, n_symbols: usize, sequence: &[S]) -> Vec<f64> {
         let mut table = vec![-1.; sequence.len() * n_symbols];
         let mut rng = rand::thread_rng();
 
@@ -118,9 +117,7 @@ impl ExponentialParameters {
 
         // fill wt sequence with ones
         for (position, &symbol) in sequence.iter().enumerate() {
-            if let Some(value) = symbol {
-                table[position * n_symbols + (value as usize)] = 1.;
-            }
+            table[position * n_symbols + symbol.index()] = 1.;
         }
 
         // sample for remaining positions
@@ -144,7 +141,7 @@ impl ExponentialParameters {
 }
 
 impl LognormalParameters {
-    pub fn create_table(&self, n_symbols: usize, sequence: &[Symbol]) -> Vec<f64> {
+    pub fn create_table<S: Symbol>(&self, n_symbols: usize, sequence: &[S]) -> Vec<f64> {
         let mut table = vec![-1.; sequence.len() * n_symbols];
         let mut rng = rand::thread_rng();
 
@@ -154,9 +151,7 @@ impl LognormalParameters {
 
         // fill wt sequence with ones
         for (position, &symbol) in sequence.iter().enumerate() {
-            if let Some(value) = symbol {
-                table[position * n_symbols + (value as usize)] = 1.;
-            }
+            table[position * n_symbols + symbol.index()] = 1.;
         }
 
         // sample for remaining positions
@@ -212,26 +207,28 @@ mod tests {
     use super::super::table::FitnessTable;
     use super::*;
 
+    use crate::encoding::Nucleotide as Nt;
+
     #[test]
     fn create_neutral_table() {
-        let sequence = vec![Some(0x00); 100];
+        let nucleotides = vec![Nt::A, Nt::T, Nt::C, Nt::G];
+        let sequence = vec![Nt::A; 100];
         let fitness = FitnessTable::from_model(
             &sequence,
-            4,
             &FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
         )
         .unwrap();
         for position in 0..100 {
-            for s in 0..4 {
-                assert_eq!(fitness.get_value(&position, &Some(s)), 1.);
-                assert_eq!(fitness.get_value(&position, &None), 1.);
+            for s in nucleotides.iter() {
+                assert_eq!(fitness.get_value(&position, s), 1.);
             }
         }
     }
 
     #[test]
     fn create_exponential_table() {
-        let sequence = vec![Some(0x00); 100];
+        let nucleotides = vec![Nt::A, Nt::T, Nt::C, Nt::G];
+        let sequence = vec![Nt::A; 100];
         let distribution = FitnessDistribution::Exponential(ExponentialParameters {
             weights: MutationCategoryWeights {
                 beneficial: 0.29,
@@ -245,16 +242,15 @@ mod tests {
 
         let fitness = FitnessTable::from_model(
             &sequence,
-            4,
             &FitnessModel::new(distribution, UtilityFunction::Linear),
         )
         .unwrap();
         for position in 0..100 {
-            for s in 0..4 {
-                if s == 0 {
-                    assert_eq!(fitness.get_value(&position, &Some(s)), 1.);
+            for s in nucleotides.iter() {
+                if *s.index() == 0 {
+                    assert_eq!(fitness.get_value(&position, s), 1.);
                 } else {
-                    assert_ne!(fitness.get_value(&position, &Some(s)), 1.);
+                    assert_ne!(fitness.get_value(&position, s), 1.);
                 }
             }
         }

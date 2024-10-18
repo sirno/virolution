@@ -1,24 +1,25 @@
+use crate::encoding::Symbol;
 use derive_more::Deref;
 use parking_lot::Mutex;
 
 use super::HaplotypeWeak;
 
 #[derive(Debug, Deref)]
-pub struct DescendantsCell(Mutex<Vec<HaplotypeWeak>>);
+pub struct DescendantsCell<S: Symbol>(Mutex<Vec<HaplotypeWeak<S>>>);
 
-impl DescendantsCell {
+impl<S: Symbol> DescendantsCell<S> {
     pub fn new() -> Self {
         Self(Mutex::new(Vec::new()))
     }
 }
 
-impl FromIterator<HaplotypeWeak> for DescendantsCell {
-    fn from_iter<I: IntoIterator<Item=HaplotypeWeak>>(iter: I) -> Self {
+impl<S: Symbol> FromIterator<HaplotypeWeak<S>> for DescendantsCell<S> {
+    fn from_iter<I: IntoIterator<Item = HaplotypeWeak<S>>>(iter: I) -> Self {
         Self(Mutex::new(iter.into_iter().collect()))
     }
 }
 
-impl Default for DescendantsCell {
+impl<S: Symbol> Default for DescendantsCell<S> {
     fn default() -> Self {
         Self::new()
     }

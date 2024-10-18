@@ -10,10 +10,10 @@ use std::{
 use itertools::Itertools;
 
 use crate::core::{Historian, Population};
-use crate::encoding::STRICT_ENCODE;
+use crate::encoding::Symbol;
 use crate::{barcode::BarcodeEntry, simulation::SimulationTrait};
 
-pub trait SampleWriter {
+pub trait SampleWriter<S: Symbol + 'static> {
     /// Get the name of the experiment
     fn get_experiment_name(&self) -> &str;
 
@@ -26,7 +26,7 @@ pub trait SampleWriter {
     /// Write a sample of each simulation to a file
     fn sample_from_simulations(
         &self,
-        simulations: &[Box<SimulationTrait>],
+        simulations: &[Box<SimulationTrait<S>>],
         sample_size: usize,
     ) -> Result<(), std::io::Error> {
         log::info!("Writing sample to {}", self.get_path().to_str().unwrap());
@@ -61,7 +61,7 @@ pub trait SampleWriter {
     /// Write a sample to a file and return the barcode
     fn write(
         &self,
-        population: &Population,
+        population: &Population<S>,
         generation: usize,
         compartment: usize,
     ) -> Result<String, std::io::Error>;
@@ -98,7 +98,7 @@ pub struct FastaSampleWriter<'a> {
 }
 
 impl<'a> FastaSampleWriter<'a> {
-    pub fn new(
+    pub fn new<S: Symbol + 'static>(
         simulation_name: &'a str,
         path: &'a str,
         historian: Option<Rc<RefCell<Historian>>>,
@@ -109,7 +109,7 @@ impl<'a> FastaSampleWriter<'a> {
             historian,
         };
 
-        writer.init_barcode_file()?;
+        SampleWriter::<S>::init_barcode_file(&writer)?;
 
         Ok(writer)
     }
@@ -122,7 +122,7 @@ pub struct CsvSampleWriter<'a> {
 }
 
 impl<'a> CsvSampleWriter<'a> {
-    pub fn new(
+    pub fn new<S: Symbol + 'static>(
         simulation_name: &'a str,
         path: &'a str,
         historian: Option<Rc<RefCell<Historian>>>,
@@ -133,13 +133,13 @@ impl<'a> CsvSampleWriter<'a> {
             historian,
         };
 
-        writer.init_barcode_file()?;
+        SampleWriter::<S>::init_barcode_file(&writer)?;
 
         Ok(writer)
     }
 }
 
-impl<'a> SampleWriter for FastaSampleWriter<'a> {
+impl<'a, S: Symbol + 'static> SampleWriter<S> for FastaSampleWriter<'a> {
     fn get_experiment_name(&self) -> &str {
         self.simulation_name
     }
@@ -158,7 +158,7 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
 
     fn write(
         &self,
-        population: &Population,
+        population: &Population<S>,
         generation: usize,
         compartment: usize,
     ) -> Result<String, std::io::Error> {
@@ -176,10 +176,7 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
                 let sequence = haplotype_ref
                     .get_sequence()
                     .into_iter()
-                    .map(|symbol| match symbol {
-                        Some(s) => STRICT_ENCODE[&s],
-                        None => 0x2d,
-                    })
+                    .map(|symbol| symbol.encode())
                     .collect();
                 (haplotype_ref.get_id(), sequence)
             })
@@ -209,7 +206,7 @@ impl<'a> SampleWriter for FastaSampleWriter<'a> {
     }
 }
 
-impl<'a> SampleWriter for CsvSampleWriter<'a> {
+impl<'a, S: Symbol + 'static> SampleWriter<S> for CsvSampleWriter<'a> {
     fn get_experiment_name(&self) -> &str {
         self.simulation_name
     }
@@ -228,7 +225,7 @@ impl<'a> SampleWriter for CsvSampleWriter<'a> {
 
     fn write(
         &self,
-        population: &Population,
+        population: &Population<S>,
         generation: usize,
         compartment: usize,
     ) -> Result<String, std::io::Error> {
@@ -274,10 +271,11 @@ mod tests {
     use super::*;
 
     use crate::core::haplotype::Wildtype;
+    use crate::encoding::Nucleotide as Nt;
 
-    fn get_population() -> Population {
-        let wt1 = Wildtype::new(vec![Some(0x00); 10]);
-        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+    fn get_population() -> Population<Nt> {
+        let wt1 = Wildtype::new(vec![Nt::A; 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10]);
 
         population![&wt1, &wt1, &wt2, &wt2]
     }
@@ -286,7 +284,7 @@ mod tests {
     fn test_csv_write() {
         let tmp_dir = std::env::temp_dir();
         let path = tmp_dir.to_str().unwrap();
-        let sample_writer = CsvSampleWriter::new("test_simulation", path, None).unwrap();
+        let sample_writer = CsvSampleWriter::new::<Nt>("test_simulation", path, None).unwrap();
 
         let population = get_population();
         let barcode = sample_writer.write(&population, 0, 0).unwrap();
@@ -314,7 +312,7 @@ mod tests {
     fn test_fasta_write() {
         let tmp_dir = std::env::temp_dir();
         let path = tmp_dir.to_str().unwrap();
-        let sample_writer = FastaSampleWriter::new("test_simulation", path, None).unwrap();
+        let sample_writer = FastaSampleWriter::new::<Nt>("test_simulation", path, None).unwrap();
 
         let population = get_population();
         let barcode = sample_writer.write(&population, 0, 0).unwrap();

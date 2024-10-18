@@ -7,7 +7,7 @@ use super::init::{FitnessDistribution, FitnessModel};
 use super::table::FitnessTable;
 use super::utility::UtilityFunction;
 
-use crate::core::haplotype::Symbol;
+use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
 use crate::references::HaplotypeRef;
 
@@ -16,48 +16,47 @@ use crate::references::HaplotypeRef;
 /// The fitness provider is responsible for computing the fitness of a haplotype based on its
 /// sequence and the fitness model.
 #[derive(Clone, Debug)]
-pub struct FitnessProvider {
+pub struct FitnessProvider<S: Symbol> {
     pub id: usize,
-    function: FitnessFunction,
+    function: FitnessFunction<S>,
     utility: UtilityFunction,
 }
 
 #[derive(Clone, Debug)]
-pub enum FitnessFunction {
+pub enum FitnessFunction<S: Symbol> {
     NonEpistatic(FitnessTable),
-    SimpleEpistatic(FitnessTable, EpistasisTable),
+    SimpleEpistatic(FitnessTable, EpistasisTable<S>),
 }
 
-impl FitnessProvider {
+impl<S: Symbol> FitnessProvider<S> {
     /// Create a new fitness provider from a fitness model.
     ///
     /// Fitness models can be specified in the configuration file. Available fitness models are
     /// defined in `virolution::core::fitness::init`.
     pub fn from_model(
         id: usize,
-        sequence: &[Symbol],
-        n_symbols: usize,
+        sequence: &[S],
         model: &FitnessModel,
     ) -> Result<Self, VirolutionError> {
         let function = match model.distribution {
             FitnessDistribution::Neutral => {
-                let table = FitnessTable::from_model(sequence, n_symbols, model)?;
+                let table = FitnessTable::from_model(sequence, model)?;
                 FitnessFunction::NonEpistatic(table)
             }
             FitnessDistribution::Exponential(_) => {
-                let table = FitnessTable::from_model(sequence, n_symbols, model)?;
+                let table = FitnessTable::from_model(sequence, model)?;
                 FitnessFunction::NonEpistatic(table)
             }
             FitnessDistribution::Lognormal(_) => {
-                let table = FitnessTable::from_model(sequence, n_symbols, model)?;
+                let table = FitnessTable::from_model(sequence, model)?;
                 FitnessFunction::NonEpistatic(table)
             }
             FitnessDistribution::File(_) => {
-                let table = FitnessTable::from_model(sequence, n_symbols, model)?;
+                let table = FitnessTable::from_model(sequence, model)?;
                 FitnessFunction::NonEpistatic(table)
             }
             FitnessDistribution::Epistatic(_) => {
-                let table = FitnessTable::from_model(sequence, n_symbols, model)?;
+                let table = FitnessTable::from_model(sequence, model)?;
                 let epistasis = EpistasisTable::from_model(model)?;
                 FitnessFunction::SimpleEpistatic(table, epistasis)
             }
@@ -98,7 +97,7 @@ impl FitnessProvider {
         self.utility.apply(fitness)
     }
 
-    pub fn get_fitness(&self, haplotype: &HaplotypeRef) -> f64 {
+    pub fn get_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
         match haplotype.try_get_changes() {
             Some(_) => {
                 let fitness = haplotype
@@ -112,7 +111,7 @@ impl FitnessProvider {
         }
     }
 
-    fn update_fitness(&self, haplotype: &HaplotypeRef) -> f64 {
+    fn update_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
         match &self.function {
             FitnessFunction::NonEpistatic(table) => table.update_fitness(haplotype),
             FitnessFunction::SimpleEpistatic(table, epistasis) => {
@@ -121,7 +120,7 @@ impl FitnessProvider {
         }
     }
 
-    fn compute_fitness(&self, haplotype: &HaplotypeRef) -> f64 {
+    fn compute_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
         match &self.function {
             FitnessFunction::NonEpistatic(table) => table.compute_fitness(haplotype),
             FitnessFunction::SimpleEpistatic(table, epistasis) => {

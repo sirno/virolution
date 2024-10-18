@@ -8,6 +8,7 @@ use virolution::core::fitness::utility::UtilityFunction;
 use virolution::core::fitness::FitnessProvider;
 use virolution::core::haplotype::*;
 use virolution::core::population::Population;
+use virolution::encoding::Nucleotide as Nt;
 use virolution::simulation::*;
 
 use virolution::population;
@@ -15,7 +16,7 @@ use virolution::population;
 fn main() {
     let plan_path = PathBuf::from_iter([env!("CARGO_MANIFEST_DIR"), "data/plan.csv"]);
     let plan = Schedule::read(plan_path.to_str().unwrap()).expect("Failed to read plan");
-    let sequence = vec![Some(0x00); 5386];
+    let sequence = vec![Nt::A; 5386];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,
@@ -28,7 +29,7 @@ fn main() {
     });
     let fitness_model = FitnessModel::new(distribution.clone(), UtilityFunction::Linear);
 
-    let fitness_provider = FitnessProvider::from_model(0, &sequence, 4, &fitness_model)
+    let fitness_provider = FitnessProvider::from_model(0, &sequence, &fitness_model)
         .expect("Failed to create fitness table");
 
     let wt = Wildtype::new(sequence);
@@ -50,7 +51,7 @@ fn main() {
     };
 
     let n_compartments = 3;
-    let mut compartment_simulations: Vec<BasicSimulation> = (0..n_compartments)
+    let mut compartment_simulations: Vec<BasicSimulation<Nt>> = (0..n_compartments)
         .map(|_| {
             let population = population![wt.clone(); 1_000_000];
             let fitness_providers =
@@ -78,8 +79,7 @@ fn main() {
 
         let transfers = plan.get_transfer_matrix(gen);
 
-        let populations: Vec<Population> = (0..n_compartments)
-            .into_iter()
+        let populations: Vec<Population<Nt>> = (0..n_compartments)
             .map(|target| {
                 Population::from_iter((0..n_compartments).map(|origin| {
                     compartment_simulations[origin]

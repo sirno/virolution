@@ -132,6 +132,7 @@ mod tests {
             .output()
             .expect("Failed to execute command");
 
+        dbg!(&output);
         assert!(output.status.success());
 
         // Check if output files are created

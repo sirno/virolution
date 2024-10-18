@@ -7,22 +7,23 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Weak};
 
 use crate::core::Haplotype;
+use crate::encoding::Symbol;
 
 #[derive(Clone, Deref, DerefMut)]
-pub struct HaplotypeRef(pub Arc<Haplotype>);
+pub struct HaplotypeRef<S: Symbol>(pub Arc<Haplotype<S>>);
 
 thread_local! {
     pub static BLOCK_ID: BlockId<char> = BlockId::new(Alphabet::new(&("ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect::<Vec<char>>())), 0, 1);
 }
 
-impl HaplotypeRef {
-    pub fn new(haplotype: Haplotype) -> Self {
+impl<S: Symbol> HaplotypeRef<S> {
+    pub fn new(haplotype: Haplotype<S>) -> Self {
         Self(Arc::new(haplotype))
     }
 
     pub fn new_cyclic<F>(data_fn: F) -> Self
     where
-        F: std::ops::Fn(&HaplotypeWeak) -> Haplotype,
+        F: std::ops::Fn(&HaplotypeWeak<S>) -> Haplotype<S>,
     {
         Self(Arc::new_cyclic(|weak| {
             data_fn(&HaplotypeWeak(weak.clone()))
@@ -46,44 +47,44 @@ impl HaplotypeRef {
     }
 
     #[inline]
-    pub fn get_weak(&self) -> HaplotypeWeak {
+    pub fn get_weak(&self) -> HaplotypeWeak<S> {
         HaplotypeWeak(Arc::downgrade(&self.0))
     }
 
     #[inline]
-    pub fn try_unwrap(&self) -> Option<Haplotype> {
+    pub fn try_unwrap(&self) -> Option<Haplotype<S>> {
         Arc::try_unwrap(self.0.clone()).ok()
     }
 
     #[inline]
-    pub fn as_ptr(&self) -> *const Haplotype {
+    pub fn as_ptr(&self) -> *const Haplotype<S> {
         Arc::as_ptr(&self.0)
     }
 }
 
-impl fmt::Debug for HaplotypeRef {
+impl<S: Symbol> fmt::Debug for HaplotypeRef<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.get_string())
     }
 }
 
-impl PartialEq for HaplotypeRef {
+impl<S: Symbol> PartialEq for HaplotypeRef<S> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(self, other)
     }
 }
 
-impl Eq for HaplotypeRef {}
+impl<S: Symbol> Eq for HaplotypeRef<S> {}
 
-impl Hash for HaplotypeRef {
+impl<S: Symbol> Hash for HaplotypeRef<S> {
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         Arc::as_ptr(&self.0).hash(state)
     }
 }
 
-impl Drop for HaplotypeRef {
+impl<S: Symbol> Drop for HaplotypeRef<S> {
     fn drop(&mut self) {
         if Arc::strong_count(&self.0) == 2
             && let Some(mutant) = self.try_unwrap_mutant()
@@ -94,11 +95,11 @@ impl Drop for HaplotypeRef {
 }
 
 #[derive(Clone, Deref, DerefMut)]
-pub struct HaplotypeWeak(Weak<Haplotype>);
+pub struct HaplotypeWeak<S: Symbol>(Weak<Haplotype<S>>);
 
-impl HaplotypeWeak {
+impl<S: Symbol> HaplotypeWeak<S> {
     #[inline]
-    pub fn upgrade(&self) -> Option<HaplotypeRef> {
+    pub fn upgrade(&self) -> Option<HaplotypeRef<S>> {
         self.0.upgrade().map(HaplotypeRef)
     }
 
@@ -119,7 +120,7 @@ impl HaplotypeWeak {
     }
 }
 
-impl fmt::Debug for HaplotypeWeak {
+impl<S: Symbol> fmt::Debug for HaplotypeWeak<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.upgrade() {
             Some(reference) => write!(f, "{}", reference.get_string()),
@@ -128,7 +129,7 @@ impl fmt::Debug for HaplotypeWeak {
     }
 }
 
-impl PartialEq for HaplotypeWeak {
+impl<S: Symbol> PartialEq for HaplotypeWeak<S> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.ptr_eq(other)

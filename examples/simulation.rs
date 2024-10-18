@@ -7,12 +7,13 @@ use virolution::core::fitness::utility::UtilityFunction;
 use virolution::core::fitness::FitnessProvider;
 use virolution::core::haplotype::*;
 use virolution::core::Population;
+use virolution::encoding::Nucleotide as Nt;
 use virolution::simulation::*;
 
 use virolution::population;
 
 fn main() {
-    let sequence = vec![Some(0x00); 100];
+    let sequence = vec![Nt::A; 100];
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,
@@ -25,12 +26,12 @@ fn main() {
     });
     let fitness_model = FitnessModel::new(distribution.clone(), UtilityFunction::Linear);
 
-    let fitness_table = FitnessProvider::from_model(0, &sequence, 4, &fitness_model).unwrap();
+    let fitness_table = FitnessProvider::from_model(0, &sequence, &fitness_model).unwrap();
 
     let wt = Wildtype::new(sequence);
-    let ht = wt.create_descendant(vec![2], vec![Some(0x01)], 0);
-    let ht2 = ht.create_descendant(vec![1], vec![Some(0x02)], 0);
-    let ht3 = ht2.create_descendant(vec![2], vec![Some(0x03)], 0);
+    let ht = wt.create_descendant(vec![2], vec![Nt::T], 0);
+    let ht2 = ht.create_descendant(vec![1], vec![Nt::C], 0);
+    let ht3 = ht2.create_descendant(vec![2], vec![Nt::G], 0);
     let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2, 0);
 
     println!("---fitnesses---");
@@ -40,7 +41,7 @@ fn main() {
     println!("ht3: {}", ht3.get_fitness(&fitness_table));
     println!("ht4: {}", ht4.get_fitness(&fitness_table));
 
-    let population: Population = population![wt.clone(); 10];
+    let population: Population<Nt> = population![wt.clone(); 10];
     let simulation_settings = Parameters {
         mutation_rate: 1e-6,
         recombination_rate: 0.,

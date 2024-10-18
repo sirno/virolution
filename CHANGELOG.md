@@ -10,6 +10,7 @@
 - Huge performance improvements when collecting all mutations
 - Tree will now merge internal nodes when possible
 - Methods that access data have to be annotated with `#[require_deferred_drop]`
+- Introduced generic encoding for symbolic values `virolution::encoding::Symbol`
 
 ## 0.3.0 --- Mixed Performance (May 06, 2024)
 

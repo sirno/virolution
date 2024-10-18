@@ -2,7 +2,7 @@ use npyz::WriterBuilder;
 
 use super::init::{FitnessDistribution, FitnessModel};
 
-use crate::core::haplotype::Symbol;
+use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
 use crate::references::HaplotypeRef;
 
@@ -22,35 +22,32 @@ impl FitnessTable {
         }
     }
 
-    pub fn from_model(
-        sequence: &[Symbol],
-        n_symbols: usize,
+    pub fn from_model<S: Symbol>(
+        sequence: &[S],
         fitness_model: &FitnessModel,
     ) -> Result<Self, VirolutionError> {
         let n_sites = sequence.len();
         let table = match fitness_model.distribution {
-            FitnessDistribution::Neutral => vec![1.; n_sites * n_symbols],
-            FitnessDistribution::Exponential(ref params) => {
-                params.create_table(n_symbols, sequence)
-            }
-            FitnessDistribution::Lognormal(ref params) => params.create_table(n_symbols, sequence),
+            FitnessDistribution::Neutral => vec![1.; n_sites * S::SIZE],
+            FitnessDistribution::Exponential(ref params) => params.create_table(S::SIZE, sequence),
+            FitnessDistribution::Lognormal(ref params) => params.create_table(S::SIZE, sequence),
             FitnessDistribution::File(ref params) => params.load_table(),
             FitnessDistribution::Epistatic(ref params) => params.load_table(),
         };
 
-        if table.len() != n_sites * n_symbols {
+        if table.len() != n_sites * S::SIZE {
             return Err(VirolutionError::InitializationError(format!(
                 "Fitness table has wrong size: {} instead of {}",
                 table.len(),
-                n_sites * n_symbols
+                n_sites * S::SIZE
             )));
         }
 
-        Ok(Self::new(n_sites, n_symbols, table))
+        Ok(Self::new(n_sites, S::SIZE, table))
     }
 
     /// Compute factor to update the fitness of a haplotype change based on the nonepistatic table
-    pub fn update_fitness(&self, haplotype: &HaplotypeRef) -> f64 {
+    pub fn update_fitness<S: Symbol>(&self, haplotype: &HaplotypeRef<S>) -> f64 {
         // Callers should ensure that the haplotype is mutant
         if !haplotype.is_mutant() {
             panic!("Cannot update fitness of haplotype that is not mutant");
@@ -66,24 +63,23 @@ impl FitnessTable {
 
         // Compute the fitness update
         changes.iter().fold(1., |acc, (position, (old, new))| {
-            acc * self.get_value(&position, new) / self.get_value(&position, old)
+            acc * self.get_value(position, new) / self.get_value(position, old)
         })
     }
 
     /// Compute the fitness of a haplotype without any epistatic effects
-    pub fn compute_fitness(&self, haplotype: &HaplotypeRef) -> f64 {
+    pub fn compute_fitness<S: Symbol>(&self, haplotype: &HaplotypeRef<S>) -> f64 {
         haplotype
             .get_mutations()
             .iter()
-            .fold(1., |acc, (pos, symbol)| acc * self.get_value(&pos, symbol))
+            .fold(1., |acc, (pos, symbol)| {
+                acc * self.get_value(pos, &S::decode(symbol))
+            })
     }
 
     #[inline]
-    pub fn get_value(&self, position: &usize, symbol: &Symbol) -> f64 {
-        match symbol {
-            Some(s) => self.table[position * self.n_symbols + *s as usize],
-            None => 1.,
-        }
+    pub fn get_value<S: Symbol>(&self, position: &usize, symbol: &S) -> f64 {
+        self.table[*position * S::SIZE + *symbol.index()]
     }
 
     pub fn write(&self, writer: &mut impl std::io::Write) -> Result<(), VirolutionError> {
@@ -109,20 +105,20 @@ mod tests {
     use super::super::init::{ExponentialParameters, MutationCategoryWeights};
     use super::super::utility::UtilityFunction;
     use super::*;
+    use crate::encoding::Nucleotide as Nt;
 
     #[test]
     fn get_value() {
-        let sequence = vec![Some(0x00); 100];
+        let symbols = &[Nt::A, Nt::T, Nt::C, Nt::G];
+        let sequence = vec![Nt::A; 100];
         let fitness = FitnessTable::from_model(
             &sequence,
-            4,
             &FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
         )
         .unwrap();
         for position in 0..100 {
-            for s in 0..4 {
-                assert_eq!(fitness.get_value(&position, &Some(s)), 1.);
-                assert_eq!(fitness.get_value(&position, &None), 1.);
+            for s in symbols.iter() {
+                assert_eq!(fitness.get_value(&position, s), 1.);
             }
         }
     }
@@ -134,19 +130,19 @@ mod tests {
             n_symbols: 4,
             table: vec![1., 2., 3., 4., 5., 6., 7., 8.],
         };
-        assert_eq!(table.get_value(&0, &Some(0)), 1.);
-        assert_eq!(table.get_value(&0, &Some(1)), 2.);
-        assert_eq!(table.get_value(&0, &Some(2)), 3.);
-        assert_eq!(table.get_value(&0, &Some(3)), 4.);
-        assert_eq!(table.get_value(&1, &Some(0)), 5.);
-        assert_eq!(table.get_value(&1, &Some(1)), 6.);
-        assert_eq!(table.get_value(&1, &Some(2)), 7.);
-        assert_eq!(table.get_value(&1, &Some(3)), 8.);
+        assert_eq!(table.get_value(&0, &Nt::A), 1.);
+        assert_eq!(table.get_value(&0, &Nt::T), 2.);
+        assert_eq!(table.get_value(&0, &Nt::C), 3.);
+        assert_eq!(table.get_value(&0, &Nt::G), 4.);
+        assert_eq!(table.get_value(&1, &Nt::A), 5.);
+        assert_eq!(table.get_value(&1, &Nt::T), 6.);
+        assert_eq!(table.get_value(&1, &Nt::C), 7.);
+        assert_eq!(table.get_value(&1, &Nt::G), 8.);
     }
 
     #[test]
     fn write_table() {
-        let sequence = vec![Some(0x00); 100000];
+        let sequence = vec![Nt::A; 100000];
         let distribution = FitnessDistribution::Exponential(ExponentialParameters {
             weights: MutationCategoryWeights {
                 beneficial: 0.29,
@@ -160,7 +156,6 @@ mod tests {
 
         let fitness = FitnessTable::from_model(
             &sequence,
-            4,
             &FitnessModel::new(distribution, UtilityFunction::Linear),
         )
         .unwrap();

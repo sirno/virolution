@@ -1,17 +1,17 @@
 use seq_io::fasta;
 use seq_io::fasta::Record;
 
-use crate::core::haplotype::{Haplotype, Symbol, Wildtype};
-use crate::encoding::STRICT_DECODE;
+use crate::core::haplotype::{Haplotype, Wildtype};
+use crate::encoding::Symbol;
 use crate::errors::{Result, VirolutionError};
 use crate::references::HaplotypeRef;
 
-pub trait HaplotypeIO {
-    fn load_wildtype(path: &str) -> Result<HaplotypeRef>;
+pub trait HaplotypeIO<S: Symbol> {
+    fn load_wildtype(path: &str) -> Result<HaplotypeRef<S>>;
 }
 
-impl HaplotypeIO for Haplotype {
-    fn load_wildtype(path: &str) -> Result<HaplotypeRef> {
+impl<S: Symbol> HaplotypeIO<S> for Haplotype<S> {
+    fn load_wildtype(path: &str) -> Result<HaplotypeRef<S>> {
         let mut reader = fasta::Reader::from_path(path).map_err(|_| {
             VirolutionError::InitializationError(format!(
                 "Unable create file reader for fasta file: {path}"
@@ -26,10 +26,10 @@ impl HaplotypeIO for Haplotype {
                 "Unable to read sequence from fasta file: {path}"
             ))),
             Some(Ok(sequence_record)) => {
-                let sequence: Vec<Symbol> = sequence_record
+                let sequence: Vec<S> = sequence_record
                     .seq()
                     .iter()
-                    .filter_map(|enc| STRICT_DECODE.get(enc).copied().map(Some))
+                    .filter_map(|s| S::try_decode(s))
                     .collect();
                 Ok(Wildtype::new(sequence))
             }

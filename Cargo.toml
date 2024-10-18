@@ -30,6 +30,7 @@ clap = { version = "4.3.11", features = ["derive"] }
 csv = "1.2.2"
 derivative = "2.2.0"
 derive_more = "0.99.17"
+derive-where = "1.2.7"
 evalexpr = "8.2.0"
 indicatif = "0.17.5"
 itertools = "0.10.5"

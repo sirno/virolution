@@ -3,36 +3,74 @@
 //! symbols.
 //!
 
-use phf::phf_map;
+// use phf::phf_map;
 
-pub static STRICT_ENCODE: phf::Map<u8, u8> = phf_map! {
-    0x00u8 => 0x41,
-    0x01u8 => 0x54,
-    0x02u8 => 0x43,
-    0x03u8 => 0x47,
-};
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Nucleotide {
+    A,
+    T,
+    C,
+    G,
+}
 
-pub static STRICT_DECODE: phf::Map<u8, u8> = phf_map! {
-    0x41u8 => 0x00,
-    0x54u8 => 0x01,
-    0x43u8 => 0x02,
-    0x47u8 => 0x03,
-};
+pub trait Symbol:
+    std::marker::Sized
+    + Clone
+    + Copy
+    + Send
+    + Sync
+    + std::fmt::Debug
+    + std::cmp::PartialEq
+    + std::cmp::Eq
+    + std::hash::Hash
+{
+    const SIZE: usize;
+    fn decode(s: &u8) -> Self;
+    fn try_decode(s: &u8) -> Option<Self>;
+    fn encode(&self) -> u8;
+    fn index(&self) -> &usize;
+}
 
-pub static DECODE: phf::Map<u8, u8> = phf_map! {
-    // ATCG -> 0123
-    0x41u8 => 0x00,
-    0x54u8 => 0x01,
-    0x43u8 => 0x02,
-    0x47u8 => 0x03,
-    // atcg -> 0123
-    0x61u8 => 0x00,
-    0x74u8 => 0x01,
-    0x63u8 => 0x02,
-    0x67u8 => 0x03,
-    // 0123 -> 0123
-    0x30u8 => 0x00,
-    0x31u8 => 0x01,
-    0x32u8 => 0x02,
-    0x33u8 => 0x03,
-};
+impl Symbol for Nucleotide {
+    const SIZE: usize = 4;
+
+    fn decode(s: &u8) -> Self {
+        match s {
+            // ATCG | atcg | 0123 -> Nucleotide
+            0x41 | 0x61 | 0x30 | 0x00 => Nucleotide::A,
+            0x54 | 0x74 | 0x31 | 0x01 => Nucleotide::T,
+            0x43 | 0x63 | 0x32 | 0x02 => Nucleotide::C,
+            0x47 | 0x67 | 0x33 | 0x03 => Nucleotide::G,
+            _ => panic!("Invalid nucleotide symbol: {}", s),
+        }
+    }
+
+    fn try_decode(s: &u8) -> Option<Self> {
+        match s {
+            // ATCG | atcg | 0123 -> Nucleotide
+            0x41 | 0x61 | 0x30 | 0x00 => Some(Nucleotide::A),
+            0x54 | 0x74 | 0x31 | 0x01 => Some(Nucleotide::T),
+            0x43 | 0x63 | 0x32 | 0x02 => Some(Nucleotide::C),
+            0x47 | 0x67 | 0x33 | 0x03 => Some(Nucleotide::G),
+            _ => None,
+        }
+    }
+
+    fn encode(&self) -> u8 {
+        match self {
+            Nucleotide::A => 0x41,
+            Nucleotide::T => 0x54,
+            Nucleotide::C => 0x43,
+            Nucleotide::G => 0x47,
+        }
+    }
+
+    fn index(&self) -> &usize {
+        match self {
+            Nucleotide::A => &0,
+            Nucleotide::T => &1,
+            Nucleotide::C => &2,
+            Nucleotide::G => &3,
+        }
+    }
+}

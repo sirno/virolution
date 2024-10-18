@@ -7,6 +7,7 @@
 //!
 
 use crate::core::Population;
+use crate::encoding::Symbol;
 use std::fmt;
 
 #[derive(Debug)]
@@ -17,15 +18,15 @@ pub struct Historian {
 trait HistoricalEvent: std::fmt::Debug {}
 
 #[derive(Debug)]
-struct SampleEvent {
+struct SampleEvent<S: Symbol> {
     generation: usize,
     compartment: usize,
-    sample: Population,
+    sample: Population<S>,
 }
 
-impl HistoricalEvent for SampleEvent {}
+impl<S: Symbol> HistoricalEvent for SampleEvent<S> {}
 
-impl fmt::Display for SampleEvent {
+impl<S: Symbol> fmt::Display for SampleEvent<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -37,8 +38,8 @@ impl fmt::Display for SampleEvent {
     }
 }
 
-impl SampleEvent {
-    fn new(generation: usize, compartment: usize, sample: Population) -> Self {
+impl<S: Symbol> SampleEvent<S> {
+    fn new(generation: usize, compartment: usize, sample: Population<S>) -> Self {
         Self {
             generation,
             compartment,
@@ -52,7 +53,12 @@ impl Historian {
         Self { history: vec![] }
     }
 
-    pub fn record_sample(&mut self, generation: usize, compartment: usize, sample: Population) {
+    pub fn record_sample<S: Symbol + 'static>(
+        &mut self,
+        generation: usize,
+        compartment: usize,
+        sample: Population<S>,
+    ) {
         self.history
             .push(Box::new(SampleEvent::new(generation, compartment, sample)));
     }

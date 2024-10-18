@@ -25,9 +25,9 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::OnceLock;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 
-use crate::encoding::STRICT_ENCODE;
+use crate::encoding::Symbol;
 use crate::errors::{Result, VirolutionError};
 use crate::references::DescendantsCell;
 use crate::references::{HaplotypeRef, HaplotypeWeak};
@@ -60,34 +60,34 @@ fn make_fitness_cache() -> Vec<OnceLock<f64>> {
 }
 
 // #[derive(Clone, Debug, Deref)]
-pub type Symbol = Option<u8>;
+// pub type Symbol = Option<u8>;
 
 #[derive(Debug)]
-pub enum Haplotype {
-    Wildtype(Wildtype),
-    Mutant(Mutant),
-    Recombinant(Recombinant),
+pub enum Haplotype<S: Symbol> {
+    Wildtype(Wildtype<S>),
+    Mutant(Mutant<S>),
+    Recombinant(Recombinant<S>),
 }
 
 #[derive(Debug)]
-pub struct Wildtype {
-    reference: HaplotypeWeak,
-    sequence: Vec<Symbol>,
-    descendants: DescendantsCell,
+pub struct Wildtype<S: Symbol> {
+    reference: HaplotypeWeak<S>,
+    sequence: Vec<S>,
+    descendants: DescendantsCell<S>,
     // number of descendants that have died, we can replace their weak references
     _dirty_descendants: AtomicIsize,
 }
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct Mutant {
-    reference: HaplotypeWeak,
-    wildtype: HaplotypeWeak,
-    ancestor: HaplotypeRef,
-    changes: HashMap<usize, (Symbol, Symbol)>,
+pub struct Mutant<S: Symbol> {
+    reference: HaplotypeWeak<S>,
+    wildtype: HaplotypeWeak<S>,
+    ancestor: HaplotypeRef<S>,
+    changes: HashMap<usize, (S, S)>,
     generation: usize,
     fitness: Vec<OnceLock<f64>>,
-    descendants: DescendantsCell,
+    descendants: DescendantsCell<S>,
     // number of descendants that have died, we can replace their weak references
     _dirty_descendants: AtomicIsize,
     // synchronization for merging nodes while allowing for parallel access
@@ -95,20 +95,20 @@ pub struct Mutant {
     _defer_drop: Arc<Mutex<usize>>,
     // request deferred drop
     #[derivative(Debug = "ignore")]
-    _drop: Cell<Option<HaplotypeRef>>,
+    _drop: Cell<Option<HaplotypeRef<S>>>,
 }
 
 #[derive(Debug)]
-pub struct Recombinant {
-    reference: HaplotypeWeak,
-    wildtype: HaplotypeWeak,
-    left_ancestor: HaplotypeRef,
-    right_ancestor: HaplotypeRef,
+pub struct Recombinant<S: Symbol> {
+    reference: HaplotypeWeak<S>,
+    wildtype: HaplotypeWeak<S>,
+    left_ancestor: HaplotypeRef<S>,
+    right_ancestor: HaplotypeRef<S>,
     left_position: usize,
     right_position: usize,
     generation: usize,
     fitness: Vec<OnceLock<f64>>,
-    descendants: DescendantsCell,
+    descendants: DescendantsCell<S>,
     // number of descendants that have died, we can replace their weak references
     _dirty_descendants: AtomicIsize,
 }
@@ -119,18 +119,16 @@ pub struct Recombinant {
 // To my knowledge the only effect of these lines (right now) is that it silences the warning
 // that Arc references an object that is not Send and Sync.
 #[cfg(feature = "parallel")]
-unsafe impl Send for Haplotype {}
+unsafe impl<S: Symbol> Send for Haplotype<S> {}
 #[cfg(feature = "parallel")]
-unsafe impl Sync for Haplotype {}
+unsafe impl<S: Symbol> Sync for Haplotype<S> {}
 
-impl Drop for Haplotype {
+impl<S: Symbol> Drop for Haplotype<S> {
     fn drop(&mut self) {
         match self {
             Haplotype::Wildtype(_wt) => {}
             Haplotype::Mutant(mt) => {
                 mt.ancestor.increment_dirty_descendants();
-                dbg!("Dropping mutant.");
-                dbg!(mt as *const Mutant);
             }
             Haplotype::Recombinant(rc) => {
                 rc.left_ancestor.increment_dirty_descendants();
@@ -140,13 +138,13 @@ impl Drop for Haplotype {
     }
 }
 
-impl Haplotype {
+impl<S: Symbol> Haplotype<S> {
     pub fn create_descendant(
         &self,
         positions: Vec<usize>,
-        changes: Vec<Symbol>,
+        changes: Vec<S>,
         generation: usize,
-    ) -> HaplotypeRef {
+    ) -> HaplotypeRef<S> {
         let ancestor = self.get_reference();
         let wildtype = self.get_wildtype();
 
@@ -171,12 +169,12 @@ impl Haplotype {
     }
 
     pub fn create_recombinant(
-        left_ancestor: &HaplotypeRef,
-        right_ancestor: &HaplotypeRef,
+        left_ancestor: &HaplotypeRef<S>,
+        right_ancestor: &HaplotypeRef<S>,
         left_position: usize,
         right_position: usize,
         generation: usize,
-    ) -> HaplotypeRef {
+    ) -> HaplotypeRef<S> {
         let wildtype = left_ancestor.get_wildtype();
 
         let recombinant = Recombinant::new(
@@ -201,7 +199,7 @@ impl Haplotype {
     ///
     /// This function will panic if the haplotype is not a mutant and is only intended for internal
     /// use while minimizing the tree.
-    pub(crate) fn try_unwrap_mutant(&self) -> Option<&Mutant> {
+    pub(crate) fn try_unwrap_mutant(&self) -> Option<&Mutant<S>> {
         match self {
             Haplotype::Mutant(ht) => Some(ht),
             _ => None,
@@ -209,7 +207,7 @@ impl Haplotype {
     }
 
     /// Returns a reference to the changes that are present in the haplotype if the type allows it.
-    pub fn try_get_changes(&self) -> Option<&HashMap<usize, (Symbol, Symbol)>> {
+    pub fn try_get_changes(&self) -> Option<&HashMap<usize, (S, S)>> {
         match self {
             Haplotype::Mutant(ht) => Some(&ht.changes),
             _ => None,
@@ -219,7 +217,7 @@ impl Haplotype {
     /// Returns a reference to an ancestor if the type allows it.
     ///
     /// If there are multiple ancestors, in the future any ancestor may be returned.
-    pub fn try_get_ancestor(&self) -> Option<&HaplotypeRef> {
+    pub fn try_get_ancestor(&self) -> Option<&HaplotypeRef<S>> {
         match self {
             Haplotype::Mutant(ht) => Some(&ht.ancestor),
             Haplotype::Recombinant(rc) => Some(&rc.left_ancestor),
@@ -227,7 +225,7 @@ impl Haplotype {
         }
     }
 
-    pub fn get_reference(&self) -> HaplotypeRef {
+    pub fn get_reference(&self) -> HaplotypeRef<S> {
         let weak = match self {
             Haplotype::Wildtype(wt) => &wt.reference,
             Haplotype::Mutant(ht) => &ht.reference,
@@ -236,7 +234,7 @@ impl Haplotype {
         weak.upgrade().expect("Self-reference has been dropped.")
     }
 
-    pub fn get_wildtype(&self) -> HaplotypeRef {
+    pub fn get_wildtype(&self) -> HaplotypeRef<S> {
         match self {
             Haplotype::Wildtype(wt) => wt.get_reference().clone(),
             Haplotype::Mutant(ht) => ht.wildtype.upgrade().unwrap().clone(),
@@ -244,7 +242,7 @@ impl Haplotype {
         }
     }
 
-    pub fn get_ancestors(&self) -> (Option<HaplotypeRef>, Option<HaplotypeRef>) {
+    pub fn get_ancestors(&self) -> (Option<HaplotypeRef<S>>, Option<HaplotypeRef<S>>) {
         match self {
             Haplotype::Mutant(ht) => (Some(ht.ancestor.clone()), None),
             Haplotype::Recombinant(rc) => (
@@ -255,7 +253,7 @@ impl Haplotype {
         }
     }
 
-    pub fn get_descendants(&self) -> &DescendantsCell {
+    pub fn get_descendants(&self) -> &DescendantsCell<S> {
         match self {
             Haplotype::Wildtype(wt) => &wt.descendants,
             Haplotype::Mutant(ht) => &ht.descendants,
@@ -264,7 +262,7 @@ impl Haplotype {
     }
 
     /// Returns the number of descendants.
-    fn add_descendant(&self, descendant: HaplotypeWeak) {
+    fn add_descendant(&self, descendant: HaplotypeWeak<S>) {
         let (descendants, dirty_descendants) = match self {
             Haplotype::Wildtype(wt) => (&wt.descendants, &wt._dirty_descendants),
             Haplotype::Mutant(ht) => (&ht.descendants, &ht._dirty_descendants),
@@ -294,7 +292,7 @@ impl Haplotype {
         dirty_descendants.fetch_sub(1, Ordering::Relaxed);
     }
 
-    pub fn get_base(&self, position: &usize) -> Symbol {
+    pub fn get_base(&self, position: &usize) -> S {
         match self {
             Haplotype::Wildtype(wt) => wt.get_base(position),
             Haplotype::Mutant(ht) => ht.get_base(position),
@@ -310,18 +308,18 @@ impl Haplotype {
         }
     }
 
-    pub fn get_sequence(&self) -> Vec<Symbol> {
+    pub fn get_sequence(&self) -> Vec<S> {
         let mutations = self.get_mutations();
         let mut sequence = self.get_wildtype_sequence();
 
         for (&position, &new) in mutations.iter() {
-            sequence[position] = new;
+            sequence[position] = S::decode(&new);
         }
 
         sequence
     }
 
-    pub fn get_wildtype_sequence(&self) -> Vec<Symbol> {
+    pub fn get_wildtype_sequence(&self) -> Vec<S> {
         match self {
             Haplotype::Wildtype(wt) => wt.sequence.to_vec(),
             Haplotype::Mutant(_ht) => self.get_wildtype().get_wildtype_sequence(),
@@ -336,31 +334,7 @@ impl Haplotype {
         let mut out = String::new();
         for (position, to) in mutations.iter() {
             let from = wildtype[*position];
-            match (from, to) {
-                (Some(f), Some(t)) => {
-                    out.push_str(
-                        format!(
-                            ";{position}:{}->{}",
-                            char::from(STRICT_ENCODE[&f]),
-                            char::from(STRICT_ENCODE[t])
-                        )
-                        .as_str(),
-                    );
-                }
-                (None, Some(t)) => {
-                    if let Some(wt_symbol) = wildtype[*position] {
-                        out.push_str(
-                            format!(
-                                ";{position}:{}->{}",
-                                char::from(STRICT_ENCODE[&wt_symbol]),
-                                char::from(STRICT_ENCODE[t])
-                            )
-                            .as_str(),
-                        )
-                    }
-                }
-                _ => {}
-            }
+            out.push_str(format!(";{}->{}", from.encode(), to).as_str());
         }
 
         if out.is_empty() {
@@ -376,7 +350,7 @@ impl Haplotype {
     /// Calling this with large trees can be expensive, especially when there are many
     /// recombinants. For every recombinant, both ancestors have to be traversed to find
     /// the mutations that are present in the recombinant.
-    pub fn get_mutations(&self) -> CachedValue<HashMap<usize, Symbol>> {
+    pub fn get_mutations(&self) -> CachedValue<HashMap<usize, u8>> {
         match self {
             Haplotype::Wildtype(_wt) => Default::default(),
             Haplotype::Mutant(ht) => ht.get_mutations(),
@@ -384,7 +358,7 @@ impl Haplotype {
         }
     }
 
-    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
         match self {
             Haplotype::Wildtype(_wt) => 1.,
             Haplotype::Mutant(ht) => ht.get_raw_fitness(fitness_provider),
@@ -392,7 +366,7 @@ impl Haplotype {
         }
     }
 
-    pub fn get_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+    pub fn get_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
         match self {
             Haplotype::Wildtype(_wt) => 1.,
             Haplotype::Mutant(ht) => ht.get_fitness(fitness_provider),
@@ -406,10 +380,7 @@ impl Haplotype {
             seq: self
                 .get_sequence()
                 .into_iter()
-                .map(|symbol| match symbol {
-                    Some(s) => STRICT_ENCODE[&s],
-                    None => 0x2d,
-                })
+                .map(|symbol| symbol.encode())
                 .collect(),
         }
     }
@@ -427,7 +398,7 @@ impl Haplotype {
         format!("{};", tree)
     }
 
-    pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
+    pub fn get_subtree(&self, ancestor: HaplotypeWeak<S>) -> String {
         match self {
             Haplotype::Wildtype(wt) => wt.get_subtree(),
             Haplotype::Mutant(ht) => ht.get_subtree(),
@@ -436,9 +407,9 @@ impl Haplotype {
     }
 }
 
-impl Wildtype {
+impl<S: Symbol> Wildtype<S> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(sequence: Vec<Symbol>) -> HaplotypeRef {
+    pub fn new(sequence: Vec<S>) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Wildtype(Self {
                 reference: reference.clone(),
@@ -449,13 +420,13 @@ impl Wildtype {
         })
     }
 
-    pub fn get_reference(&self) -> HaplotypeRef {
+    pub fn get_reference(&self) -> HaplotypeRef<S> {
         self.reference
             .upgrade()
             .expect("Self-reference has been dropped.")
     }
 
-    pub fn get_base(&self, position: &usize) -> Symbol {
+    pub fn get_base(&self, position: &usize) -> S {
         self.sequence[*position]
     }
 
@@ -476,14 +447,14 @@ impl Wildtype {
     }
 }
 
-impl Mutant {
+impl<S: Symbol> Mutant<S> {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
-        ancestor: HaplotypeRef,
-        wildtype: HaplotypeWeak,
-        changes: HashMap<usize, (Symbol, Symbol)>,
+        ancestor: HaplotypeRef<S>,
+        wildtype: HaplotypeWeak<S>,
+        changes: HashMap<usize, (S, S)>,
         generation: usize,
-    ) -> HaplotypeRef {
+    ) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Mutant(Self {
                 reference: reference.clone(),
@@ -504,14 +475,14 @@ impl Mutant {
     ///
     /// This function is not thread-safe and should only be called by a single thread at a time.
     pub(crate) unsafe fn new_and_replace(
-        last: &Mutant,
-        ancestor: HaplotypeRef,
-        wildtype: HaplotypeWeak,
-        changes: HashMap<usize, (Symbol, Symbol)>,
+        last: &Self,
+        ancestor: HaplotypeRef<S>,
+        wildtype: HaplotypeWeak<S>,
+        changes: HashMap<usize, (S, S)>,
         generation: usize,
     ) {
         // collect all descendants that are still alive
-        let descendants: Vec<HaplotypeWeak> = last
+        let descendants: Vec<HaplotypeWeak<S>> = last
             .descendants
             .lock()
             .iter()
@@ -536,8 +507,8 @@ impl Mutant {
             _drop: Cell::new(None),
         }));
 
-        let old_ptr = last.reference.as_ptr() as *mut Mutant;
-        let new_ptr = tmp_ref.as_ptr() as *mut Mutant;
+        let old_ptr = last.reference.as_ptr() as *mut Mutant<S>;
+        let new_ptr = tmp_ref.as_ptr() as *mut Mutant<S>;
 
         // synchronize swapping and deference with other threads
         let guard = last._defer_drop.lock().unwrap();
@@ -547,24 +518,20 @@ impl Mutant {
         std::ptr::swap(old_ptr, new_ptr);
 
         // this will move ownership of the `tmp_ref` to `_drop` if it is required
-        dbg!("---------Requesting deferred drop.");
-        dbg!(old_ptr);
-        dbg!(new_ptr);
         if *guard > 0 {
-            dbg!("-- -- -- Setting deferred drop.");
             (*new_ptr)._drop.set(Some(tmp_ref));
         }
     }
 
     #[require_deferred_drop]
-    pub fn get_base(&self, position: &usize) -> Symbol {
+    pub fn get_base(&self, position: &usize) -> S {
         match self.changes.get(position) {
             Some((_from, to)) => *to,
             None => self.ancestor.get_base(position),
         }
     }
 
-    pub fn iter_changes(&self) -> impl Iterator<Item = (&usize, &(Symbol, Symbol))> + '_ {
+    pub fn iter_changes(&self) -> impl Iterator<Item = (&usize, &(S, S))> + '_ {
         self.changes.iter()
     }
 
@@ -576,17 +543,17 @@ impl Mutant {
         self.wildtype.upgrade().unwrap().get_length()
     }
 
-    pub fn get_ancestor(&self) -> HaplotypeRef {
+    pub fn get_ancestor(&self) -> HaplotypeRef<S> {
         self.ancestor.clone()
     }
 
-    pub fn get_changes(&self) -> &HashMap<usize, (Symbol, Symbol)> {
+    pub fn get_changes(&self) -> &HashMap<usize, (S, S)> {
         &self.changes
     }
 
     /// Returns a HashMap of mutations that are present in the haplotype.
     #[require_deferred_drop]
-    pub fn get_mutations(&self) -> CachedValue<HashMap<usize, Symbol>> {
+    pub fn get_mutations(&self) -> CachedValue<HashMap<usize, u8>> {
         let key = &self.changes as *const _;
         let mut mutations = self.ancestor.get_mutations().clone_inner();
 
@@ -599,14 +566,14 @@ impl Mutant {
             if *new == wt_base {
                 mutations.remove(position);
             } else {
-                mutations.insert(*position, *new);
+                mutations.insert(*position, *new.index() as u8);
             }
         });
 
         CachedValue::new(mutations)
     }
 
-    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
         *self
             .fitness
             .get(fitness_provider.id)
@@ -614,7 +581,7 @@ impl Mutant {
             .get_or_init(|| fitness_provider.get_fitness(&self.reference.upgrade().unwrap()))
     }
 
-    pub fn get_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+    pub fn get_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
         fitness_provider.apply_utility(self.get_raw_fitness(fitness_provider))
     }
 
@@ -666,10 +633,10 @@ impl Mutant {
             None => return,
         };
 
-        let merger: [&Mutant; 2] = [descendant_inner, self];
+        let merger: [&Mutant<S>; 2] = [descendant_inner, self];
 
         // aggregate changes
-        let changes: HashMap<usize, (Symbol, Symbol)> = merger
+        let changes: HashMap<usize, (S, S)> = merger
             .iter()
             .rev()
             .flat_map(|x| x.changes.iter())
@@ -690,7 +657,7 @@ impl Mutant {
     }
 
     /// Defers the drop of the haplotype if it is required
-    // fn request_deferred_drop(&self, reference: HaplotypeRef, guard: &MutexGuard<usize>) {
+    // fn request_deferred_drop(&self, reference: HaplotypeRef<S>, guard: &MutexGuard<usize>) {
     //     if **guard > 0 {
     //         self._drop.set(Some(reference));
     //     }
@@ -704,7 +671,7 @@ impl Mutant {
 
     /// Check if a drop has been deferred and if any other thread has requested deferred drop.
     /// If no other thread has requested deferred drop, the drop will be executed.
-    fn inquire_deferred_drop(&self) -> Result<Option<HaplotypeRef>> {
+    fn inquire_deferred_drop(&self) -> Result<Option<HaplotypeRef<S>>> {
         let mut guard = self._defer_drop.lock().unwrap();
 
         match *guard {
@@ -727,16 +694,16 @@ impl Mutant {
     }
 }
 
-impl Recombinant {
+impl<S: Symbol> Recombinant<S> {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
-        wildtype: HaplotypeRef,
-        left_ancestor: HaplotypeRef,
-        right_ancestor: HaplotypeRef,
+        wildtype: HaplotypeRef<S>,
+        left_ancestor: HaplotypeRef<S>,
+        right_ancestor: HaplotypeRef<S>,
         left_position: usize,
         right_position: usize,
         generation: usize,
-    ) -> HaplotypeRef {
+    ) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Recombinant(Self {
                 reference: reference.clone(),
@@ -753,7 +720,7 @@ impl Recombinant {
         })
     }
 
-    pub fn get_base(&self, position: &usize) -> Symbol {
+    pub fn get_base(&self, position: &usize) -> S {
         if *position >= self.left_position && *position < self.right_position {
             return self.left_ancestor.get_base(position);
         }
@@ -770,14 +737,16 @@ impl Recombinant {
     }
 
     fn get_mutations_cache(
-    ) -> &'static ::cached::once_cell::sync::Lazy<VirolutionCache<HashMap<usize, Symbol>>> {
+    ) -> &'static ::cached::once_cell::sync::Lazy<VirolutionCache<HashMap<usize, u8>>> {
+        // at this point, we cannot use generics in statics, so we encode the data for now until
+        // later or const generics become available
         static MUTATIONS_CACHE: ::cached::once_cell::sync::Lazy<
-            VirolutionCache<HashMap<usize, Symbol>>,
+            VirolutionCache<HashMap<usize, u8>>,
         > = ::cached::once_cell::sync::Lazy::new(|| VirolutionCache::new(100));
         &MUTATIONS_CACHE
     }
 
-    pub fn get_mutations(&self) -> CachedValue<HashMap<usize, Symbol>> {
+    pub fn get_mutations(&self) -> CachedValue<HashMap<usize, u8>> {
         let key = self.reference.get_id();
 
         // try to use the cache first
@@ -808,7 +777,7 @@ impl Recombinant {
         cache.cache_set(key, mutations.clone())
     }
 
-    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
         *self
             .fitness
             .get(fitness_provider.id)
@@ -816,11 +785,11 @@ impl Recombinant {
             .get_or_init(|| fitness_provider.get_fitness(&self.reference.upgrade().unwrap()))
     }
 
-    pub fn get_fitness(&self, fitness_provider: &FitnessProvider) -> f64 {
+    pub fn get_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
         fitness_provider.apply_utility(self.get_raw_fitness(fitness_provider))
     }
 
-    pub fn get_subtree(&self, ancestor: HaplotypeWeak) -> String {
+    pub fn get_subtree(&self, ancestor: HaplotypeWeak<S>) -> String {
         let block_id = self.reference.get_block_id();
         let branch_length = self.generation - ancestor.upgrade().unwrap().get_generation();
 
@@ -846,7 +815,7 @@ impl Recombinant {
     }
 }
 
-impl fmt::Display for Haplotype {
+impl<S: Symbol> fmt::Display for Haplotype<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.get_string())
     }
@@ -855,38 +824,39 @@ impl fmt::Display for Haplotype {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::encoding::Nucleotide as Nt;
     use serial_test::serial;
 
     #[test]
     fn initiate_wildtype() {
-        let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
-        let wt = Wildtype::new(bytes);
-        for i in 0..4 {
-            assert_eq!(wt.get_base(&i), Some(i as u8));
+        let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
+        let wt = Wildtype::new(symbols.clone());
+        for i in symbols.iter().enumerate() {
+            assert_eq!(wt.get_base(&i.0), *i.1);
         }
     }
 
     #[test]
     fn create_descendant() {
-        let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
-        let wt = Wildtype::new(bytes);
-        let ht = wt.create_descendant(vec![0], vec![Some(0x03)], 0);
-        assert_eq!(ht.get_base(&0), Some(0x03));
-        assert_eq!(ht.get_base(&1), Some(0x01));
-        assert_eq!(ht.get_base(&2), Some(0x02));
-        assert_eq!(ht.get_base(&3), Some(0x03));
+        let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
+        let wt = Wildtype::new(symbols.clone());
+        let ht = wt.create_descendant(vec![0], vec![Nt::G], 0);
+        assert_eq!(ht.get_base(&0), Nt::G);
+        assert_eq!(ht.get_base(&1), Nt::T);
+        assert_eq!(ht.get_base(&2), Nt::C);
+        assert_eq!(ht.get_base(&3), Nt::G);
     }
 
     #[test]
     fn create_wide_geneaology() {
-        let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
-        let wt = Wildtype::new(bytes);
-        let _hts: Vec<HaplotypeRef> = (0..100)
-            .map(|i| wt.create_descendant(vec![0], vec![Some(i)], 0))
+        let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
+        let wt = Wildtype::new(symbols.clone());
+        let _hts: Vec<HaplotypeRef<Nt>> = (0..100)
+            .map(|i| wt.create_descendant(vec![0], vec![Nt::decode(&((i % Nt::SIZE) as u8))], 0))
             .collect();
         for (position, descendant) in wt.get_descendants().lock().iter().enumerate() {
             if let Some(d) = descendant.upgrade() {
-                assert_eq!(d.get_base(&0), Some(position as u8));
+                assert_eq!(d.get_base(&0), Nt::decode(&((position % Nt::SIZE) as u8)));
             } else {
                 panic!();
             }
@@ -896,26 +866,26 @@ mod tests {
     #[test]
     #[serial]
     fn single_recombination() {
-        let mut haplotypes: Vec<HaplotypeRef> = Vec::new();
-        let bytes = vec![Some(0x01); 100];
-        let wildtype = Wildtype::new(bytes);
+        let mut haplotypes: Vec<HaplotypeRef<Nt>> = Vec::new();
+        let symbols = vec![Nt::T; 100];
+        let wildtype = Wildtype::new(symbols);
         haplotypes.push(wildtype.clone());
         for i in 0..100 {
             let ht = haplotypes.last().unwrap().clone();
-            haplotypes.push(ht.create_descendant(vec![i], vec![Some(0x02)], 0));
+            haplotypes.push(ht.create_descendant(vec![i], vec![Nt::C], 0));
         }
-        haplotypes.push(wildtype.create_descendant(vec![0], vec![Some(0x03)], 0));
+        haplotypes.push(wildtype.create_descendant(vec![0], vec![Nt::G], 0));
         for i in 1..100 {
             let ht = haplotypes.last().unwrap().clone();
-            haplotypes.push(ht.create_descendant(vec![i], vec![Some(0x03)], 0));
+            haplotypes.push(ht.create_descendant(vec![i], vec![Nt::G], 0));
         }
         let left_ancestor = haplotypes[100].clone();
         let right_ancestor = haplotypes[200].clone();
         let recombinant = Haplotype::create_recombinant(&left_ancestor, &right_ancestor, 10, 90, 0);
 
-        let mut expected = vec![Some(0x03); 10];
-        expected.append(&mut vec![Some(0x02); 80]);
-        expected.append(&mut vec![Some(0x03); 10]);
+        let mut expected = vec![Nt::G; 10];
+        expected.append(&mut vec![Nt::C; 80]);
+        expected.append(&mut vec![Nt::G; 10]);
 
         assert_eq!(recombinant.get_sequence(), expected);
     }
@@ -923,8 +893,8 @@ mod tests {
     #[test]
     #[serial]
     fn get_length() {
-        let wildtype = Wildtype::new(vec![Some(0x00); 100]);
-        let haplotype = wildtype.create_descendant(vec![0], vec![Some(0x01)], 0);
+        let wildtype = Wildtype::new(vec![Nt::A; 100]);
+        let haplotype = wildtype.create_descendant(vec![0], vec![Nt::T], 0);
         let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75, 0);
         assert_eq!(wildtype.get_length(), 100);
         assert_eq!(haplotype.get_length(), 100);
@@ -934,12 +904,12 @@ mod tests {
     #[test]
     #[serial]
     fn get_sequence() {
-        let wildtype = Wildtype::new(vec![Some(0x00); 100]);
-        let haplotype = wildtype.create_descendant(vec![0], vec![Some(0x01)], 0);
+        let wildtype = Wildtype::new(vec![Nt::A; 100]);
+        let haplotype = wildtype.create_descendant(vec![0], vec![Nt::T], 0);
         let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75, 0);
 
-        let mut expected = vec![Some(0x01)];
-        expected.append(&mut vec![Some(0x00); 99]);
+        let mut expected = vec![Nt::T];
+        expected.append(&mut vec![Nt::A; 99]);
 
         assert_eq!(recombinant.get_sequence(), expected);
     }
@@ -947,10 +917,10 @@ mod tests {
     #[test]
     #[serial]
     fn create_tree() {
-        let bytes = vec![Some(0x00), Some(0x01), Some(0x02), Some(0x03)];
+        let bytes = vec![Nt::A, Nt::T, Nt::C, Nt::G];
         let wt = Wildtype::new(bytes);
 
-        let ht = wt.create_descendant(vec![0], vec![Some(0x03)], 1);
+        let ht = wt.create_descendant(vec![0], vec![Nt::G], 1);
         let ht_id = ht.get_block_id();
         assert_eq!(wt.get_tree(), format!("('{}':1)wt;", ht_id));
 
@@ -964,12 +934,12 @@ mod tests {
 
     #[test]
     fn merge_nodes() {
-        let bytes = vec![Some(0x00), Some(0x00), Some(0x00), Some(0x00)];
+        let bytes = vec![Nt::A, Nt::A, Nt::A, Nt::A];
         let wt = Wildtype::new(bytes);
 
-        let ht1 = wt.create_descendant(vec![0], vec![Some(0x01)], 1);
-        let ht2 = ht1.create_descendant(vec![0], vec![Some(0x02)], 2);
-        let ht3 = ht2.create_descendant(vec![0], vec![Some(0x03)], 3);
+        let ht1 = wt.create_descendant(vec![0], vec![Nt::T], 1);
+        let ht2 = ht1.create_descendant(vec![0], vec![Nt::C], 2);
+        let ht3 = ht2.create_descendant(vec![0], vec![Nt::G], 3);
 
         let ht1weak = ht1.get_weak();
         let ht2weak = ht2.get_weak();
@@ -1005,7 +975,7 @@ mod tests {
 
         assert_eq!(ht3.get_generation(), 3);
         assert_eq!(ht3.get_mutations().len(), 1);
-        assert_eq!(ht3.get_mutations().get(&0), Some(&Some(0x03)));
+        assert_eq!(ht3.get_mutations().get(&0), Some(&(*Nt::G.index() as u8)));
     }
 
     #[test]
@@ -1018,7 +988,7 @@ mod tests {
         let n_sites = 7;
         let n_symbols = 4;
 
-        let bytes = vec![Some(0x00); n_sites];
+        let bytes = vec![Nt::A; n_sites];
         let wt = Wildtype::new(bytes);
 
         // memory corruption should be found in this many iterations...
@@ -1026,7 +996,8 @@ mod tests {
         let n_reads = 10000;
 
         let pop_size = 11;
-        let pop: Vec<Mutex<HaplotypeRef>> = (0..pop_size).map(|_| Mutex::new(wt.clone())).collect();
+        let pop: Vec<Mutex<HaplotypeRef<Nt>>> =
+            (0..pop_size).map(|_| Mutex::new(wt.clone())).collect();
 
         thread::scope(|s| {
             s.spawn(|| {
@@ -1039,9 +1010,13 @@ mod tests {
                     let descendant = {
                         let ht = pop[from].lock().expect("Failed to lock ancestor.");
                         let pos = i % n_sites;
-                        let sym = ht.get_base(&pos).unwrap();
+                        let sym = ht.get_base(&pos);
 
-                        ht.create_descendant(vec![pos], vec![Some((sym + 1) % n_symbols as u8)], i)
+                        ht.create_descendant(
+                            vec![pos],
+                            vec![Nt::decode(&(((sym.index() + 1) % n_symbols) as u8))],
+                            i,
+                        )
                     };
 
                     let mut field = pop[to].lock().expect("Failed to field.");

@@ -13,9 +13,10 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 use std::ops::Index;
 
+use crate::encoding::Symbol;
 use crate::references::HaplotypeRef;
 
-pub type Haplotypes = HashMap<usize, HaplotypeRef>;
+pub type Haplotypes<S> = HashMap<usize, HaplotypeRef<S>>;
 
 #[macro_export]
 macro_rules! population {
@@ -41,18 +42,18 @@ macro_rules! population {
 
 /// A `Population` is a collection of haplotypes.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Population {
+pub struct Population<S: Symbol> {
     population: Vec<usize>,
-    haplotypes: Haplotypes,
+    haplotypes: Haplotypes<S>,
 }
 
-pub struct PopulationIterator<'a> {
-    population: &'a Population,
+pub struct PopulationIterator<'a, S: Symbol> {
+    population: &'a Population<S>,
     index: usize,
 }
 
-impl Index<&usize> for Population {
-    type Output = HaplotypeRef;
+impl<S: Symbol> Index<&usize> for Population<S> {
+    type Output = HaplotypeRef<S>;
 
     fn index(&self, index: &usize) -> &Self::Output {
         let ref_id = &self.population[*index];
@@ -62,8 +63,8 @@ impl Index<&usize> for Population {
     }
 }
 
-impl<'a> Iterator for PopulationIterator<'a> {
-    type Item = &'a HaplotypeRef;
+impl<'a, S: Symbol> Iterator for PopulationIterator<'a, S> {
+    type Item = &'a HaplotypeRef<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.population.len() {
@@ -79,10 +80,10 @@ impl<'a> Iterator for PopulationIterator<'a> {
     }
 }
 
-impl FromIterator<Population> for Population {
+impl<S: Symbol> FromIterator<Population<S>> for Population<S> {
     fn from_iter<I: IntoIterator<Item = Self>>(iter: I) -> Self {
         let mut population: Vec<usize> = Vec::new();
-        let mut haplotypes: Haplotypes = Haplotypes::new();
+        let mut haplotypes: Haplotypes<S> = Haplotypes::new();
 
         for pop in iter {
             population.extend(pop.population);
@@ -96,7 +97,7 @@ impl FromIterator<Population> for Population {
     }
 }
 
-impl Population {
+impl<S: Symbol> Population<S> {
     /// Construct a new, empty `Population`.
     pub fn new() -> Self {
         Self {
@@ -106,7 +107,7 @@ impl Population {
     }
 
     /// Construct a new `Population` from a `HaplotypeRef` and a size.
-    pub fn from_haplotype(haplotype: HaplotypeRef, size: usize) -> Self {
+    pub fn from_haplotype(haplotype: HaplotypeRef<S>, size: usize) -> Self {
         let ref_id = haplotype.get_id();
         let population = vec![ref_id; size];
         let mut haplotypes = Haplotypes::new();
@@ -118,7 +119,7 @@ impl Population {
     }
 
     /// Construct a new `Population` from a `Vec` of `HaplotypeRef`s.
-    pub fn from_references(references: Vec<HaplotypeRef>) -> Self {
+    pub fn from_references(references: Vec<HaplotypeRef<S>>) -> Self {
         let mut population = Vec::new();
         let mut haplotypes = Haplotypes::new();
 
@@ -135,7 +136,7 @@ impl Population {
     }
 
     /// Get an iterator over the `Population`.
-    pub fn iter(&self) -> PopulationIterator {
+    pub fn iter(&self) -> PopulationIterator<S> {
         PopulationIterator {
             population: self,
             index: 0,
@@ -156,7 +157,7 @@ impl Population {
     ///
     /// This will overwrite the haplotype at that position, but not remove its
     /// reference from the `Haplotypes` map.
-    pub fn insert(&mut self, position: &usize, haplotype: &HaplotypeRef) {
+    pub fn insert(&mut self, position: &usize, haplotype: &HaplotypeRef<S>) {
         let ref_id = haplotype.get_id();
         self.population[*position] = ref_id;
         self.haplotypes
@@ -165,7 +166,7 @@ impl Population {
     }
 
     /// Push a `HaplotypeRef` to the end of the `Population`.
-    pub fn push(&mut self, haplotype: &HaplotypeRef) {
+    pub fn push(&mut self, haplotype: &HaplotypeRef<S>) {
         let ref_id = haplotype.get_id();
         self.population.push(ref_id);
         self.haplotypes
@@ -179,7 +180,7 @@ impl Population {
     }
 
     /// Get a reference to the `Haplotypes` map.
-    pub fn get_haplotypes(&self) -> &Haplotypes {
+    pub fn get_haplotypes(&self) -> &Haplotypes<S> {
         &self.haplotypes
     }
 
@@ -190,7 +191,7 @@ impl Population {
             .choose_multiple(rng, size)
             .copied()
             .collect();
-        let haplotypes: Haplotypes = population
+        let haplotypes: Haplotypes<S> = population
             .iter()
             .unique()
             .map(|&id| (id, self.haplotypes[&id].clone()))
@@ -224,7 +225,7 @@ impl Population {
                 self.population[sampler.sample(rng)]
             })
             .collect();
-        let haplotypes: Haplotypes = population
+        let haplotypes: Haplotypes<S> = population
             .iter()
             .unique()
             .map(|&id| (id, self.haplotypes[&id].clone()))
@@ -245,7 +246,7 @@ impl Population {
         let population: Vec<usize> = (0..size)
             .map(|_| self.population[sampler.sample(&mut rng)])
             .collect();
-        let haplotypes: Haplotypes = population
+        let haplotypes: Haplotypes<S> = population
             .iter()
             .unique()
             .map(|&id| (id, self.haplotypes[&id].clone()))
@@ -263,7 +264,7 @@ impl Population {
             .iter()
             .map(|&index| self.population[index])
             .collect();
-        let haplotypes: Haplotypes = population
+        let haplotypes: Haplotypes<S> = population
             .iter()
             .unique()
             .map(|&id| (id, self.haplotypes[&id].clone()))
@@ -281,13 +282,14 @@ mod tests {
     use super::*;
 
     use crate::core::haplotype::Wildtype;
+    use crate::encoding::Nucleotide as Nt;
 
     #[test]
     fn is_empty() {
         let mut population = Population::new();
         assert!(population.is_empty());
 
-        let wt = Wildtype::new(vec![Some(0x00); 10]);
+        let wt = Wildtype::new(vec![Nt::A; 10]);
         population.push(&wt);
         assert!(!population.is_empty());
     }
@@ -297,7 +299,7 @@ mod tests {
         let mut population = Population::new();
         assert_eq!(population.len(), 0);
 
-        let wt = Wildtype::new(vec![Some(0x00); 10]);
+        let wt = Wildtype::new(vec![Nt::A; 10]);
         population.push(&wt);
         assert_eq!(population.len(), 1);
     }
@@ -305,12 +307,12 @@ mod tests {
     #[test]
     fn insert() {
         let mut population = Population::new();
-        let wt = Wildtype::new(vec![Some(0x00); 10]);
+        let wt = Wildtype::new(vec![Nt::A; 10]);
         population.push(&wt);
         assert_eq!(population.len(), 1);
         assert_eq!(population[&0], wt);
 
-        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10]);
         population.insert(&0, &wt2);
         assert_eq!(population.len(), 1);
         assert_ne!(population[&0], wt);
@@ -320,12 +322,12 @@ mod tests {
     #[test]
     fn push() {
         let mut population = Population::new();
-        let wt = Wildtype::new(vec![Some(0x00); 10]);
+        let wt = Wildtype::new(vec![Nt::A; 10]);
         population.push(&wt);
         assert_eq!(population.len(), 1);
         assert_eq!(population[&0], wt);
 
-        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10]);
         population.push(&wt2);
         assert_eq!(population.len(), 2);
         assert_eq!(population[&1], wt2);
@@ -334,9 +336,9 @@ mod tests {
     #[test]
     fn iterate() {
         let mut population = Population::new();
-        let wt = Wildtype::new(vec![Some(0x00); 10]);
+        let wt = Wildtype::new(vec![Nt::A; 10]);
         population.push(&wt);
-        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10]);
         population.push(&wt2);
 
         let mut iter = population.iter();
@@ -347,11 +349,11 @@ mod tests {
 
     #[test]
     fn from_iter() {
-        let wt1 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt1 = Wildtype::new(vec![Nt::A; 10]);
         let mut population1 = Population::new();
         population1.push(&wt1);
 
-        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10]);
         let mut population2 = Population::new();
         population2.push(&wt2);
 
@@ -363,14 +365,14 @@ mod tests {
 
     #[test]
     fn macro_empty() {
-        let population = population![];
+        let population: Population<Nt> = population![];
         assert_eq!(population.len(), 0);
         assert!(population.is_empty());
     }
 
     #[test]
     fn macro_from_haplotype() {
-        let wt1 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt1 = Wildtype::new(vec![Nt::A; 10]);
         assert_eq!(population![wt1.clone(); 1].len(), 1);
         assert_eq!(population![wt1.clone(); 2].len(), 2);
         assert_eq!(population![wt1.clone(); 10].len(), 10);
@@ -379,9 +381,9 @@ mod tests {
 
     #[test]
     fn macro_from_haplotypes() {
-        let wt1 = Wildtype::new(vec![Some(0x00); 10]);
-        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
-        let wt3 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt1 = Wildtype::new(vec![Nt::A; 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10]);
+        let wt3 = Wildtype::new(vec![Nt::A; 10]);
         let population = population![&wt1, &wt2, &wt3];
 
         assert_eq!(population.len(), 3);
@@ -392,9 +394,9 @@ mod tests {
 
     #[test]
     fn macro_from_haplotypes_variable_lengths() {
-        let wt1 = Wildtype::new(vec![Some(0x00); 10]);
-        let wt2 = Wildtype::new(vec![Some(0x00); 10]);
-        let wt3 = Wildtype::new(vec![Some(0x00); 10]);
+        let wt1 = Wildtype::new(vec![Nt::A; 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10]);
+        let wt3 = Wildtype::new(vec![Nt::A; 10]);
         let population = population![wt1.clone(); 2, wt2.clone(); 1, wt3.clone(); 3];
 
         assert_eq!(population.len(), 6);

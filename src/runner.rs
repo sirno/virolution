@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
+#[cfg(not(feature = "parallel"))]
 use rand::prelude::*;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
@@ -16,21 +17,22 @@ use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::haplotype::set_number_of_fitness_tables;
 use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
+use crate::encoding::Nucleotide as Nt;
+use crate::encoding::Symbol;
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
 #[cfg(feature = "parallel")]
 use crate::simulation::HostMap;
 use crate::simulation::{BasicSimulation, SimulationTrait};
+#[cfg(not(feature = "parallel"))]
 use crate::stats::population::{PopulationDistance, PopulationFrequencies};
-
-static NSYMBOLS: usize = 4;
 
 pub struct Runner {
     args: Args,
     settings: Settings,
-    wildtype: HaplotypeRef,
-    simulations: Vec<Box<SimulationTrait>>,
+    wildtype: HaplotypeRef<Nt>,
+    simulations: Vec<Box<SimulationTrait<Nt>>>,
     ancestry: Option<Ancestry>,
 }
 
@@ -49,6 +51,8 @@ impl Runner {
         // load settings and reference
         let settings = Self::load_settings(&args.settings)?;
         let wildtype = Haplotype::load_wildtype(args.sequence.as_str())?;
+
+        dbg!(&wildtype);
 
         // initialize fitness
         let settings_path = Path::new(&args.settings).parent();
@@ -72,7 +76,7 @@ impl Runner {
 
         // create individual compartments
         println!("Creating {} compartments...", args.n_compartments);
-        let simulations: Vec<Box<SimulationTrait>> =
+        let simulations: Vec<Box<SimulationTrait<Nt>>> =
             Self::create_simulations(&args, &wildtype, &provider_map, &settings.parameters[0]);
 
         // check if ancestry is requested and supported
@@ -112,7 +116,7 @@ impl Runner {
             .args
             .outdir
             .as_ref()
-            .map(|p| Path::new(p))
+            .map(Path::new)
             .unwrap_or(Path::new("./"));
 
         for (compartment_id, compartment) in self.simulations.iter().enumerate() {
@@ -195,11 +199,11 @@ impl Runner {
         Ok(settings)
     }
 
-    fn create_fitness_providers(
+    fn create_fitness_providers<S: Symbol>(
         settings: &Settings,
-        sequence: &[Option<u8>],
+        sequence: &[S],
         path: Option<&Path>,
-    ) -> Result<Vec<(Range<usize>, FitnessProvider)>> {
+    ) -> Result<Vec<(Range<usize>, FitnessProvider<S>)>> {
         let default_settings = &settings.parameters[0];
         let fitness_tables = match &default_settings.fitness_model {
             FitnessModelField::SingleHost(fitness_model) => {
@@ -213,7 +217,7 @@ impl Runner {
                 let _ = set_number_of_fitness_tables(1).is_ok();
                 vec![(
                     0..default_settings.host_population_size,
-                    FitnessProvider::from_model(0, sequence, NSYMBOLS, &fitness_model)?,
+                    FitnessProvider::from_model(0, sequence, &fitness_model)?,
                 )]
             }
             FitnessModelField::MultiHost(fitness_models) => {
@@ -237,7 +241,7 @@ impl Runner {
 
                     fitness_tables.push((
                         lower..upper,
-                        FitnessProvider::from_model(id, sequence, NSYMBOLS, &fitness_model)?,
+                        FitnessProvider::from_model(id, sequence, &fitness_model)?,
                     ));
                     lower = upper;
                 }
@@ -248,7 +252,7 @@ impl Runner {
         Ok(fitness_tables)
     }
 
-    fn write_fitness_tables(providers: &[&FitnessProvider], path: Option<&Path>) {
+    fn write_fitness_tables<S: Symbol>(providers: &[&FitnessProvider<S>], path: Option<&Path>) {
         let write_path = path.unwrap_or_else(|| Path::new("./"));
 
         // write fitness tables
@@ -259,13 +263,13 @@ impl Runner {
 
     fn create_simulations(
         args: &Args,
-        wildtype: &HaplotypeRef,
-        fitness_providers: &[(Range<usize>, FitnessProvider)],
+        wildtype: &HaplotypeRef<Nt>,
+        fitness_providers: &[(Range<usize>, FitnessProvider<Nt>)],
         parameters: &Parameters,
-    ) -> Vec<Box<SimulationTrait>> {
+    ) -> Vec<Box<SimulationTrait<Nt>>> {
         (0..args.n_compartments)
             .map(|_compartment_idx| {
-                let init_population: Population = {
+                let init_population: Population<Nt> = {
                     let initial_population_size = match args.initial_population_size {
                         Some(size) => size,
                         None => parameters.max_population,
@@ -288,7 +292,7 @@ impl Runner {
                     0,
                 )
             })
-            .map(|sim| Box::new(sim) as Box<SimulationTrait>)
+            .map(|sim| Box::new(sim) as Box<SimulationTrait<Nt>>)
             .collect()
     }
 
@@ -325,16 +329,20 @@ impl Runner {
             .map(|p| Path::new(p).join("samples").to_string_lossy().to_string())
             .unwrap_or_else(|| "samples".to_string());
 
-        let sample_writer: Box<dyn SampleWriter> = match self.args.sampling_format.as_str() {
+        let sample_writer: Box<dyn SampleWriter<Nt>> = match self.args.sampling_format.as_str() {
             "fasta" => Box::new(
-                FastaSampleWriter::new(&self.args.name, &samples_dir, Some(historian.clone()))
-                    .unwrap_or_else(|err| {
-                        eprintln!("Unable to create sample writer: {err}.");
-                        std::process::exit(1);
-                    }),
+                FastaSampleWriter::new::<Nt>(
+                    &self.args.name,
+                    &samples_dir,
+                    Some(historian.clone()),
+                )
+                .unwrap_or_else(|err| {
+                    eprintln!("Unable to create sample writer: {err}.");
+                    std::process::exit(1);
+                }),
             ),
             "csv" => Box::new(
-                CsvSampleWriter::new(&self.args.name, &samples_dir, Some(historian.clone()))
+                CsvSampleWriter::new::<Nt>(&self.args.name, &samples_dir, Some(historian.clone()))
                     .unwrap_or_else(|err| {
                         eprintln!("Unable to create sample writer: {err}.");
                         std::process::exit(1);
@@ -417,7 +425,7 @@ impl Runner {
             // transfer between compartments
             log::debug!("Transfer between compartments...");
             let transfer = self.settings.schedule.get_transfer_matrix(generation);
-            let populations: Vec<Population> = (0..self.args.n_compartments)
+            let populations: Vec<Population<Nt>> = (0..self.args.n_compartments)
                 .into_par_iter()
                 .map(|target| {
                     (0..self.args.n_compartments)
@@ -477,16 +485,20 @@ impl Runner {
             .map(|p| Path::new(p).join("samples").to_string_lossy().to_string())
             .unwrap_or_else(|| "samples".to_string());
 
-        let sample_writer: Box<dyn SampleWriter> = match self.args.sampling_format.as_str() {
+        let sample_writer: Box<dyn SampleWriter<Nt>> = match self.args.sampling_format.as_str() {
             "fasta" => Box::new(
-                FastaSampleWriter::new(&self.args.name, &samples_dir, Some(historian.clone()))
-                    .unwrap_or_else(|err| {
-                        eprintln!("Unable to create sample writer: {err}.");
-                        std::process::exit(1);
-                    }),
+                FastaSampleWriter::new::<Nt>(
+                    &self.args.name,
+                    &samples_dir,
+                    Some(historian.clone()),
+                )
+                .unwrap_or_else(|err| {
+                    eprintln!("Unable to create sample writer: {err}.");
+                    std::process::exit(1);
+                }),
             ),
             "csv" => Box::new(
-                CsvSampleWriter::new(&self.args.name, &samples_dir, Some(historian.clone()))
+                CsvSampleWriter::new::<Nt>(&self.args.name, &samples_dir, Some(historian.clone()))
                     .unwrap_or_else(|err| {
                         eprintln!("Unable to create sample writer: {err}.");
                         std::process::exit(1);
@@ -631,7 +643,7 @@ impl Runner {
             }
 
             // perform the migration and create new populations
-            let populations: Vec<Population> = (0..self.args.n_compartments)
+            let populations: Vec<Population<Nt>> = (0..self.args.n_compartments)
                 .map(|target| {
                     Population::from_iter((0..self.args.n_compartments).map(|origin| {
                         self.simulations[origin]

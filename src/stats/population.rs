@@ -1,12 +1,14 @@
-use crate::core::Population;
 use itertools::Itertools;
 
+use crate::core::Population;
+use crate::encoding::Symbol;
+
 /// Trait extension to compute frequencies of nucleotides in a population
-pub trait PopulationFrequencies {
+pub trait PopulationFrequencies<S: Symbol> {
     fn frequencies(&self) -> Vec<f64>;
 }
 
-impl PopulationFrequencies for Population {
+impl<S: Symbol> PopulationFrequencies<S> for Population<S> {
     /// Compute the frequencies of each nucleotide in a population and return as a vector.
     fn frequencies(&self) -> Vec<f64> {
         let wildtype = &self[&0].get_wildtype();
@@ -18,17 +20,15 @@ impl PopulationFrequencies for Population {
 
         for (haplotype_ref, haplotype_count) in self.iter().counts() {
             for (&pos, &change) in haplotype_ref.as_ref().get_mutations().iter() {
-                if let Some(symbol) = change {
-                    counts[symbol as usize + 4 * pos] += haplotype_count as i64;
-                }
+                counts[change as usize + S::SIZE * pos] += haplotype_count as i64;
             }
         }
 
         for (pos, symbol) in wildtype.get_sequence().iter().enumerate() {
-            if let Some(symbol) = symbol {
-                counts[*symbol as usize + 4 * pos] =
-                    population_size as i64 - counts[4 * pos..4 * (pos + 1)].iter().sum::<i64>();
-            }
+            counts[symbol.index() + S::SIZE * pos] = population_size as i64
+                - counts[S::SIZE * pos..S::SIZE * (pos + 1)]
+                    .iter()
+                    .sum::<i64>();
         }
 
         counts
@@ -39,16 +39,16 @@ impl PopulationFrequencies for Population {
 }
 
 /// Trait extension to compute distances between to Populations
-pub trait PopulationDistance {
-    fn distance(&self, other: &Population) -> f64;
+pub trait PopulationDistance<S: Symbol> {
+    fn distance(&self, other: &Population<S>) -> f64;
 }
 
-impl PopulationDistance for Population {
+impl<S: Symbol> PopulationDistance<S> for Population<S> {
     /// Compute the distance between this and another populations.
     ///
     /// The distances is the sum of absolutes of per-position nucleotide frequencies in each
     /// population.
-    fn distance(&self, other: &Population) -> f64 {
+    fn distance(&self, other: &Population<S>) -> f64 {
         self.frequencies()
             .iter()
             .zip(other.frequencies())
