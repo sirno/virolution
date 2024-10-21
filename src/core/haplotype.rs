@@ -1044,6 +1044,8 @@ mod tests {
         use std::sync::Mutex;
         use std::thread;
 
+        // TODO: investigate potential smallvec issue (unreachable code entered?)
+
         let n_sites = 7;
         let n_symbols = 4;
 
