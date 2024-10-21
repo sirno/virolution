@@ -11,6 +11,8 @@
 - Tree will now merge internal nodes when possible
 - Methods that access data have to be annotated with `#[require_deferred_drop]`
 - Introduced generic encoding for symbolic values `virolution::encoding::Symbol`
+- Use smallvec for storing mutations, this should reduce the number of unnecessary
+  allocations especially when mutants go extinct right away
 
 ## 0.3.0 --- Mixed Performance (May 06, 2024)
 

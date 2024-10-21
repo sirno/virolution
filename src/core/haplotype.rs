@@ -442,9 +442,14 @@ impl<S: Symbol> Wildtype<S> {
     pub fn new(sequence: Vec<S>) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Wildtype(Self {
+                // head
                 reference: reference.clone(),
-                sequence: sequence.clone(),
                 descendants: DescendantsCell::new(),
+
+                // body
+                sequence: sequence.clone(),
+
+                // sync
                 _dirty_descendants: AtomicIsize::new(0),
             })
         })
@@ -487,13 +492,18 @@ impl<S: Symbol> Mutant<S> {
     ) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Mutant(Self {
+                // head
                 reference: reference.clone(),
                 wildtype: wildtype.clone(),
                 ancestor: ancestor.clone(),
+                descendants: DescendantsCell::new(),
+
+                // body
                 changes,
                 generation,
                 fitness: make_fitness_cache(),
-                descendants: DescendantsCell::new(),
+
+                // sync
                 _dirty_descendants: AtomicIsize::new(0),
                 _defer_drop: Arc::new(Mutex::new(0)),
                 _drop: Cell::new(None),
@@ -525,13 +535,18 @@ impl<S: Symbol> Mutant<S> {
 
         // create new node
         let tmp_ref = HaplotypeRef::new(Haplotype::Mutant(Self {
+            // head
             reference: last.reference.clone(),
             wildtype,
             ancestor,
+            descendants: DescendantsCell::from_iter(descendants),
+
+            // body
             changes,
             generation,
             fitness: make_fitness_cache(),
-            descendants: DescendantsCell::from_iter(descendants),
+
+            // sync
             _dirty_descendants: AtomicIsize::new(0),
             _defer_drop: last._defer_drop.clone(),
             _drop: Cell::new(None),
@@ -736,15 +751,20 @@ impl<S: Symbol> Recombinant<S> {
     ) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Recombinant(Self {
+                // head
                 reference: reference.clone(),
                 wildtype: wildtype.get_weak(),
                 left_ancestor: left_ancestor.clone(),
                 right_ancestor: right_ancestor.clone(),
+                descendants: DescendantsCell::new(),
+
+                // body
                 left_position,
                 right_position,
                 generation,
                 fitness: make_fitness_cache(),
-                descendants: DescendantsCell::new(),
+
+                // sync
                 _dirty_descendants: AtomicIsize::new(0),
             })
         })
