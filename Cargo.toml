@@ -24,6 +24,7 @@ codegen-units = 1
 members = ["macros"]
 
 [dependencies]
+anyhow = "1.0"
 block-id = "0.1.2"
 cached = "0.53.1"
 clap = { version = "4.3.11", features = ["derive"] }
@@ -44,7 +45,7 @@ serde = { version = "1.0.171", features = ["derive"] }
 serde_yaml = "0.9.22"
 seq_io = "0.3.1"
 simple-logging = "2.0.2"
-anyhow = "1.0"
+smallvec = "1.13.2"
 rayon = { version = "1.7.0", optional = true }
 macros = { path = "macros" }
 

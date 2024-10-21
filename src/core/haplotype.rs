@@ -20,6 +20,7 @@
 
 use derivative::Derivative;
 use seq_io::fasta::OwnedRecord;
+use smallvec::SmallVec;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::fmt;
@@ -62,6 +63,17 @@ fn make_fitness_cache() -> Vec<OnceLock<f64>> {
 // #[derive(Clone, Debug, Deref)]
 // pub type Symbol = Option<u8>;
 
+const SMALL_VEC_SIZE: usize = 1;
+
+#[derive(Debug, Clone)]
+pub struct Change<S: Symbol> {
+    pub position: usize,
+    pub from: S,
+    pub to: S,
+}
+
+pub type Changes<S> = [Change<S>; SMALL_VEC_SIZE];
+
 #[derive(Debug)]
 pub enum Haplotype<S: Symbol> {
     Wildtype(Wildtype<S>),
@@ -71,9 +83,14 @@ pub enum Haplotype<S: Symbol> {
 
 #[derive(Debug)]
 pub struct Wildtype<S: Symbol> {
+    // head
     reference: HaplotypeWeak<S>,
-    sequence: Vec<S>,
     descendants: DescendantsCell<S>,
+
+    // body
+    sequence: Vec<S>,
+
+    // sync
     // number of descendants that have died, we can replace their weak references
     _dirty_descendants: AtomicIsize,
 }
@@ -81,34 +98,50 @@ pub struct Wildtype<S: Symbol> {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Mutant<S: Symbol> {
+    // head
     reference: HaplotypeWeak<S>,
     wildtype: HaplotypeWeak<S>,
     ancestor: HaplotypeRef<S>,
-    changes: HashMap<usize, (S, S)>,
-    generation: usize,
-    fitness: Vec<OnceLock<f64>>,
     descendants: DescendantsCell<S>,
-    // number of descendants that have died, we can replace their weak references
+
+    // body
+    generation: usize,
+    changes: SmallVec<Changes<S>>,
+    fitness: Vec<OnceLock<f64>>,
+
+    // sync
+    // stores the number of descendants that have died
+    // this allows us to replace any weak references instead of allocating more memory
     _dirty_descendants: AtomicIsize,
     // synchronization for merging nodes while allowing for parallel access
-    // ask to defer drop
+    // this field will be used to request deferred drops, when it is non-zero, merges will not
+    // drop but instead defer the drop to the setter
+    // any thread that requires a deferred drop is responsible for decrementing this field before
+    // dropping the reference (safe handling is ensured by the `require_deferred_drop` attribute)
     _defer_drop: Arc<Mutex<usize>>,
-    // request deferred drop
+    // this field will be used to create a self-reference to the haplotype after it has been
+    // removed from the tree, this allows us to safely drop the haplotype when it is no longer used
+    // by consuming the reference when it is no longer used
     #[derivative(Debug = "ignore")]
     _drop: Cell<Option<HaplotypeRef<S>>>,
 }
 
 #[derive(Debug)]
 pub struct Recombinant<S: Symbol> {
+    // head
     reference: HaplotypeWeak<S>,
     wildtype: HaplotypeWeak<S>,
     left_ancestor: HaplotypeRef<S>,
     right_ancestor: HaplotypeRef<S>,
+    descendants: DescendantsCell<S>,
+
+    // body
     left_position: usize,
     right_position: usize,
     generation: usize,
     fitness: Vec<OnceLock<f64>>,
-    descendants: DescendantsCell<S>,
+
+    // sync
     // number of descendants that have died, we can replace their weak references
     _dirty_descendants: AtomicIsize,
 }
@@ -148,18 +181,15 @@ impl<S: Symbol> Haplotype<S> {
         let ancestor = self.get_reference();
         let wildtype = self.get_wildtype();
 
-        let changes = HashMap::from_iter(
-            positions
-                .iter()
-                .zip(changes.iter())
-                .map(|(pos, sym)| (*pos, (self.get_base(pos), *sym))),
-        );
-
-        changes.iter().for_each(|(pos, change)| {
-            if change.0 == change.1 {
-                dbg!(pos, change);
-            }
-        });
+        let changes = positions
+            .iter()
+            .zip(changes.iter())
+            .map(|(&position, &to)| {
+                let from = self.get_base(&position);
+                assert_ne!(from, to);
+                Change { position, from, to }
+            })
+            .collect();
 
         let descendant = Mutant::new(ancestor, wildtype.get_weak(), changes, generation);
 
@@ -207,7 +237,7 @@ impl<S: Symbol> Haplotype<S> {
     }
 
     /// Returns a reference to the changes that are present in the haplotype if the type allows it.
-    pub fn try_get_changes(&self) -> Option<&HashMap<usize, (S, S)>> {
+    pub fn try_get_changes(&self) -> Option<&SmallVec<Changes<S>>> {
         match self {
             Haplotype::Mutant(ht) => Some(&ht.changes),
             _ => None,
@@ -452,7 +482,7 @@ impl<S: Symbol> Mutant<S> {
     pub fn new(
         ancestor: HaplotypeRef<S>,
         wildtype: HaplotypeWeak<S>,
-        changes: HashMap<usize, (S, S)>,
+        changes: SmallVec<Changes<S>>,
         generation: usize,
     ) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
@@ -460,7 +490,7 @@ impl<S: Symbol> Mutant<S> {
                 reference: reference.clone(),
                 wildtype: wildtype.clone(),
                 ancestor: ancestor.clone(),
-                changes: changes.clone(),
+                changes,
                 generation,
                 fitness: make_fitness_cache(),
                 descendants: DescendantsCell::new(),
@@ -478,7 +508,7 @@ impl<S: Symbol> Mutant<S> {
         last: &Self,
         ancestor: HaplotypeRef<S>,
         wildtype: HaplotypeWeak<S>,
-        changes: HashMap<usize, (S, S)>,
+        changes: SmallVec<Changes<S>>,
         generation: usize,
     ) {
         // collect all descendants that are still alive
@@ -525,13 +555,13 @@ impl<S: Symbol> Mutant<S> {
 
     #[require_deferred_drop]
     pub fn get_base(&self, position: &usize) -> S {
-        match self.changes.get(position) {
-            Some((_from, to)) => *to,
+        match self.changes.iter().find(|x| x.position == *position) {
+            Some(change) => change.to,
             None => self.ancestor.get_base(position),
         }
     }
 
-    pub fn iter_changes(&self) -> impl Iterator<Item = (&usize, &(S, S))> + '_ {
+    pub fn iter_changes(&self) -> impl Iterator<Item = &Change<S>> + '_ {
         self.changes.iter()
     }
 
@@ -547,7 +577,7 @@ impl<S: Symbol> Mutant<S> {
         self.ancestor.clone()
     }
 
-    pub fn get_changes(&self) -> &HashMap<usize, (S, S)> {
+    pub fn get_changes(&self) -> &SmallVec<Changes<S>> {
         &self.changes
     }
 
@@ -561,12 +591,12 @@ impl<S: Symbol> Mutant<S> {
 
         assert_eq!(&self.changes as *const _, key);
 
-        self.changes.iter().for_each(|(position, (_, new))| {
-            let wt_base = wt_ref.get_base(position);
-            if *new == wt_base {
-                mutations.remove(position);
+        self.changes.iter().for_each(|change| {
+            let wt_base = wt_ref.get_base(&change.position);
+            if change.to == wt_base {
+                mutations.remove(&change.position);
             } else {
-                mutations.insert(*position, *new.index() as u8);
+                mutations.insert(change.position, *change.to.index() as u8);
             }
         });
 
@@ -636,11 +666,11 @@ impl<S: Symbol> Mutant<S> {
         let merger: [&Mutant<S>; 2] = [descendant_inner, self];
 
         // aggregate changes
-        let changes: HashMap<usize, (S, S)> = merger
+        let changes: SmallVec<Changes<S>> = merger
             .iter()
             .rev()
             .flat_map(|x| x.changes.iter())
-            .map(|(position, change)| (*position, *change))
+            .cloned()
             .collect();
 
         // determine generation
@@ -852,11 +882,20 @@ mod tests {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
         let wt = Wildtype::new(symbols.clone());
         let _hts: Vec<HaplotypeRef<Nt>> = (0..100)
-            .map(|i| wt.create_descendant(vec![0], vec![Nt::decode(&((i % Nt::SIZE) as u8))], 0))
+            .map(|i| {
+                wt.create_descendant(
+                    vec![0],
+                    vec![Nt::decode(&(((i % (Nt::SIZE - 1)) + 1) as u8))],
+                    0,
+                )
+            })
             .collect();
-        for (position, descendant) in wt.get_descendants().lock().iter().enumerate() {
+        for (i, descendant) in wt.get_descendants().lock().iter().enumerate() {
             if let Some(d) = descendant.upgrade() {
-                assert_eq!(d.get_base(&0), Nt::decode(&((position % Nt::SIZE) as u8)));
+                assert_eq!(
+                    d.get_base(&0),
+                    Nt::decode(&(((i % (Nt::SIZE - 1)) + 1) as u8))
+                );
             } else {
                 panic!();
             }

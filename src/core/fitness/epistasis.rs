@@ -1,6 +1,8 @@
 use npyz::WriterBuilder;
+use smallvec::SmallVec;
 use std::collections::HashMap;
 
+use crate::core::haplotype::Changes;
 use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
 use crate::references::HaplotypeRef;
@@ -118,11 +120,12 @@ impl<S: Symbol> EpistasisTable<S> {
         // have to call `get_mutations` on the haplotype which can be expensive.
         let candidate_changes = changes
             .iter()
-            .filter(|(position, (old, new))| {
-                self.table.contains_key(&(**position, *old))
-                    || self.table.contains_key(&(**position, *new))
+            .filter(|changes| {
+                self.table.contains_key(&(changes.position, changes.to))
+                    || self.table.contains_key(&(changes.position, changes.to))
             })
-            .collect::<HashMap<_, _>>();
+            .cloned()
+            .collect::<SmallVec<Changes<S>>>();
 
         // If no changes are present in the table, return the fitness
         if candidate_changes.is_empty() {
@@ -134,21 +137,21 @@ impl<S: Symbol> EpistasisTable<S> {
         let mut fitness = 1.;
 
         // Add any epistatic effects
-        for (position, (old, new)) in &candidate_changes {
+        for change in &candidate_changes {
             // Get any interactions of the current mutation
-            let interactions_add = self.table.get(&(**position, *new));
-            let interactions_remove = self.table.get(&(**position, *old));
+            let interactions_add = self.table.get(&(change.position, change.to));
+            let interactions_remove = self.table.get(&(change.position, change.from));
 
             // Apply any interactions
             for (pos, current) in mutations.iter() {
                 // Deal with a rare case where two mutations have interactions with each
                 // other. In this case, we enforce that the interaction is only applied
                 // once, by enforcing an order when reading epistatic interactions.
-                if changes.contains_key(pos) && pos <= position {
+                if pos <= &change.position && changes.iter().any(|c| c.position == *pos) {
                     continue;
                 }
 
-                if pos != *position {
+                if pos != &change.position {
                     if let Some(interaction) = interactions_add {
                         // If there is an interaction, multiply the fitness
                         if let Some(v) = interaction.get(&(*pos, S::decode(current))) {

@@ -62,8 +62,9 @@ impl FitnessTable {
         };
 
         // Compute the fitness update
-        changes.iter().fold(1., |acc, (position, (old, new))| {
-            acc * self.get_value(position, new) / self.get_value(position, old)
+        changes.iter().fold(1., |acc, change| {
+            acc * self.get_value(&change.position, &change.to)
+                / self.get_value(&change.position, &change.from)
         })
     }
 

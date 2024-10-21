@@ -1288,6 +1288,7 @@ dependencies = [
  "serde_yaml",
  "serial_test",
  "simple-logging",
+ "smallvec",
 ]
 
 [[package]]

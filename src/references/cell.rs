@@ -25,7 +25,7 @@ impl<S: Symbol> HaplotypeRef<S> {
 
     pub fn new_cyclic<F>(data_fn: F) -> Self
     where
-        F: std::ops::Fn(&HaplotypeWeak<S>) -> Haplotype<S>,
+        F: std::ops::FnOnce(&HaplotypeWeak<S>) -> Haplotype<S>,
     {
         Self(Rc::new_cyclic(|weak| data_fn(&HaplotypeWeak(weak.clone()))))
     }
