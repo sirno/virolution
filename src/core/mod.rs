@@ -4,6 +4,7 @@ mod ancestry;
 mod cache;
 mod historian;
 
+pub mod attributes;
 #[macro_use]
 pub mod population;
 pub mod fitness;
