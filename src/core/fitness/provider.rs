@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -18,7 +19,7 @@ use crate::references::HaplotypeRef;
 /// sequence and the fitness model.
 #[derive(Clone, Debug)]
 pub struct FitnessProvider<S: Symbol> {
-    pub id: usize,
+    name: Cow<'static, str>,
     function: FitnessFunction<S>,
     utility: UtilityFunction,
 }
@@ -35,7 +36,7 @@ impl<S: Symbol> FitnessProvider<S> {
     /// Fitness models can be specified in the configuration file. Available fitness models are
     /// defined in `virolution::core::fitness::init`.
     pub fn from_model(
-        id: usize,
+        name: Cow<'static, str>,
         sequence: &[S],
         model: &FitnessModel,
     ) -> Result<Self, VirolutionError> {
@@ -63,35 +64,10 @@ impl<S: Symbol> FitnessProvider<S> {
             }
         };
         Ok(Self {
-            id,
+            name,
             function,
             utility: model.utility.clone(),
         })
-    }
-
-    pub fn write(&self, path: &Path) -> Result<(), VirolutionError> {
-        match &self.function {
-            FitnessFunction::NonEpistatic(table) => {
-                let table_name = format!("fitness_table_{}.npy", self.id);
-                let mut table_file =
-                    io::BufWriter::new(fs::File::create(path.join(table_name)).unwrap());
-                table.write(&mut table_file)?;
-            }
-            FitnessFunction::SimpleEpistatic(table, epistasis) => {
-                let table_name = format!("fitness_table_{}.npy", self.id);
-                let epistasis_name = format!("epistasis_table_{}.npy", self.id);
-
-                let table_file = fs::File::create(path.join(table_name)).unwrap();
-                let epistasis_path = fs::File::create(path.join(epistasis_name)).unwrap();
-
-                let mut table_writer = io::BufWriter::new(table_file);
-                let mut epistasis_writer = io::BufWriter::new(epistasis_path);
-
-                table.write(&mut table_writer)?;
-                epistasis.write(&mut epistasis_writer)?;
-            }
-        }
-        Ok(())
     }
 
     pub fn apply_utility(&self, fitness: f64) -> f64 {
@@ -101,10 +77,14 @@ impl<S: Symbol> FitnessProvider<S> {
     pub fn get_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
         match haplotype.try_get_changes() {
             Some(_) => {
-                let fitness = haplotype
-                    .try_get_ancestor()
-                    .expect("Could not find ancestor during fitness update...")
-                    .get_raw_fitness(self);
+                let fitness = f64::try_from(
+                    haplotype
+                        .try_get_ancestor()
+                        .expect("Could not find ancestor during fitness update...")
+                        .get_attribute_or_compute(&self.name)
+                        .unwrap(),
+                )
+                .unwrap();
                 let update = self.update_fitness(haplotype);
                 fitness * update
             }
@@ -132,7 +112,37 @@ impl<S: Symbol> FitnessProvider<S> {
 }
 
 impl<S: Symbol> AttributeProvider<S> for FitnessProvider<S> {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
     fn compute(&self, haplotype: &HaplotypeRef<S>) -> AttributeValue {
         AttributeValue::F64(self.get_fitness(haplotype))
+        // TODO: this doesn't correctly handle the utility function
+    }
+
+    fn write(&self, path: &Path) -> Result<(), VirolutionError> {
+        match &self.function {
+            FitnessFunction::NonEpistatic(table) => {
+                let table_name = format!("{}_table.npy", self.name);
+                let mut table_file =
+                    io::BufWriter::new(fs::File::create(path.join(table_name)).unwrap());
+                table.write(&mut table_file)?;
+            }
+            FitnessFunction::SimpleEpistatic(table, epistasis) => {
+                let table_name = format!("{}_table.npy", self.name);
+                let epistasis_name = format!("{}_epistasis_table.npy", self.name);
+
+                let table_file = fs::File::create(path.join(table_name)).unwrap();
+                let epistasis_path = fs::File::create(path.join(epistasis_name)).unwrap();
+
+                let mut table_writer = io::BufWriter::new(table_file);
+                let mut epistasis_writer = io::BufWriter::new(epistasis_path);
+
+                table.write(&mut table_writer)?;
+                epistasis.write(&mut epistasis_writer)?;
+            }
+        }
+        Ok(())
     }
 }

@@ -83,7 +83,7 @@ mod tests {
         assert!(output.status.success());
 
         // Check if output files are created
-        assert!(std::path::Path::new(&format!("{}/fitness_table_0.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/fitness_table.npy", tmp.dir)).exists());
         assert!(std::path::Path::new(&format!("{}/virolution.log", tmp.dir)).exists());
     }
 
@@ -109,8 +109,8 @@ mod tests {
         assert!(output.status.success());
 
         // Check if output files are created
-        assert!(std::path::Path::new(&format!("{}/fitness_table_0.npy", tmp.dir)).exists());
-        assert!(std::path::Path::new(&format!("{}/fitness_table_1.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/fitness_0_table.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/fitness_1_table.npy", tmp.dir)).exists());
         assert!(std::path::Path::new(&format!("{}/virolution.log", tmp.dir)).exists());
     }
 
@@ -136,8 +136,8 @@ mod tests {
         assert!(output.status.success());
 
         // Check if output files are created
-        assert!(std::path::Path::new(&format!("{}/fitness_table_0.npy", tmp.dir)).exists());
-        assert!(std::path::Path::new(&format!("{}/epistasis_table_0.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/fitness_table.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/fitness_epistasis_table.npy", tmp.dir)).exists());
         assert!(std::path::Path::new(&format!("{}/virolution.log", tmp.dir)).exists());
     }
 }

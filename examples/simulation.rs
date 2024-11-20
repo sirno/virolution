@@ -1,7 +1,10 @@
 extern crate virolution;
 
+use std::borrow::Cow;
 use std::fs;
+use std::sync::Arc;
 use virolution::config::{FitnessModelField, Parameters};
+use virolution::core::attributes::AttributeSetDefinition;
 use virolution::core::fitness::init::*;
 use virolution::core::fitness::utility::UtilityFunction;
 use virolution::core::fitness::FitnessProvider;
@@ -26,20 +29,24 @@ fn main() {
     });
     let fitness_model = FitnessModel::new(distribution.clone(), UtilityFunction::Linear);
 
-    let fitness_table = FitnessProvider::from_model(0, &sequence, &fitness_model).unwrap();
-
-    let wt = Wildtype::new(sequence);
+    let mut attribute_definition = AttributeSetDefinition::new();
+    let name = Cow::Borrowed("fitness");
+    attribute_definition.register(
+        &name,
+        Arc::new(FitnessProvider::from_model(name.clone(), &sequence, &fitness_model).unwrap()),
+    );
+    let wt = Wildtype::new(sequence, attribute_definition.create());
     let ht = wt.create_descendant(vec![2], vec![Nt::T], 0);
     let ht2 = ht.create_descendant(vec![1], vec![Nt::C], 0);
     let ht3 = ht2.create_descendant(vec![2], vec![Nt::G], 0);
     let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2, 0);
 
     println!("---fitnesses---");
-    println!("wt: {}", wt.get_fitness(&fitness_table));
-    println!("ht: {}", ht.get_fitness(&fitness_table));
-    println!("ht2: {}", ht2.get_fitness(&fitness_table));
-    println!("ht3: {}", ht3.get_fitness(&fitness_table));
-    println!("ht4: {}", ht4.get_fitness(&fitness_table));
+    println!("wt: {}", wt.get_attribute_or_compute("fitness").unwrap());
+    println!("ht: {}", ht.get_attribute_or_compute("fitness").unwrap());
+    println!("ht2: {}", ht2.get_attribute_or_compute("fitness").unwrap());
+    println!("ht3: {}", ht3.get_attribute_or_compute("fitness").unwrap());
+    println!("ht4: {}", ht4.get_attribute_or_compute("fitness").unwrap());
 
     let population: Population<Nt> = population![wt.clone(); 10];
     let simulation_settings = Parameters {
@@ -65,7 +72,7 @@ fn main() {
     let settings = Parameters::read_from_file("parameters_example.yaml")
         .expect("Failed to read settings from file");
     fs::remove_file("parameters_example.yaml").expect("Unable to remove file.");
-    let fitness_tables = vec![(0..simulation_settings.host_population_size, fitness_table)];
+    let fitness_tables = vec![(0..simulation_settings.host_population_size, name)];
     let mut simulation = BasicSimulation::new(wt, population, fitness_tables, settings.clone(), 0);
     let host_map = simulation.get_host_map();
     simulation.mutate_infectants(&host_map);

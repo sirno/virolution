@@ -6,8 +6,10 @@
 //! Attributes are stored in an `AttributeSet` instance that is derived from an
 //! `AttributeSetDefinition` or other `AttributeSet` instances.
 
+use derive_more::{Display, From};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 use crate::encoding::Symbol;
@@ -15,7 +17,7 @@ use crate::errors::{Result, VirolutionError};
 use crate::references::HaplotypeRef;
 
 // Attribute value definition
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, From, Display)]
 pub enum AttributeValue {
     U32(u32),
     U64(u64),
@@ -134,7 +136,9 @@ impl TryFrom<AttributeValue> for f64 {
 /// set. Providers are collected in an attribute set definition (see `AttributeSetDefinition`) and
 /// compute the attributes of a set (`AttributeSet`).
 pub trait AttributeProvider<S: Symbol>: Sync + Send {
+    fn name(&self) -> &str;
     fn compute(&self, haplotype: &HaplotypeRef<S>) -> AttributeValue;
+    fn write(&self, path: &Path) -> Result<()>;
 }
 
 /// Definition of an attribute set with providers.
@@ -146,12 +150,25 @@ pub struct AttributeSetDefinition<S: Symbol> {
     providers: HashMap<Cow<'static, str>, Arc<dyn AttributeProvider<S> + Send + Sync>>,
 }
 
+impl<S: Symbol> Default for AttributeSetDefinition<S> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<S: Symbol> AttributeSetDefinition<S> {
     /// Create a new attribute set definition.
     pub fn new() -> Self {
         Self {
             providers: HashMap::new(),
         }
+    }
+
+    /// Get the providers of the definition.
+    pub fn providers(
+        &self,
+    ) -> &HashMap<Cow<'static, str>, Arc<dyn AttributeProvider<S> + Send + Sync>> {
+        &self.providers
     }
 
     /// Register a new attribute provider.

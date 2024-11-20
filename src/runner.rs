@@ -8,25 +8,25 @@ use rand::prelude::*;
 use rayon::prelude::*;
 use seq_io::fasta;
 use seq_io::fasta::Record;
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::fs;
-use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
-use crate::core::attributes::AttributeSetDefinition;
-use crate::core::haplotype::{set_number_of_fitness_tables, Wildtype};
-use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
+use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
+use crate::core::haplotype::Wildtype;
+use crate::core::{Ancestry, FitnessProvider, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
 
+use crate::readwrite::PopulationIO;
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
-use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
 #[cfg(feature = "parallel")]
 use crate::simulation::HostMap;
@@ -65,11 +65,13 @@ impl Runner {
         let (attribute_definitions, host_specs) =
             Self::create_attribute_definitions(&settings, &sequence, settings_path)?;
         // TODO: Recover provider output after refactoring
-        // let providers = provider_map
-        //     .iter()
-        //     .map(|(_range, provider)| provider)
-        //     .collect::<Vec<_>>();
-        // Self::write_fitness_tables(&providers, args.outdir.as_ref().map(Path::new));
+        let providers = attribute_definitions
+            .providers()
+            .iter()
+            .map(|(_range, provider)| provider)
+            .collect::<Vec<_>>();
+
+        Self::write_fitness_tables(providers, args.outdir.as_ref().map(Path::new));
 
         let wildtype = Wildtype::new(sequence, attribute_definitions.create());
 
@@ -259,15 +261,17 @@ impl Runner {
                     fitness_model.prepend_path(path.to_str().unwrap());
                 }
 
+                let name = Cow::Borrowed("fitness");
                 attribute_definitions.register(
-                    "fitness",
-                    Arc::new(FitnessProvider::from_model(0, sequence, &fitness_model)?),
+                    &name,
+                    Arc::new(FitnessProvider::from_model(
+                        name.clone(),
+                        sequence,
+                        &fitness_model,
+                    )?),
                 );
 
-                host_specs.push((
-                    0..default_settings.host_population_size,
-                    "fitness".to_string(),
-                ));
+                host_specs.push((0..default_settings.host_population_size, name.clone()));
             }
             FitnessModelField::MultiHost(fitness_models) => {
                 for (id, fitness_model_frac) in fitness_models.iter().enumerate() {
@@ -278,9 +282,15 @@ impl Runner {
                         fitness_model.prepend_path(path.to_str().unwrap());
                     }
 
+                    let name = Cow::Owned(format!("fitness_{}", id));
+
                     attribute_definitions.register(
-                        &format!("fitness_{}", id),
-                        Arc::new(FitnessProvider::from_model(id, sequence, &fitness_model)?),
+                        &name,
+                        Arc::new(FitnessProvider::from_model(
+                            name.clone(),
+                            sequence,
+                            &fitness_model,
+                        )?),
                     );
 
                     let n_hosts = (fitness_model_frac.fraction
@@ -289,71 +299,21 @@ impl Runner {
                     let lower = id * n_hosts;
                     let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
 
-                    host_specs.push((lower..upper, format!("fitness_{}", id)));
+                    host_specs.push((lower..upper, name.clone()));
                 }
             }
         };
         Ok((attribute_definitions, host_specs))
     }
 
-    fn create_fitness_providers<S: Symbol>(
-        settings: &Settings,
-        sequence: &[S],
+    fn write_fitness_tables<S: Symbol>(
+        providers: Vec<&Arc<dyn AttributeProvider<S> + Send + Sync>>,
         path: Option<&Path>,
-    ) -> Result<Vec<(Range<usize>, FitnessProvider<S>)>> {
-        let default_settings = &settings.parameters[0];
-        let fitness_tables = match &default_settings.fitness_model {
-            FitnessModelField::SingleHost(fitness_model) => {
-                let mut fitness_model = fitness_model.clone();
-
-                // paths within fitness model should be relative to the settings file
-                if let Some(path) = path {
-                    fitness_model.prepend_path(path.to_str().unwrap());
-                }
-
-                let _ = set_number_of_fitness_tables(1).is_ok();
-                vec![(
-                    0..default_settings.host_population_size,
-                    FitnessProvider::from_model(0, sequence, &fitness_model)?,
-                )]
-            }
-            FitnessModelField::MultiHost(fitness_models) => {
-                let mut fitness_tables = Vec::new();
-                let mut lower = 0;
-
-                let _ = set_number_of_fitness_tables(fitness_models.len()).is_ok();
-
-                for (id, fitness_model_frac) in fitness_models.iter().enumerate() {
-                    let mut fitness_model = fitness_model_frac.fitness_model.clone();
-
-                    // paths within fitness model should be relative to the settings file
-                    if let Some(path) = path {
-                        fitness_model.prepend_path(path.to_str().unwrap());
-                    }
-
-                    let n_hosts = (fitness_model_frac.fraction
-                        * default_settings.host_population_size as f64)
-                        .round() as usize;
-                    let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
-
-                    fitness_tables.push((
-                        lower..upper,
-                        FitnessProvider::from_model(id, sequence, &fitness_model)?,
-                    ));
-                    lower = upper;
-                }
-
-                fitness_tables
-            }
-        };
-        Ok(fitness_tables)
-    }
-
-    fn write_fitness_tables<S: Symbol>(providers: &[&FitnessProvider<S>], path: Option<&Path>) {
+    ) {
         let write_path = path.unwrap_or_else(|| Path::new("./"));
 
         // write fitness tables
-        providers.iter().for_each(|provider| {
+        providers.iter().for_each(|&provider| {
             provider.write(write_path).unwrap();
         });
     }

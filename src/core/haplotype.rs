@@ -36,30 +36,8 @@ use macros::require_deferred_drop;
 
 use super::attributes::{AttributeSet, AttributeValue};
 use super::cache::{CachedValue, VirolutionCache};
-use super::fitness::FitnessProvider;
 
 pub static N_FITNESS_TABLES: OnceLock<usize> = OnceLock::new();
-
-pub fn set_number_of_fitness_tables(value: usize) -> Result<()> {
-    if N_FITNESS_TABLES.get().is_some() {
-        eprintln!("Trying to set `N_FITNESS_TABLES`, which has already been set.");
-    }
-    N_FITNESS_TABLES.set(value).map_err(|_| {
-        VirolutionError::ImplementationError(
-            "Failed to set the number of fitness tables.".to_string(),
-        )
-    })
-}
-
-fn make_fitness_cache() -> Vec<OnceLock<f64>> {
-    // warn if the number of fitness providers has not been explicitly set at runtime
-    if N_FITNESS_TABLES.get().is_none() {
-        eprintln!("`N_FITNESS_TABLES` is not set, using default value of 1.");
-    }
-    std::iter::repeat_with(OnceLock::new)
-        .take(*N_FITNESS_TABLES.get_or_init(|| 1))
-        .collect()
-}
 
 // #[derive(Clone, Debug, Deref)]
 // pub type Symbol = Option<u8>;
@@ -110,7 +88,6 @@ pub struct Mutant<S: Symbol> {
     generation: usize,
     changes: SmallVec<Changes<S>>,
     attributes: AttributeSet<S>,
-    fitness: Vec<OnceLock<f64>>,
 
     // sync
     // stores the number of descendants that have died
@@ -143,7 +120,6 @@ pub struct Recombinant<S: Symbol> {
     right_position: usize,
     generation: usize,
     attributes: AttributeSet<S>,
-    fitness: Vec<OnceLock<f64>>,
 
     // sync
     // number of descendants that have died, we can replace their weak references
@@ -417,22 +393,6 @@ impl<S: Symbol> Haplotype<S> {
             .get_or_compute(id, self.get_reference())
     }
 
-    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
-        match self {
-            Haplotype::Wildtype(_wt) => 1.,
-            Haplotype::Mutant(ht) => ht.get_raw_fitness(fitness_provider),
-            Haplotype::Recombinant(rc) => rc.get_raw_fitness(fitness_provider),
-        }
-    }
-
-    pub fn get_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
-        match self {
-            Haplotype::Wildtype(_wt) => 1.,
-            Haplotype::Mutant(ht) => ht.get_fitness(fitness_provider),
-            Haplotype::Recombinant(rc) => rc.get_fitness(fitness_provider),
-        }
-    }
-
     pub fn get_record(&self, head: &str) -> OwnedRecord {
         OwnedRecord {
             head: head.to_string().as_bytes().to_vec(),
@@ -532,7 +492,6 @@ impl<S: Symbol> Mutant<S> {
                 changes,
                 generation,
                 attributes: ancestor.get_attributes().derive(),
-                fitness: make_fitness_cache(),
 
                 // sync
                 _dirty_descendants: AtomicIsize::new(0),
@@ -576,7 +535,6 @@ impl<S: Symbol> Mutant<S> {
             changes,
             generation,
             attributes: last.attributes.clone(),
-            fitness: make_fitness_cache(),
 
             // sync
             _dirty_descendants: AtomicIsize::new(0),
@@ -648,18 +606,6 @@ impl<S: Symbol> Mutant<S> {
         });
 
         CachedValue::new(mutations)
-    }
-
-    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
-        *self
-            .fitness
-            .get(fitness_provider.id)
-            .unwrap()
-            .get_or_init(|| fitness_provider.get_fitness(&self.reference.upgrade().unwrap()))
-    }
-
-    pub fn get_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
-        fitness_provider.apply_utility(self.get_raw_fitness(fitness_provider))
     }
 
     pub fn get_subtree(&self) -> String {
@@ -795,7 +741,6 @@ impl<S: Symbol> Recombinant<S> {
                 right_position,
                 generation,
                 attributes: left_ancestor.get_attributes().derive(),
-                fitness: make_fitness_cache(),
 
                 // sync
                 _dirty_descendants: AtomicIsize::new(0),
@@ -858,18 +803,6 @@ impl<S: Symbol> Recombinant<S> {
 
         // set and return computed value
         cache.cache_set(key, mutations.clone())
-    }
-
-    pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
-        *self
-            .fitness
-            .get(fitness_provider.id)
-            .unwrap()
-            .get_or_init(|| fitness_provider.get_fitness(&self.reference.upgrade().unwrap()))
-    }
-
-    pub fn get_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
-        fitness_provider.apply_utility(self.get_raw_fitness(fitness_provider))
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak<S>) -> String {

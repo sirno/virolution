@@ -5,18 +5,19 @@ use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedAliasIndex, WeightedIndex};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
+use std::borrow::Cow;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
 use std::{cmp::min_by, ops::Range};
 
 use crate::config::Parameters;
-use crate::core::{FitnessProvider, Haplotype, Population};
+use crate::core::{Haplotype, Population};
 use crate::encoding::Symbol;
 use crate::references::HaplotypeRef;
 
 pub type HostMap = Vec<Vec<usize>>;
 // TODO: Review host spec abstraction
-pub type HostSpec = (Range<usize>, String);
+pub type HostSpec = (Range<usize>, Cow<'static, str>);
 
 #[cfg(feature = "parallel")]
 pub type SimulationTrait<S> = dyn Simulation<S> + Send + Sync;
@@ -416,8 +417,10 @@ mod tests {
         ExponentialParameters, FitnessDistribution, FitnessModel, MutationCategoryWeights,
     };
     use crate::core::fitness::utility::UtilityFunction;
+    use crate::core::fitness::FitnessProvider;
     use crate::core::haplotype::Wildtype;
     use crate::encoding::Nucleotide as Nt;
+    use std::borrow::Cow;
     use std::sync::Arc;
     use test::Bencher;
 
@@ -461,11 +464,12 @@ mod tests {
         let sequence = vec![Nt::A; 100];
 
         let mut attribute_definitions = AttributeSetDefinition::new();
+        let name = Cow::Borrowed("fitness");
         attribute_definitions.register(
-            "fitness",
-            Arc::new(FitnessProvider::from_model(0, &sequence, &FITNESS_MODEL).unwrap()),
+            &name,
+            Arc::new(FitnessProvider::from_model(name.clone(), &sequence, &FITNESS_MODEL).unwrap()),
         );
-        let hosts = vec![(0..SETTINGS.host_population_size, "fitness".to_string())];
+        let hosts = vec![(0..SETTINGS.host_population_size, name.clone())];
 
         let wt = Wildtype::new(sequence, attribute_definitions.create());
         let population: Population<Nt> = crate::population![wt.clone(); POPULATION_SIZE];

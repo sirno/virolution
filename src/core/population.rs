@@ -281,6 +281,7 @@ impl<S: Symbol> Population<S> {
 mod tests {
     use super::*;
 
+    use crate::core::attributes::AttributeSetDefinition;
     use crate::core::haplotype::Wildtype;
     use crate::encoding::Nucleotide as Nt;
 
@@ -288,8 +289,8 @@ mod tests {
     fn is_empty() {
         let mut population = Population::new();
         assert!(population.is_empty());
-
-        let wt = Wildtype::new(vec![Nt::A; 10]);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         population.push(&wt);
         assert!(!population.is_empty());
     }
@@ -299,7 +300,8 @@ mod tests {
         let mut population = Population::new();
         assert_eq!(population.len(), 0);
 
-        let wt = Wildtype::new(vec![Nt::A; 10]);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         population.push(&wt);
         assert_eq!(population.len(), 1);
     }
@@ -307,12 +309,13 @@ mod tests {
     #[test]
     fn insert() {
         let mut population = Population::new();
-        let wt = Wildtype::new(vec![Nt::A; 10]);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         population.push(&wt);
         assert_eq!(population.len(), 1);
         assert_eq!(population[&0], wt);
 
-        let wt2 = Wildtype::new(vec![Nt::A; 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         population.insert(&0, &wt2);
         assert_eq!(population.len(), 1);
         assert_ne!(population[&0], wt);
@@ -322,12 +325,13 @@ mod tests {
     #[test]
     fn push() {
         let mut population = Population::new();
-        let wt = Wildtype::new(vec![Nt::A; 10]);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         population.push(&wt);
         assert_eq!(population.len(), 1);
         assert_eq!(population[&0], wt);
 
-        let wt2 = Wildtype::new(vec![Nt::A; 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         population.push(&wt2);
         assert_eq!(population.len(), 2);
         assert_eq!(population[&1], wt2);
@@ -336,9 +340,10 @@ mod tests {
     #[test]
     fn iterate() {
         let mut population = Population::new();
-        let wt = Wildtype::new(vec![Nt::A; 10]);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         population.push(&wt);
-        let wt2 = Wildtype::new(vec![Nt::A; 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         population.push(&wt2);
 
         let mut iter = population.iter();
@@ -349,11 +354,12 @@ mod tests {
 
     #[test]
     fn from_iter() {
-        let wt1 = Wildtype::new(vec![Nt::A; 10]);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt1 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         let mut population1 = Population::new();
         population1.push(&wt1);
 
-        let wt2 = Wildtype::new(vec![Nt::A; 10]);
+        let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         let mut population2 = Population::new();
         population2.push(&wt2);
 
@@ -372,7 +378,8 @@ mod tests {
 
     #[test]
     fn macro_from_haplotype() {
-        let wt1 = Wildtype::new(vec![Nt::A; 10]);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt1 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         assert_eq!(population![wt1.clone(); 1].len(), 1);
         assert_eq!(population![wt1.clone(); 2].len(), 2);
         assert_eq!(population![wt1.clone(); 10].len(), 10);
@@ -381,9 +388,10 @@ mod tests {
 
     #[test]
     fn macro_from_haplotypes() {
-        let wt1 = Wildtype::new(vec![Nt::A; 10]);
-        let wt2 = Wildtype::new(vec![Nt::A; 10]);
-        let wt3 = Wildtype::new(vec![Nt::A; 10]);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt1 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
+        let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
+        let wt3 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         let population = population![&wt1, &wt2, &wt3];
 
         assert_eq!(population.len(), 3);
@@ -394,9 +402,10 @@ mod tests {
 
     #[test]
     fn macro_from_haplotypes_variable_lengths() {
-        let wt1 = Wildtype::new(vec![Nt::A; 10]);
-        let wt2 = Wildtype::new(vec![Nt::A; 10]);
-        let wt3 = Wildtype::new(vec![Nt::A; 10]);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt1 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
+        let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
+        let wt3 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         let population = population![wt1.clone(); 2, wt2.clone(); 1, wt3.clone(); 3];
 
         assert_eq!(population.len(), 6);

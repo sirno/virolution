@@ -270,12 +270,14 @@ mod tests {
 
     use super::*;
 
+    use crate::core::attributes::AttributeSetDefinition;
     use crate::core::haplotype::Wildtype;
     use crate::encoding::Nucleotide as Nt;
 
     fn get_population() -> Population<Nt> {
-        let wt1 = Wildtype::new(vec![Nt::A; 10]);
-        let wt2 = Wildtype::new(vec![Nt::A; 10]);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt1 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
+        let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
 
         population![&wt1, &wt1, &wt2, &wt2]
     }

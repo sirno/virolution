@@ -11,7 +11,7 @@ pub trait PopulationFrequencies<S: Symbol> {
 impl<S: Symbol> PopulationFrequencies<S> for Population<S> {
     /// Compute the frequencies of each nucleotide in a population and return as a vector.
     fn frequencies(&self) -> Vec<f64> {
-        let wildtype = &self[&0].get_wildtype();
+        let wildtype = &self[&0].get_wildtype().upgrade().unwrap();
         let sequence_length = wildtype.get_length();
 
         let population_size = self.len();
