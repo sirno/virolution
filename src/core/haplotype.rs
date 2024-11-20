@@ -34,6 +34,7 @@ use crate::references::DescendantsCell;
 use crate::references::{HaplotypeRef, HaplotypeWeak};
 use macros::require_deferred_drop;
 
+use super::attributes::{AttributeSet, AttributeValue};
 use super::cache::{CachedValue, VirolutionCache};
 use super::fitness::FitnessProvider;
 
@@ -89,6 +90,7 @@ pub struct Wildtype<S: Symbol> {
 
     // body
     sequence: Vec<S>,
+    attributes: AttributeSet<S>,
 
     // sync
     // number of descendants that have died, we can replace their weak references
@@ -107,6 +109,7 @@ pub struct Mutant<S: Symbol> {
     // body
     generation: usize,
     changes: SmallVec<Changes<S>>,
+    attributes: AttributeSet<S>,
     fitness: Vec<OnceLock<f64>>,
 
     // sync
@@ -139,6 +142,7 @@ pub struct Recombinant<S: Symbol> {
     left_position: usize,
     right_position: usize,
     generation: usize,
+    attributes: AttributeSet<S>,
     fitness: Vec<OnceLock<f64>>,
 
     // sync
@@ -191,7 +195,7 @@ impl<S: Symbol> Haplotype<S> {
             })
             .collect();
 
-        let descendant = Mutant::new(ancestor, wildtype.get_weak(), changes, generation);
+        let descendant = Mutant::new(ancestor, wildtype, changes, generation);
 
         self.add_descendant(descendant.get_weak());
 
@@ -264,11 +268,11 @@ impl<S: Symbol> Haplotype<S> {
         weak.upgrade().expect("Self-reference has been dropped.")
     }
 
-    pub fn get_wildtype(&self) -> HaplotypeRef<S> {
+    pub fn get_wildtype(&self) -> HaplotypeWeak<S> {
         match self {
-            Haplotype::Wildtype(wt) => wt.get_reference().clone(),
-            Haplotype::Mutant(ht) => ht.wildtype.upgrade().unwrap().clone(),
-            Haplotype::Recombinant(rc) => rc.wildtype.upgrade().unwrap().clone(),
+            Haplotype::Wildtype(wt) => wt.get_reference().get_weak(),
+            Haplotype::Mutant(ht) => ht.wildtype.clone(),
+            Haplotype::Recombinant(rc) => rc.wildtype.clone(),
         }
     }
 
@@ -352,8 +356,16 @@ impl<S: Symbol> Haplotype<S> {
     pub fn get_wildtype_sequence(&self) -> Vec<S> {
         match self {
             Haplotype::Wildtype(wt) => wt.sequence.to_vec(),
-            Haplotype::Mutant(_ht) => self.get_wildtype().get_wildtype_sequence(),
-            Haplotype::Recombinant(_rc) => self.get_wildtype().get_wildtype_sequence(),
+            Haplotype::Mutant(_ht) => self
+                .get_wildtype()
+                .upgrade()
+                .unwrap()
+                .get_wildtype_sequence(),
+            Haplotype::Recombinant(_rc) => self
+                .get_wildtype()
+                .upgrade()
+                .unwrap()
+                .get_wildtype_sequence(),
         }
     }
 
@@ -386,6 +398,23 @@ impl<S: Symbol> Haplotype<S> {
             Haplotype::Mutant(ht) => ht.get_mutations(),
             Haplotype::Recombinant(rc) => rc.get_mutations(),
         }
+    }
+
+    pub fn get_attributes(&self) -> &AttributeSet<S> {
+        match self {
+            Haplotype::Wildtype(wt) => &wt.attributes,
+            Haplotype::Mutant(ht) => &ht.attributes,
+            Haplotype::Recombinant(rc) => &rc.attributes,
+        }
+    }
+
+    pub fn get_attribute(&self, id: &str) -> Option<AttributeValue> {
+        self.get_attributes().get(id)
+    }
+
+    pub fn get_attribute_or_compute(&self, id: &str) -> Result<AttributeValue> {
+        self.get_attributes()
+            .get_or_compute(id, self.get_reference())
     }
 
     pub fn get_raw_fitness(&self, fitness_provider: &FitnessProvider<S>) -> f64 {
@@ -439,7 +468,7 @@ impl<S: Symbol> Haplotype<S> {
 
 impl<S: Symbol> Wildtype<S> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(sequence: Vec<S>) -> HaplotypeRef<S> {
+    pub fn new(sequence: Vec<S>, attributes: AttributeSet<S>) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Wildtype(Self {
                 // head
@@ -448,6 +477,7 @@ impl<S: Symbol> Wildtype<S> {
 
                 // body
                 sequence: sequence.clone(),
+                attributes: attributes.clone(),
 
                 // sync
                 _dirty_descendants: AtomicIsize::new(0),
@@ -501,6 +531,7 @@ impl<S: Symbol> Mutant<S> {
                 // body
                 changes,
                 generation,
+                attributes: ancestor.get_attributes().derive(),
                 fitness: make_fitness_cache(),
 
                 // sync
@@ -544,6 +575,7 @@ impl<S: Symbol> Mutant<S> {
             // body
             changes,
             generation,
+            attributes: last.attributes.clone(),
             fitness: make_fitness_cache(),
 
             // sync
@@ -742,7 +774,7 @@ impl<S: Symbol> Mutant<S> {
 impl<S: Symbol> Recombinant<S> {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
-        wildtype: HaplotypeRef<S>,
+        wildtype: HaplotypeWeak<S>,
         left_ancestor: HaplotypeRef<S>,
         right_ancestor: HaplotypeRef<S>,
         left_position: usize,
@@ -753,7 +785,7 @@ impl<S: Symbol> Recombinant<S> {
             Haplotype::Recombinant(Self {
                 // head
                 reference: reference.clone(),
-                wildtype: wildtype.get_weak(),
+                wildtype: wildtype.clone(),
                 left_ancestor: left_ancestor.clone(),
                 right_ancestor: right_ancestor.clone(),
                 descendants: DescendantsCell::new(),
@@ -762,6 +794,7 @@ impl<S: Symbol> Recombinant<S> {
                 left_position,
                 right_position,
                 generation,
+                attributes: left_ancestor.get_attributes().derive(),
                 fitness: make_fitness_cache(),
 
                 // sync
@@ -874,13 +907,15 @@ impl<S: Symbol> fmt::Display for Haplotype<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::attributes::AttributeSetDefinition;
     use crate::encoding::Nucleotide as Nt;
     use serial_test::serial;
 
     #[test]
     fn initiate_wildtype() {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
-        let wt = Wildtype::new(symbols.clone());
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(symbols.clone(), attribute_definition.create());
         for i in symbols.iter().enumerate() {
             assert_eq!(wt.get_base(&i.0), *i.1);
         }
@@ -889,7 +924,8 @@ mod tests {
     #[test]
     fn create_descendant() {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
-        let wt = Wildtype::new(symbols.clone());
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(symbols.clone(), attribute_definition.create());
         let ht = wt.create_descendant(vec![0], vec![Nt::G], 0);
         assert_eq!(ht.get_base(&0), Nt::G);
         assert_eq!(ht.get_base(&1), Nt::T);
@@ -900,7 +936,8 @@ mod tests {
     #[test]
     fn create_wide_geneaology() {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
-        let wt = Wildtype::new(symbols.clone());
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(symbols.clone(), attribute_definition.create());
         let _hts: Vec<HaplotypeRef<Nt>> = (0..100)
             .map(|i| {
                 wt.create_descendant(
@@ -927,7 +964,8 @@ mod tests {
     fn single_recombination() {
         let mut haplotypes: Vec<HaplotypeRef<Nt>> = Vec::new();
         let symbols = vec![Nt::T; 100];
-        let wildtype = Wildtype::new(symbols);
+        let attribute_definition = AttributeSetDefinition::new();
+        let wildtype = Wildtype::new(symbols, attribute_definition.create());
         haplotypes.push(wildtype.clone());
         for i in 0..100 {
             let ht = haplotypes.last().unwrap().clone();
@@ -952,7 +990,9 @@ mod tests {
     #[test]
     #[serial]
     fn get_length() {
-        let wildtype = Wildtype::new(vec![Nt::A; 100]);
+        let symbols = vec![Nt::A; 100];
+        let attribute_definition = AttributeSetDefinition::new();
+        let wildtype = Wildtype::new(symbols, attribute_definition.create());
         let haplotype = wildtype.create_descendant(vec![0], vec![Nt::T], 0);
         let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75, 0);
         assert_eq!(wildtype.get_length(), 100);
@@ -963,7 +1003,9 @@ mod tests {
     #[test]
     #[serial]
     fn get_sequence() {
-        let wildtype = Wildtype::new(vec![Nt::A; 100]);
+        let symbols = vec![Nt::A; 100];
+        let attribute_definition = AttributeSetDefinition::new();
+        let wildtype = Wildtype::new(symbols, attribute_definition.create());
         let haplotype = wildtype.create_descendant(vec![0], vec![Nt::T], 0);
         let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75, 0);
 
@@ -976,8 +1018,9 @@ mod tests {
     #[test]
     #[serial]
     fn create_tree() {
-        let bytes = vec![Nt::A, Nt::T, Nt::C, Nt::G];
-        let wt = Wildtype::new(bytes);
+        let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(symbols, attribute_definition.create());
 
         let ht = wt.create_descendant(vec![0], vec![Nt::G], 1);
         let ht_id = ht.get_block_id();
@@ -993,8 +1036,9 @@ mod tests {
 
     #[test]
     fn merge_nodes() {
-        let bytes = vec![Nt::A, Nt::A, Nt::A, Nt::A];
-        let wt = Wildtype::new(bytes);
+        let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(symbols, attribute_definition.create());
 
         let ht1 = wt.create_descendant(vec![0], vec![Nt::T], 1);
         let ht2 = ht1.create_descendant(vec![0], vec![Nt::C], 2);
@@ -1049,8 +1093,9 @@ mod tests {
         let n_sites = 7;
         let n_symbols = 4;
 
-        let bytes = vec![Nt::A; n_sites];
-        let wt = Wildtype::new(bytes);
+        let symbols = vec![Nt::A; n_sites];
+        let attribute_definition = AttributeSetDefinition::new();
+        let wt = Wildtype::new(symbols, attribute_definition.create());
 
         // memory corruption should be found in this many iterations...
         let n_mutations = 100000;

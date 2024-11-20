@@ -8,6 +8,7 @@ pub type Result<T> = std::result::Result<T, VirolutionError>;
 pub enum VirolutionError {
     ImplementationError(String),
     InitializationError(String),
+    ValueError(String),
     ReadError(String),
     WriteError(String),
 }
@@ -20,6 +21,9 @@ impl fmt::Display for VirolutionError {
             }
             VirolutionError::InitializationError(message) => {
                 write!(f, "InitializationError: {}", message)
+            }
+            VirolutionError::ValueError(message) => {
+                write!(f, "ValueError: {}", message)
             }
             VirolutionError::ReadError(message) => {
                 write!(f, "ReadError: {}", message)

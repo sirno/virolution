@@ -7,6 +7,7 @@ use super::init::{FitnessDistribution, FitnessModel};
 use super::table::FitnessTable;
 use super::utility::UtilityFunction;
 
+use crate::core::attributes::{AttributeProvider, AttributeValue};
 use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
 use crate::references::HaplotypeRef;
@@ -127,5 +128,11 @@ impl<S: Symbol> FitnessProvider<S> {
                 table.compute_fitness(haplotype) * epistasis.compute_fitness(haplotype)
             }
         }
+    }
+}
+
+impl<S: Symbol> AttributeProvider<S> for FitnessProvider<S> {
+    fn compute(&self, haplotype: &HaplotypeRef<S>) -> AttributeValue {
+        AttributeValue::F64(self.get_fitness(haplotype))
     }
 }

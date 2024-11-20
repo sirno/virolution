@@ -6,25 +6,31 @@ use itertools::Itertools;
 use rand::prelude::*;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
+use seq_io::fasta;
+use seq_io::fasta::Record;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::fs;
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
-use crate::core::haplotype::set_number_of_fitness_tables;
+use crate::core::attributes::AttributeSetDefinition;
+use crate::core::haplotype::{set_number_of_fitness_tables, Wildtype};
 use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
+use crate::errors::VirolutionError;
+
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
 #[cfg(feature = "parallel")]
 use crate::simulation::HostMap;
-use crate::simulation::{BasicSimulation, SimulationTrait};
+use crate::simulation::{BasicSimulation, HostSpec, SimulationTrait};
 #[cfg(not(feature = "parallel"))]
 use crate::stats::population::{PopulationDistance, PopulationFrequencies};
 
@@ -48,21 +54,26 @@ impl Runner {
         #[cfg(feature = "parallel")]
         Self::setup_rayon(&args);
 
-        // load settings and reference
+        // load sequence
+        let sequence = Self::read_sequence(args.sequence.as_str())?;
+
+        // load settings
         let settings = Self::load_settings(&args.settings)?;
-        let wildtype = Haplotype::load_wildtype(args.sequence.as_str())?;
+
+        // initialize attributes and host settings
+        let settings_path = Path::new(&args.settings).parent();
+        let (attribute_definitions, host_specs) =
+            Self::create_attribute_definitions(&settings, &sequence, settings_path)?;
+        // TODO: Recover provider output after refactoring
+        // let providers = provider_map
+        //     .iter()
+        //     .map(|(_range, provider)| provider)
+        //     .collect::<Vec<_>>();
+        // Self::write_fitness_tables(&providers, args.outdir.as_ref().map(Path::new));
+
+        let wildtype = Wildtype::new(sequence, attribute_definitions.create());
 
         dbg!(&wildtype);
-
-        // initialize fitness
-        let settings_path = Path::new(&args.settings).parent();
-        let provider_map =
-            Self::create_fitness_providers(&settings, &wildtype.get_sequence(), settings_path)?;
-        let providers = provider_map
-            .iter()
-            .map(|(_range, provider)| provider)
-            .collect::<Vec<_>>();
-        Self::write_fitness_tables(&providers, args.outdir.as_ref().map(Path::new));
 
         // perform sanity checks
         if !settings
@@ -77,7 +88,7 @@ impl Runner {
         // create individual compartments
         println!("Creating {} compartments...", args.n_compartments);
         let simulations: Vec<Box<SimulationTrait<Nt>>> =
-            Self::create_simulations(&args, &wildtype, &provider_map, &settings.parameters[0]);
+            Self::create_simulations(&args, &wildtype, &host_specs, &settings.parameters[0]);
 
         // check if ancestry is requested and supported
         if cfg!(feature = "parallel") && args.ancestry.is_some() {
@@ -157,6 +168,33 @@ impl Runner {
         }
     }
 
+    fn read_sequence<S: Symbol>(path: &str) -> Result<Vec<S>> {
+        let mut reader = fasta::Reader::from_path(path).map_err(|_| {
+            VirolutionError::InitializationError(format!(
+                "Unable create file reader for fasta file: {path}"
+            ))
+        })?;
+
+        match reader.next() {
+            None => Err(VirolutionError::InitializationError(format!(
+                "No sequence found in fasta file: {path}"
+            ))
+            .into()),
+            Some(Err(_)) => Err(VirolutionError::InitializationError(format!(
+                "Unable to read sequence from fasta file: {path}"
+            ))
+            .into()),
+            Some(Ok(sequence_record)) => {
+                let sequence: Vec<S> = sequence_record
+                    .seq()
+                    .iter()
+                    .filter_map(|s| S::try_decode(s))
+                    .collect();
+                Ok(sequence)
+            }
+        }
+    }
+
     /// Setup logging level and file
     fn setup_logger(args: &Args) {
         // setup logger
@@ -197,6 +235,65 @@ impl Runner {
         let settings: Settings = Settings::read_from_file(path)?;
         log::info!("Loaded settings\n{}", settings);
         Ok(settings)
+    }
+
+    /// Create attribute definitions from settings
+    ///
+    /// This function creates the attribute definitions from the settings file. The path specifies
+    /// the location of the settings file and is used to resolve relative paths within the
+    /// settings.
+    fn create_attribute_definitions<S: Symbol + 'static>(
+        settings: &Settings,
+        sequence: &[S],
+        path: Option<&Path>,
+    ) -> Result<(AttributeSetDefinition<S>, Vec<HostSpec>)> {
+        let default_settings = &settings.parameters[0];
+        let mut attribute_definitions = AttributeSetDefinition::new();
+        let mut host_specs: Vec<HostSpec> = Vec::new();
+        match &default_settings.fitness_model {
+            FitnessModelField::SingleHost(fitness_model) => {
+                let mut fitness_model = fitness_model.clone();
+
+                // resolve relative paths within fitness model
+                if let Some(path) = path {
+                    fitness_model.prepend_path(path.to_str().unwrap());
+                }
+
+                attribute_definitions.register(
+                    "fitness",
+                    Arc::new(FitnessProvider::from_model(0, sequence, &fitness_model)?),
+                );
+
+                host_specs.push((
+                    0..default_settings.host_population_size,
+                    "fitness".to_string(),
+                ));
+            }
+            FitnessModelField::MultiHost(fitness_models) => {
+                for (id, fitness_model_frac) in fitness_models.iter().enumerate() {
+                    let mut fitness_model = fitness_model_frac.fitness_model.clone();
+
+                    // resolve relative paths within fitness model
+                    if let Some(path) = path {
+                        fitness_model.prepend_path(path.to_str().unwrap());
+                    }
+
+                    attribute_definitions.register(
+                        &format!("fitness_{}", id),
+                        Arc::new(FitnessProvider::from_model(id, sequence, &fitness_model)?),
+                    );
+
+                    let n_hosts = (fitness_model_frac.fraction
+                        * default_settings.host_population_size as f64)
+                        .round() as usize;
+                    let lower = id * n_hosts;
+                    let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
+
+                    host_specs.push((lower..upper, format!("fitness_{}", id)));
+                }
+            }
+        };
+        Ok((attribute_definitions, host_specs))
     }
 
     fn create_fitness_providers<S: Symbol>(
@@ -264,7 +361,7 @@ impl Runner {
     fn create_simulations(
         args: &Args,
         wildtype: &HaplotypeRef<Nt>,
-        fitness_providers: &[(Range<usize>, FitnessProvider<Nt>)],
+        host_specs: &[HostSpec],
         parameters: &Parameters,
     ) -> Vec<Box<SimulationTrait<Nt>>> {
         (0..args.n_compartments)
@@ -287,7 +384,7 @@ impl Runner {
                 BasicSimulation::new(
                     wildtype.clone(),
                     init_population,
-                    fitness_providers.to_vec(),
+                    host_specs.to_vec(),
                     parameters.clone(),
                     0,
                 )
