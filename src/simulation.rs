@@ -299,30 +299,35 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
         let offspring_ptr = offspring.as_mut_ptr() as usize;
-        self.fitness_providers
-            .par_iter()
-            .for_each(|(range, fitness_provider)| {
-                host_map[range.clone()].iter().for_each(|host| {
-                    let fitness_values: Vec<f64> = host
-                        .iter()
-                        .map(|infectant| self.population[infectant].get_fitness(fitness_provider))
-                        .collect();
-                    let fitness_sum: f64 = fitness_values.iter().sum();
-                    host.iter()
-                        .zip(fitness_values.iter())
-                        .for_each(|(infectant, fitness)| {
-                            if let Ok(dist) = Poisson::new(
-                                fitness * self.parameters.basic_reproductive_number / fitness_sum,
-                            ) {
-                                unsafe {
-                                    (offspring_ptr as *mut usize)
-                                        .add(*infectant)
-                                        .write(dist.sample(&mut rand::thread_rng()) as usize);
-                                }
+        self.hosts.par_iter().for_each(|(range, provider_id)| {
+            host_map[range.clone()].iter().for_each(|host| {
+                let fitness_values: Vec<f64> = host
+                    .iter()
+                    .map(|infectant| {
+                        f64::try_from(
+                            self.population[infectant]
+                                .get_attribute_or_compute(provider_id)
+                                .unwrap(),
+                        )
+                        .unwrap()
+                    })
+                    .collect();
+                let fitness_sum: f64 = fitness_values.iter().sum();
+                host.iter()
+                    .zip(fitness_values.iter())
+                    .for_each(|(infectant, fitness)| {
+                        if let Ok(dist) = Poisson::new(
+                            fitness * self.parameters.basic_reproductive_number / fitness_sum,
+                        ) {
+                            unsafe {
+                                (offspring_ptr as *mut usize)
+                                    .add(*infectant)
+                                    .write(dist.sample(&mut rand::thread_rng()) as usize);
                             }
-                        });
-                });
+                        }
+                    });
             });
+        });
         offspring
     }
 
