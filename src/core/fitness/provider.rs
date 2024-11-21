@@ -118,7 +118,13 @@ impl<S: Symbol> AttributeProvider<S> for FitnessProvider<S> {
 
     fn compute(&self, haplotype: &HaplotypeRef<S>) -> AttributeValue {
         AttributeValue::F64(self.get_fitness(haplotype))
-        // TODO: this doesn't correctly handle the utility function
+    }
+
+    fn map(&self, value: AttributeValue) -> AttributeValue {
+        match value {
+            AttributeValue::F64(fitness) => AttributeValue::F64(self.apply_utility(fitness)),
+            _ => value,
+        }
     }
 
     fn write(&self, path: &Path) -> Result<(), VirolutionError> {

@@ -6,7 +6,7 @@
 //! Attributes are stored in an `AttributeSet` instance that is derived from an
 //! `AttributeSetDefinition` or other `AttributeSet` instances.
 
-use derive_more::{Display, From};
+use derive_more::{Display, TryInto};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
@@ -17,7 +17,7 @@ use crate::errors::{Result, VirolutionError};
 use crate::references::HaplotypeRef;
 
 // Attribute value definition
-#[derive(Clone, Debug, From, Display)]
+#[derive(Clone, Debug, TryInto, Display)]
 pub enum AttributeValue {
     U32(u32),
     U64(u64),
@@ -28,116 +28,27 @@ pub enum AttributeValue {
     String(String),
 }
 
-impl TryFrom<AttributeValue> for u32 {
-    type Error = VirolutionError;
-
-    fn try_from(value: AttributeValue) -> Result<u32> {
-        match value {
-            AttributeValue::U32(value) => Ok(value),
-            _ => Err(VirolutionError::ValueError(format!(
-                "Cannot convert attribute value ({:?}) to u32",
-                value
-            ))),
-        }
-    }
-}
-
-impl TryFrom<AttributeValue> for u64 {
-    type Error = VirolutionError;
-
-    fn try_from(value: AttributeValue) -> Result<u64> {
-        match value {
-            AttributeValue::U64(value) => Ok(value),
-            AttributeValue::U32(value) => Ok(value as u64),
-            _ => Err(VirolutionError::ValueError(format!(
-                "Cannot convert attribute value ({:?}) to u32",
-                value
-            ))),
-        }
-    }
-}
-
-impl TryFrom<AttributeValue> for usize {
-    type Error = VirolutionError;
-
-    fn try_from(value: AttributeValue) -> Result<usize> {
-        match value {
-            AttributeValue::U64(value) => Ok(value as usize),
-            AttributeValue::U32(value) => Ok(value as usize),
-            _ => Err(VirolutionError::ValueError(format!(
-                "Cannot convert attribute value ({:?}) to usize",
-                value
-            ))),
-        }
-    }
-}
-
-impl TryFrom<AttributeValue> for i32 {
-    type Error = VirolutionError;
-
-    fn try_from(value: AttributeValue) -> Result<i32> {
-        match value {
-            AttributeValue::I32(value) => Ok(value),
-            _ => Err(VirolutionError::ValueError(format!(
-                "Cannot convert attribute value ({:?}) to i32",
-                value
-            ))),
-        }
-    }
-}
-
-impl TryFrom<AttributeValue> for i64 {
-    type Error = VirolutionError;
-
-    fn try_from(value: AttributeValue) -> Result<i64> {
-        match value {
-            AttributeValue::I64(value) => Ok(value),
-            AttributeValue::I32(value) => Ok(value as i64),
-            _ => Err(VirolutionError::ValueError(format!(
-                "Cannot convert attribute value ({:?}) to i64",
-                value
-            ))),
-        }
-    }
-}
-
-impl TryFrom<AttributeValue> for f32 {
-    type Error = VirolutionError;
-
-    fn try_from(value: AttributeValue) -> Result<f32> {
-        match value {
-            AttributeValue::F32(value) => Ok(value),
-            _ => Err(VirolutionError::ValueError(format!(
-                "Cannot convert attribute value ({:?}) to f32",
-                value
-            ))),
-        }
-    }
-}
-
-impl TryFrom<AttributeValue> for f64 {
-    type Error = VirolutionError;
-
-    fn try_from(value: AttributeValue) -> Result<f64> {
-        match value {
-            AttributeValue::F64(value) => Ok(value),
-            AttributeValue::F32(value) => Ok(value as f64),
-            _ => Err(VirolutionError::ValueError(format!(
-                "Cannot convert attribute value ({:?}) to f64",
-                value
-            ))),
-        }
-    }
-}
-
 /// Definition of an attribute computation.
 ///
 /// Any attribute provider must implement this trait to provide the attribute value in an attribute
 /// set. Providers are collected in an attribute set definition (see `AttributeSetDefinition`) and
 /// compute the attributes of a set (`AttributeSet`).
 pub trait AttributeProvider<S: Symbol>: Sync + Send {
+    /// Get the name of the attribute.
+    ///
+    /// This name should correspond to the key used to store the attribute in the attribute set.
     fn name(&self) -> &str;
+
+    /// Compute the attribute value for a haplotype.
     fn compute(&self, haplotype: &HaplotypeRef<S>) -> AttributeValue;
+
+    /// Optional mapping of the attribute value.
+    fn map(&self, value: AttributeValue) -> AttributeValue {
+        value
+    }
+
+    /// Store attribute provider in a file.
+    // TODO: This method should be a separate trait.
     fn write(&self, path: &Path) -> Result<()>;
 }
 
@@ -208,12 +119,18 @@ impl<S: Symbol> AttributeSet<S> {
     /// Get or compute the value of an attribute.
     pub fn get_or_compute(&self, id: &str, haplotype: HaplotypeRef<S>) -> Result<AttributeValue> {
         let id_cow = Cow::Borrowed(id);
+        let provider = self.definition.providers.get(&id_cow).ok_or_else(|| {
+            VirolutionError::ImplementationError(format!(
+                "No provider found for attribute {}",
+                id_cow
+            ))
+        })?;
 
         // First, try to read the value
         {
             let values = self.values.read().unwrap();
             if let Some(value) = values.get(&id_cow) {
-                return Ok(value.clone());
+                return Ok(provider.map(value.clone()));
             }
         }
 
@@ -225,7 +142,7 @@ impl<S: Symbol> AttributeSet<S> {
             let mut values = self.values.write().unwrap();
             values.insert(id_cow.into_owned().into(), value.clone());
 
-            Ok(value)
+            Ok(provider.map(value))
         } else {
             // If there is no provider, return None
             Err(VirolutionError::ImplementationError(
@@ -234,11 +151,25 @@ impl<S: Symbol> AttributeSet<S> {
         }
     }
 
-    /// Get the value of an attribute.
+    /// Get the value of an already computed attribute.
+    ///
+    /// Returns `None` if the attribute has not been computed yet, or if the attribute does not
+    /// have an associated provider.
     pub fn get(&self, id: &str) -> Option<AttributeValue> {
         let id_cow = Cow::Borrowed(id);
+
+        // Get the provider and return None if it doesn't exist.
+        let provider = match self.definition.providers.get(&id_cow).ok_or_else(|| {
+            VirolutionError::ImplementationError(format!(
+                "No provider found for attribute {}",
+                id_cow
+            ))
+        }) {
+            Ok(provider) => provider,
+            Err(_) => return None,
+        };
         let values = self.values.read().unwrap();
-        values.get(&id_cow).cloned()
+        values.get(&id_cow).map(|value| provider.map(value.clone()))
     }
 }
 

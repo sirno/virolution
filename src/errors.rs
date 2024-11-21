@@ -9,6 +9,7 @@ pub enum VirolutionError {
     ImplementationError(String),
     InitializationError(String),
     ValueError(String),
+    VariantMissmatch(String),
     ReadError(String),
     WriteError(String),
 }
@@ -23,6 +24,9 @@ impl fmt::Display for VirolutionError {
                 write!(f, "InitializationError: {}", message)
             }
             VirolutionError::ValueError(message) => {
+                write!(f, "ValueError: {}", message)
+            }
+            VirolutionError::VariantMissmatch(message) => {
                 write!(f, "ValueError: {}", message)
             }
             VirolutionError::ReadError(message) => {
