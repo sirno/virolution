@@ -19,14 +19,13 @@ use std::sync::Arc;
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
-use crate::core::haplotype::Wildtype;
-use crate::core::{Ancestry, FitnessProvider, Historian, Population};
+use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
 
-use crate::readwrite::PopulationIO;
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
+use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
 #[cfg(feature = "parallel")]
 use crate::simulation::HostMap;
@@ -55,7 +54,7 @@ impl Runner {
         Self::setup_rayon(&args);
 
         // load sequence
-        let sequence = Self::read_sequence(args.sequence.as_str())?;
+        let sequence = Haplotype::read_sequence_from_file(args.sequence.as_str())?;
 
         // load settings
         let settings = Self::load_settings(&args.settings)?;
@@ -64,7 +63,6 @@ impl Runner {
         let settings_path = Path::new(&args.settings).parent();
         let (attribute_definitions, host_specs) =
             Self::create_attribute_definitions(&settings, &sequence, settings_path)?;
-        // TODO: Recover provider output after refactoring
         let providers = attribute_definitions
             .providers()
             .iter()
@@ -73,7 +71,7 @@ impl Runner {
 
         Self::write_fitness_tables(providers, args.outdir.as_ref().map(Path::new));
 
-        let wildtype = Wildtype::new(sequence, attribute_definitions.create());
+        let wildtype = Haplotype::load_wildtype(sequence, attribute_definitions.create());
 
         dbg!(&wildtype);
 
@@ -167,33 +165,6 @@ impl Runner {
                 .collect();
             fs::write(ancestry_file, ancestry.get_tree(names.as_slice()))
                 .unwrap_or_else(|_| eprintln!("Unable to write ancestry file."));
-        }
-    }
-
-    fn read_sequence<S: Symbol>(path: &str) -> Result<Vec<S>> {
-        let mut reader = fasta::Reader::from_path(path).map_err(|_| {
-            VirolutionError::InitializationError(format!(
-                "Unable create file reader for fasta file: {path}"
-            ))
-        })?;
-
-        match reader.next() {
-            None => Err(VirolutionError::InitializationError(format!(
-                "No sequence found in fasta file: {path}"
-            ))
-            .into()),
-            Some(Err(_)) => Err(VirolutionError::InitializationError(format!(
-                "Unable to read sequence from fasta file: {path}"
-            ))
-            .into()),
-            Some(Ok(sequence_record)) => {
-                let sequence: Vec<S> = sequence_record
-                    .seq()
-                    .iter()
-                    .filter_map(|s| S::try_decode(s))
-                    .collect();
-                Ok(sequence)
-            }
         }
     }
 
