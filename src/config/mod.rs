@@ -1,3 +1,5 @@
+//! Configuration data structures for simulation setups.
+
 mod parameters;
 mod schedule;
 mod settings;

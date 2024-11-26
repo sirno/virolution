@@ -1,3 +1,4 @@
+//! Simulation module
 extern crate test;
 
 use itertools::Itertools;
@@ -477,7 +478,7 @@ mod tests {
         let hosts = vec![(0..SETTINGS.host_population_size, name.clone())];
 
         let wt = Wildtype::new(sequence, attribute_definitions.create());
-        let population: Population<Nt> = crate::population![wt.clone(); POPULATION_SIZE];
+        let population: Population<Nt> = crate::population![wt.clone(), POPULATION_SIZE];
         BasicSimulation::new(wt, population, hosts, SETTINGS, 0)
     }
 
@@ -498,7 +499,7 @@ mod tests {
     #[test]
     fn set_population() {
         let mut simulation = setup_test_simulation();
-        let population: Population<Nt> = crate::population![simulation.wildtype.clone(); 42];
+        let population: Population<Nt> = crate::population![simulation.wildtype.clone(), 42];
         simulation.set_population(population.clone());
         assert_eq!(simulation.population.len(), 42);
         assert_eq!(simulation.population, population);

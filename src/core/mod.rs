@@ -1,4 +1,4 @@
-//! This module contains the core datatypes of the library.
+//! The core data types of the library.
 
 mod ancestry;
 mod cache;
@@ -11,6 +11,7 @@ pub mod fitness;
 pub mod haplotype;
 
 pub use ancestry::Ancestry;
+pub use attributes::{AttributeProvider, AttributeSet, AttributeSetDefinition, AttributeValue};
 pub use fitness::FitnessProvider;
 pub use haplotype::Haplotype;
 pub use historian::Historian;

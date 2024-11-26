@@ -18,6 +18,45 @@ use crate::references::HaplotypeRef;
 
 pub type Haplotypes<S> = HashMap<usize, HaplotypeRef<S>>;
 
+/// Creates a `Population` from the arguments.
+///
+/// `population!` creates a `Population` with the same syntax as array expressions.
+///
+/// - Create a `Population` with a list of haplotypes:
+///
+/// ```rust
+/// # use virolution::encoding::Nucleotide;
+/// # use virolution::core::AttributeSet;
+/// # use virolution::core::haplotype::Wildtype;
+/// # use virolution::population;
+/// let wt = Wildtype::new(vec![Nucleotide::A; 10], AttributeSet::new());
+/// let ht = wt.create_descendant(vec![0], vec![Nucleotide::C], 0);
+/// let population = population![&wt; &ht];
+/// ```
+///
+/// - Create a `Population` with a haplotype and a size:
+///
+/// ```rust
+/// # use virolution::encoding::Nucleotide;
+/// # use virolution::core::AttributeSet;
+/// # use virolution::core::haplotype::Wildtype;
+/// # use virolution::population;
+/// let wt = Wildtype::new(vec![Nucleotide::A; 10], AttributeSet::new());
+/// let population = population![wt, 10];
+/// ```
+///
+/// - Create a `Population` from a list of haplotypes and sizes:
+///
+/// ```rust
+/// # use virolution::encoding::Nucleotide;
+/// # use virolution::core::AttributeSet;
+/// # use virolution::core::haplotype::Wildtype;
+/// # use virolution::population;
+/// let wt = Wildtype::new(vec![Nucleotide::A; 10], AttributeSet::new());
+/// let ht = wt.create_descendant(vec![0], vec![Nucleotide::C], 0);
+/// let population = population![wt, 10; ht, 5];
+/// ```
+///
 #[macro_export]
 macro_rules! population {
     () => {
@@ -26,7 +65,7 @@ macro_rules! population {
     ($haplotype:expr, $size:expr) => {
         $crate::core::Population::from_haplotype($haplotype, $size)
     };
-    ($( $haplotype:expr ),+) => {
+    ($( $haplotype:expr );+) => {
         {
         let mut population = $crate::core::Population::new();
         $(
@@ -35,7 +74,7 @@ macro_rules! population {
         population
     }
     };
-    ($( $haplotype:expr ; $size:expr ),+) => {
+    ($( $haplotype:expr , $size:expr );+) => {
         $crate::core::Population::from_iter(vec![$( $crate::core::Population::from_haplotype($haplotype, $size) ),+])
     };
 }
@@ -380,10 +419,10 @@ mod tests {
     fn macro_from_haplotype() {
         let attribute_definition = AttributeSetDefinition::new();
         let wt1 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
-        assert_eq!(population![wt1.clone(); 1].len(), 1);
-        assert_eq!(population![wt1.clone(); 2].len(), 2);
-        assert_eq!(population![wt1.clone(); 10].len(), 10);
-        assert_eq!(population![wt1.clone(); 1_000_000].len(), 1_000_000);
+        assert_eq!(population![wt1.clone(), 1].len(), 1);
+        assert_eq!(population![wt1.clone(), 2].len(), 2);
+        assert_eq!(population![wt1.clone(), 10].len(), 10);
+        assert_eq!(population![wt1.clone(), 1_000_000].len(), 1_000_000);
     }
 
     #[test]
@@ -392,7 +431,7 @@ mod tests {
         let wt1 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         let wt3 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
-        let population = population![&wt1, &wt2, &wt3];
+        let population = population![&wt1; &wt2; &wt3];
 
         assert_eq!(population.len(), 3);
         assert_eq!(population[&0], wt1);
@@ -406,7 +445,7 @@ mod tests {
         let wt1 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         let wt3 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
-        let population = population![wt1.clone(); 2, wt2.clone(); 1, wt3.clone(); 3];
+        let population = population![wt1.clone(), 2; wt2.clone(), 1; wt3.clone(), 3];
 
         assert_eq!(population.len(), 6);
         assert_eq!(population[&0], wt1);

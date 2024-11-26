@@ -1,9 +1,4 @@
-//!
-//! This module contains the encoding and decoding definitions for nucleotide
-//! symbols.
-//!
-
-// use phf::phf_map;
+//! Encoding and decoding definitions for Symbol implementations.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Nucleotide {

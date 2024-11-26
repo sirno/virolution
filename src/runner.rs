@@ -6,8 +6,6 @@ use itertools::Itertools;
 use rand::prelude::*;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
-use seq_io::fasta;
-use seq_io::fasta::Record;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp::min;
@@ -22,7 +20,6 @@ use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
 use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
-use crate::errors::VirolutionError;
 
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
@@ -309,7 +306,7 @@ impl Runner {
                                 eprintln!("Error: {e}.");
                                 std::process::exit(1);
                             }),
-                        None => population![wildtype.clone(); initial_population_size],
+                        None => population![wildtype.clone(), initial_population_size],
                     }
                 };
                 BasicSimulation::new(

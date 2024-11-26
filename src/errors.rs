@@ -1,4 +1,4 @@
-//! All errors that can occur in the virolution library.
+//! Error types and implementations
 
 use std::fmt;
 

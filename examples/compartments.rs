@@ -60,7 +60,7 @@ fn main() {
     let n_compartments = 3;
     let mut compartment_simulations: Vec<BasicSimulation<Nt>> = (0..n_compartments)
         .map(|_| {
-            let population = population![wt.clone(); 1_000_000];
+            let population = population![wt.clone(), 1_000_000];
             let hosts = vec![(0..parameters.host_population_size, name.clone())];
             BasicSimulation::new(wt.clone(), population, hosts, parameters.clone(), 0)
         })

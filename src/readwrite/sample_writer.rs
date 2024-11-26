@@ -279,7 +279,7 @@ mod tests {
         let wt1 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
         let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
 
-        population![&wt1, &wt1, &wt2, &wt2]
+        population![&wt1; &wt1; &wt2; &wt2]
     }
 
     #[test]

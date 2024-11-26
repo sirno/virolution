@@ -107,7 +107,21 @@ pub struct AttributeSet<S: Symbol> {
     values: RwLock<HashMap<Cow<'static, str>, AttributeValue>>,
 }
 
+impl<S: Symbol> Default for AttributeSet<S> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<S: Symbol> AttributeSet<S> {
+    /// Get new empty attribute set.
+    pub fn new() -> Self {
+        AttributeSet {
+            definition: Arc::new(AttributeSetDefinition::new()),
+            values: RwLock::new(HashMap::new()),
+        }
+    }
+
     /// Derive a new attribute set from an attribute set definition with new storage.
     pub fn derive(&self) -> AttributeSet<S> {
         AttributeSet {
