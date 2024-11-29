@@ -95,18 +95,32 @@ impl<S: Symbol> AttributeSetDefinition<S> {
     }
 
     /// Register a new attribute provider.
-    pub fn register(&mut self, name: &str, provider: Arc<dyn AttributeProvider<S> + Send + Sync>) {
-        let identifier = Cow::Owned(name.to_string());
+    pub fn register(
+        &mut self,
+        provider: Arc<dyn AttributeProvider<S> + Send + Sync>,
+        provider_type: AttributeProviderType,
+    ) {
+        match provider_type {
+            AttributeProviderType::Lazy => self.register_lazy(provider),
+            AttributeProviderType::Eager => self.register_eager(provider),
+        }
+    }
+
+    /// Register a new eager attribute provider.
+    fn register_eager(&mut self, provider: Arc<dyn AttributeProvider<S> + Send + Sync>) {
+        let identifier: Cow<'static, str> = provider.name().to_string().into();
+        self.providers.insert(identifier.clone(), provider);
+        self.eager.push(identifier);
+    }
+
+    fn register_lazy(&mut self, provider: Arc<dyn AttributeProvider<S> + Send + Sync>) {
+        let identifier: Cow<'static, str> = provider.name().to_string().into();
         self.providers.insert(identifier, provider);
     }
 
     /// Create a new attribute set.
     pub fn create(&self, haplotype: HaplotypeWeak<S>) -> AttributeSet<S> {
-        AttributeSet {
-            definition: Arc::new(self.clone()),
-            values: RwLock::new(HashMap::new()),
-            haplotype,
-        }
+        AttributeSet::new(Arc::new(self.clone()), haplotype)
     }
 }
 
@@ -122,13 +136,30 @@ pub struct AttributeSet<S: Symbol> {
 }
 
 impl<S: Symbol> AttributeSet<S> {
-    /// Derive a new attribute set from an attribute set definition with new storage.
-    pub fn derive(&self, haplotype: HaplotypeWeak<S>) -> AttributeSet<S> {
+    fn new(
+        definition: Arc<AttributeSetDefinition<S>>,
+        haplotype: HaplotypeWeak<S>,
+    ) -> AttributeSet<S> {
+        let mut values = HashMap::new();
+
+        for provider in definition.eager.iter() {
+            let value = definition
+                .providers
+                .get(provider)
+                .unwrap()
+                .compute(&haplotype.upgrade().unwrap());
+            values.insert(provider.clone(), value);
+        }
+
         AttributeSet {
-            definition: self.definition.clone(),
-            values: RwLock::new(HashMap::new()),
+            definition,
+            values: RwLock::new(values),
             haplotype,
         }
+    }
+    /// Derive a new attribute set from an attribute set definition with new storage.
+    pub fn derive(&self, haplotype: HaplotypeWeak<S>) -> AttributeSet<S> {
+        Self::new(self.definition.clone(), haplotype)
     }
 
     /// Get or compute the value of an attribute.

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use virolution::config::{FitnessModelField, Parameters, Schedule};
-use virolution::core::attributes::AttributeSetDefinition;
+use virolution::core::attributes::{AttributeProviderType, AttributeSetDefinition};
 use virolution::core::fitness::init::*;
 use virolution::core::fitness::utility::UtilityFunction;
 use virolution::core::fitness::FitnessProvider;
@@ -37,7 +37,7 @@ fn main() {
         .expect("Failed to create fitness table");
 
     let mut attribute_definition = AttributeSetDefinition::new();
-    attribute_definition.register(&name, Arc::new(fitness_provider));
+    attribute_definition.register(Arc::new(fitness_provider), AttributeProviderType::Lazy);
 
     let wt = Wildtype::new(sequence, &attribute_definition);
     let parameters = Parameters {

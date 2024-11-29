@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
-use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
+use crate::core::attributes::{AttributeProvider, AttributeProviderType, AttributeSetDefinition};
 use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
@@ -231,12 +231,12 @@ impl Runner {
 
                 let name = Cow::Borrowed("fitness");
                 attribute_definitions.register(
-                    &name,
                     Arc::new(FitnessProvider::from_model(
                         name.clone(),
                         sequence,
                         &fitness_model,
                     )?),
+                    AttributeProviderType::Lazy,
                 );
 
                 host_specs.push((0..default_settings.host_population_size, name.clone()));
@@ -250,15 +250,15 @@ impl Runner {
                         fitness_model.prepend_path(path.to_str().unwrap());
                     }
 
-                    let name = Cow::Owned(format!("fitness_{}", id));
+                    let name: Cow<'static, str> = Cow::Owned(format!("fitness_{}", id));
 
                     attribute_definitions.register(
-                        &name,
                         Arc::new(FitnessProvider::from_model(
                             name.clone(),
                             sequence,
                             &fitness_model,
                         )?),
+                        AttributeProviderType::Lazy,
                     );
 
                     let n_hosts = (fitness_model_frac.fraction

@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::fs;
 use std::sync::Arc;
 use virolution::config::{FitnessModelField, Parameters};
-use virolution::core::attributes::AttributeSetDefinition;
+use virolution::core::attributes::{AttributeProviderType, AttributeSetDefinition};
 use virolution::core::fitness::init::*;
 use virolution::core::fitness::utility::UtilityFunction;
 use virolution::core::fitness::FitnessProvider;
@@ -32,8 +32,8 @@ fn main() {
     let mut attribute_definition = AttributeSetDefinition::new();
     let name = Cow::Borrowed("fitness");
     attribute_definition.register(
-        &name,
         Arc::new(FitnessProvider::from_model(name.clone(), &sequence, &fitness_model).unwrap()),
+        AttributeProviderType::Lazy,
     );
     let wt = Wildtype::new(sequence, &attribute_definition);
     let ht = wt.create_descendant(vec![2], vec![Nt::T], 0);

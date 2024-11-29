@@ -418,7 +418,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
 mod tests {
     use super::*;
     use crate::config::FitnessModelField;
-    use crate::core::attributes::AttributeSetDefinition;
+    use crate::core::attributes::{AttributeProviderType, AttributeSetDefinition};
     use crate::core::fitness::init::{
         ExponentialParameters, FitnessDistribution, FitnessModel, MutationCategoryWeights,
     };
@@ -472,8 +472,8 @@ mod tests {
         let mut attribute_definitions = AttributeSetDefinition::new();
         let name = Cow::Borrowed("fitness");
         attribute_definitions.register(
-            &name,
             Arc::new(FitnessProvider::from_model(name.clone(), &sequence, &FITNESS_MODEL).unwrap()),
+            AttributeProviderType::Lazy,
         );
         let hosts = vec![(0..SETTINGS.host_population_size, name.clone())];
 
