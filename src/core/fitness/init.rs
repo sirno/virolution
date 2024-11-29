@@ -184,7 +184,9 @@ impl FileParameters {
 
 impl EpiFileParameters {
     pub fn load_table(&self) -> Vec<f64> {
-        let reader = NpyFile::new(std::fs::File::open(&self.path).unwrap()).unwrap();
+        let file = std::fs::File::open(&self.path)
+            .unwrap_or_else(|_e| panic!("Could not open file: {}", self.path));
+        let reader = NpyFile::new(file).unwrap();
         reader
             .data::<f64>()
             .unwrap()

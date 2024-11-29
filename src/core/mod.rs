@@ -11,7 +11,9 @@ pub mod fitness;
 pub mod haplotype;
 
 pub use ancestry::Ancestry;
-pub use attributes::{AttributeProvider, AttributeSet, AttributeSetDefinition, AttributeValue};
+pub use attributes::{
+    AttributeProvider, AttributeProviderType, AttributeSet, AttributeSetDefinition, AttributeValue,
+};
 pub use fitness::FitnessProvider;
 pub use haplotype::Haplotype;
 pub use historian::Historian;

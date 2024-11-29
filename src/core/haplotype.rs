@@ -86,7 +86,6 @@ pub struct Mutant<S: Symbol> {
     descendants: DescendantsCell<S>,
 
     // body
-    generation: usize,
     changes: SmallVec<Changes<S>>,
     attributes: AttributeSet<S>,
 
@@ -119,7 +118,6 @@ pub struct Recombinant<S: Symbol> {
     // body
     left_position: usize,
     right_position: usize,
-    generation: usize,
     attributes: AttributeSet<S>,
 
     // sync
@@ -153,12 +151,7 @@ impl<S: Symbol> Drop for Haplotype<S> {
 }
 
 impl<S: Symbol> Haplotype<S> {
-    pub fn create_descendant(
-        &self,
-        positions: Vec<usize>,
-        changes: Vec<S>,
-        generation: usize,
-    ) -> HaplotypeRef<S> {
+    pub fn create_descendant(&self, positions: Vec<usize>, changes: Vec<S>) -> HaplotypeRef<S> {
         let ancestor = self.get_reference();
         let wildtype = self.get_wildtype();
 
@@ -172,7 +165,7 @@ impl<S: Symbol> Haplotype<S> {
             })
             .collect();
 
-        let descendant = Mutant::new(ancestor, wildtype, changes, generation);
+        let descendant = Mutant::new(ancestor, wildtype, changes);
 
         self.add_descendant(descendant.get_weak());
 
@@ -184,7 +177,6 @@ impl<S: Symbol> Haplotype<S> {
         right_ancestor: &HaplotypeRef<S>,
         left_position: usize,
         right_position: usize,
-        generation: usize,
     ) -> HaplotypeRef<S> {
         let wildtype = left_ancestor.get_wildtype();
 
@@ -194,7 +186,6 @@ impl<S: Symbol> Haplotype<S> {
             right_ancestor.clone(),
             left_position,
             right_position,
-            generation,
         );
 
         left_ancestor.add_descendant(recombinant.get_weak());
@@ -311,14 +302,6 @@ impl<S: Symbol> Haplotype<S> {
         }
     }
 
-    pub fn get_generation(&self) -> usize {
-        match self {
-            Haplotype::Wildtype(_wt) => 0,
-            Haplotype::Mutant(ht) => ht.get_generation(),
-            Haplotype::Recombinant(rc) => rc.get_generation(),
-        }
-    }
-
     pub fn get_sequence(&self) -> Vec<S> {
         let mutations = self.get_mutations();
         let mut sequence = self.get_wildtype_sequence();
@@ -389,7 +372,7 @@ impl<S: Symbol> Haplotype<S> {
         self.get_attributes().get(id)
     }
 
-    pub fn get_attribute_or_compute(&self, id: &str) -> Result<AttributeValue> {
+    pub fn get_attribute_or_compute(&self, id: &'static str) -> Result<AttributeValue> {
         self.get_attributes().get_or_compute(id)
     }
 
@@ -481,7 +464,6 @@ impl<S: Symbol> Mutant<S> {
         ancestor: HaplotypeRef<S>,
         wildtype: HaplotypeWeak<S>,
         changes: SmallVec<Changes<S>>,
-        generation: usize,
     ) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Mutant(Self {
@@ -493,7 +475,6 @@ impl<S: Symbol> Mutant<S> {
 
                 // body
                 changes,
-                generation,
                 attributes: ancestor.get_attributes().derive(reference.clone()),
 
                 // sync
@@ -512,7 +493,6 @@ impl<S: Symbol> Mutant<S> {
         ancestor: HaplotypeRef<S>,
         wildtype: HaplotypeWeak<S>,
         changes: SmallVec<Changes<S>>,
-        generation: usize,
     ) {
         // collect all descendants that are still alive
         let descendants: Vec<HaplotypeWeak<S>> = last
@@ -536,7 +516,6 @@ impl<S: Symbol> Mutant<S> {
 
             // body
             changes,
-            generation,
             attributes: last.attributes.clone(),
 
             // sync
@@ -571,10 +550,6 @@ impl<S: Symbol> Mutant<S> {
 
     pub fn iter_changes(&self) -> impl Iterator<Item = &Change<S>> + '_ {
         self.changes.iter()
-    }
-
-    pub fn get_generation(&self) -> usize {
-        self.generation
     }
 
     pub fn get_length(&self) -> usize {
@@ -615,9 +590,20 @@ impl<S: Symbol> Mutant<S> {
         let current = self.reference.upgrade().unwrap();
 
         let block_id = current.get_block_id();
-        let branch_length = current.get_generation() - self.ancestor.get_generation();
 
-        let node = format!("'{block_id}':{branch_length}");
+        let node = match (
+            self.attributes.get("generation"),
+            self.ancestor.get_attributes().get("generation"),
+        ) {
+            (
+                Some(AttributeValue::U64(generation)),
+                Some(AttributeValue::U64(ancestor_generation)),
+            ) => {
+                let branch_length = generation - ancestor_generation;
+                format!("'{block_id}':{branch_length}")
+            }
+            _ => format!("'{block_id}'"),
+        };
 
         let descendants = current.get_descendants();
         let descendants_guard = descendants.lock();
@@ -669,16 +655,13 @@ impl<S: Symbol> Mutant<S> {
             .cloned()
             .collect();
 
-        // determine generation
-        let generation = descendant_inner.get_generation();
-
         // extract ancestor and wildtype
         let ancestor = self.ancestor.clone();
         let wildtype = self.wildtype.clone();
 
         // create new node
         unsafe {
-            Mutant::new_and_replace(descendant_inner, ancestor, wildtype, changes, generation);
+            Mutant::new_and_replace(descendant_inner, ancestor, wildtype, changes);
         };
     }
 
@@ -728,7 +711,6 @@ impl<S: Symbol> Recombinant<S> {
         right_ancestor: HaplotypeRef<S>,
         left_position: usize,
         right_position: usize,
-        generation: usize,
     ) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Recombinant(Self {
@@ -742,7 +724,6 @@ impl<S: Symbol> Recombinant<S> {
                 // body
                 left_position,
                 right_position,
-                generation,
                 attributes: left_ancestor.get_attributes().derive(reference.clone()),
 
                 // sync
@@ -757,10 +738,6 @@ impl<S: Symbol> Recombinant<S> {
         }
 
         self.right_ancestor.get_base(position)
-    }
-
-    pub fn get_generation(&self) -> usize {
-        self.generation
     }
 
     pub fn get_length(&self) -> usize {
@@ -810,9 +787,24 @@ impl<S: Symbol> Recombinant<S> {
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak<S>) -> String {
         let block_id = self.reference.get_block_id();
-        let branch_length = self.generation - ancestor.upgrade().unwrap().get_generation();
 
-        let node = format!("#R'{block_id}':{branch_length}");
+        let node = match (
+            self.attributes.get("generation"),
+            ancestor
+                .upgrade()
+                .unwrap()
+                .get_attributes()
+                .get("generation"),
+        ) {
+            (
+                Some(AttributeValue::U64(generation)),
+                Some(AttributeValue::U64(ancestor_generation)),
+            ) => {
+                let branch_length = generation - ancestor_generation;
+                format!("#R'{block_id}':{branch_length}")
+            }
+            _ => format!("#R'{block_id}'"),
+        };
 
         let descendants = if self.left_ancestor.get_weak() == ancestor {
             self.descendants
@@ -845,6 +837,7 @@ mod tests {
     use super::*;
     use crate::core::attributes::AttributeSetDefinition;
     use crate::encoding::Nucleotide as Nt;
+    use crate::providers::Generation;
     use serial_test::serial;
 
     #[test]
@@ -862,7 +855,7 @@ mod tests {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
         let attribute_definition = AttributeSetDefinition::new();
         let wt = Wildtype::new(symbols.clone(), &attribute_definition);
-        let ht = wt.create_descendant(vec![0], vec![Nt::G], 0);
+        let ht = wt.create_descendant(vec![0], vec![Nt::G]);
         assert_eq!(ht.get_base(&0), Nt::G);
         assert_eq!(ht.get_base(&1), Nt::T);
         assert_eq!(ht.get_base(&2), Nt::C);
@@ -879,7 +872,6 @@ mod tests {
                 wt.create_descendant(
                     vec![0],
                     vec![Nt::decode(&(((i % (Nt::SIZE - 1)) + 1) as u8))],
-                    0,
                 )
             })
             .collect();
@@ -905,16 +897,16 @@ mod tests {
         haplotypes.push(wildtype.clone());
         for i in 0..100 {
             let ht = haplotypes.last().unwrap().clone();
-            haplotypes.push(ht.create_descendant(vec![i], vec![Nt::C], 0));
+            haplotypes.push(ht.create_descendant(vec![i], vec![Nt::C]));
         }
-        haplotypes.push(wildtype.create_descendant(vec![0], vec![Nt::G], 0));
+        haplotypes.push(wildtype.create_descendant(vec![0], vec![Nt::G]));
         for i in 1..100 {
             let ht = haplotypes.last().unwrap().clone();
-            haplotypes.push(ht.create_descendant(vec![i], vec![Nt::G], 0));
+            haplotypes.push(ht.create_descendant(vec![i], vec![Nt::G]));
         }
         let left_ancestor = haplotypes[100].clone();
         let right_ancestor = haplotypes[200].clone();
-        let recombinant = Haplotype::create_recombinant(&left_ancestor, &right_ancestor, 10, 90, 0);
+        let recombinant = Haplotype::create_recombinant(&left_ancestor, &right_ancestor, 10, 90);
 
         let mut expected = vec![Nt::G; 10];
         expected.append(&mut vec![Nt::C; 80]);
@@ -929,8 +921,8 @@ mod tests {
         let symbols = vec![Nt::A; 100];
         let attribute_definition = AttributeSetDefinition::new();
         let wildtype = Wildtype::new(symbols, &attribute_definition);
-        let haplotype = wildtype.create_descendant(vec![0], vec![Nt::T], 0);
-        let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75, 0);
+        let haplotype = wildtype.create_descendant(vec![0], vec![Nt::T]);
+        let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75);
         assert_eq!(wildtype.get_length(), 100);
         assert_eq!(haplotype.get_length(), 100);
         assert_eq!(recombinant.get_length(), 100);
@@ -942,8 +934,8 @@ mod tests {
         let symbols = vec![Nt::A; 100];
         let attribute_definition = AttributeSetDefinition::new();
         let wildtype = Wildtype::new(symbols, &attribute_definition);
-        let haplotype = wildtype.create_descendant(vec![0], vec![Nt::T], 0);
-        let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75, 0);
+        let haplotype = wildtype.create_descendant(vec![0], vec![Nt::T]);
+        let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75);
 
         let mut expected = vec![Nt::T];
         expected.append(&mut vec![Nt::A; 99]);
@@ -955,14 +947,19 @@ mod tests {
     #[serial]
     fn create_tree() {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
-        let attribute_definition = AttributeSetDefinition::new();
+        let mut attribute_definition = AttributeSetDefinition::new();
+        let generation_provider = Arc::new(Generation::new(0));
+        attribute_definition.register(generation_provider.clone());
         let wt = Wildtype::new(symbols, &attribute_definition);
 
-        let ht = wt.create_descendant(vec![0], vec![Nt::G], 1);
+        generation_provider.increment();
+        dbg!(&generation_provider);
+        let ht = wt.create_descendant(vec![0], vec![Nt::G]);
         let ht_id = ht.get_block_id();
         assert_eq!(wt.get_tree(), format!("('{}':1)wt;", ht_id));
 
-        let rc = Haplotype::create_recombinant(&wt, &ht, 1, 2, 2);
+        generation_provider.increment();
+        let rc = Haplotype::create_recombinant(&wt, &ht, 1, 2);
         let rc_id = rc.get_block_id();
         assert_eq!(
             wt.get_tree(),
@@ -976,9 +973,9 @@ mod tests {
         let attribute_definition = AttributeSetDefinition::new();
         let wt = Wildtype::new(symbols, &attribute_definition);
 
-        let ht1 = wt.create_descendant(vec![0], vec![Nt::T], 1);
-        let ht2 = ht1.create_descendant(vec![0], vec![Nt::C], 2);
-        let ht3 = ht2.create_descendant(vec![0], vec![Nt::G], 3);
+        let ht1 = wt.create_descendant(vec![0], vec![Nt::T]);
+        let ht2 = ht1.create_descendant(vec![0], vec![Nt::C]);
+        let ht3 = ht2.create_descendant(vec![0], vec![Nt::G]);
 
         let ht1weak = ht1.get_weak();
         let ht2weak = ht2.get_weak();
@@ -1012,7 +1009,6 @@ mod tests {
 
         assert!(!ht2weak.exists());
 
-        assert_eq!(ht3.get_generation(), 3);
         assert_eq!(ht3.get_mutations().len(), 1);
         assert_eq!(ht3.get_mutations().get(&0), Some(&(*Nt::G.index() as u8)));
     }

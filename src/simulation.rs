@@ -6,19 +6,20 @@ use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, WeightedAliasIndex, WeightedIndex};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
-use std::borrow::Cow;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
+use std::sync::Arc;
 use std::{cmp::min_by, ops::Range};
 
 use crate::config::Parameters;
 use crate::core::{Haplotype, Population};
 use crate::encoding::Symbol;
+use crate::providers::Generation;
 use crate::references::HaplotypeRef;
 
 pub type HostMap = Vec<Vec<usize>>;
 // TODO: Review host spec abstraction
-pub type HostSpec = (Range<usize>, Cow<'static, str>);
+pub type HostSpec = (Range<usize>, &'static str);
 
 #[cfg(feature = "parallel")]
 pub type SimulationTrait<S> = dyn Simulation<S> + Send + Sync;
@@ -75,7 +76,7 @@ pub struct BasicSimulation<S: Symbol> {
     mutation_sampler: Binomial,
     recombination_sampler: Bernoulli,
     infection_sampler: Bernoulli,
-    generation: usize,
+    generation: Arc<Generation>,
 }
 
 impl<S: Symbol> BasicSimulation<S> {
@@ -84,7 +85,7 @@ impl<S: Symbol> BasicSimulation<S> {
         population: Population<S>,
         hosts: Vec<HostSpec>,
         parameters: Parameters,
-        generation: usize,
+        generation: Arc<Generation>,
     ) -> Self {
         let mutation_sampler =
             Binomial::new(wildtype.get_length() as u64, parameters.mutation_rate).unwrap();
@@ -128,7 +129,6 @@ impl<S: Symbol> BasicSimulation<S> {
                     &self.population[infectant_pair[1]],
                     recombination_sites[0],
                     recombination_sites[1],
-                    self.generation,
                 );
                 (**infectant_pair.choose(&mut rng).unwrap(), recombinant)
             })
@@ -165,12 +165,7 @@ impl<S: Symbol> BasicSimulation<S> {
                     })
                     .collect();
 
-                let descendant = Haplotype::create_descendant(
-                    infectant_ref,
-                    mutation_sites,
-                    bases,
-                    self.generation,
-                );
+                let descendant = Haplotype::create_descendant(infectant_ref, mutation_sites, bases);
                 Some((*infectant, descendant))
             })
             .collect()
@@ -179,11 +174,11 @@ impl<S: Symbol> BasicSimulation<S> {
 
 impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     fn increment_generation(&mut self) {
-        self.generation += 1;
+        self.generation.increment();
     }
 
     fn get_generation(&self) -> usize {
-        self.generation
+        self.generation.get()
     }
 
     fn get_population(&self) -> &Population<S> {
@@ -418,7 +413,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
 mod tests {
     use super::*;
     use crate::config::FitnessModelField;
-    use crate::core::attributes::{AttributeProviderType, AttributeSetDefinition};
+    use crate::core::attributes::AttributeSetDefinition;
     use crate::core::fitness::init::{
         ExponentialParameters, FitnessDistribution, FitnessModel, MutationCategoryWeights,
     };
@@ -426,7 +421,6 @@ mod tests {
     use crate::core::fitness::FitnessProvider;
     use crate::core::haplotype::Wildtype;
     use crate::encoding::Nucleotide as Nt;
-    use std::borrow::Cow;
     use std::sync::Arc;
     use test::Bencher;
 
@@ -470,23 +464,23 @@ mod tests {
         let sequence = vec![Nt::A; 100];
 
         let mut attribute_definitions = AttributeSetDefinition::new();
-        let name = Cow::Borrowed("fitness");
-        attribute_definitions.register(
-            Arc::new(FitnessProvider::from_model(name.clone(), &sequence, &FITNESS_MODEL).unwrap()),
-            AttributeProviderType::Lazy,
-        );
-        let hosts = vec![(0..SETTINGS.host_population_size, name.clone())];
+        let name = "fitness";
+        attribute_definitions.register(Arc::new(
+            FitnessProvider::from_model(name, &sequence, &FITNESS_MODEL).unwrap(),
+        ));
+        let hosts = vec![(0..SETTINGS.host_population_size, name)];
 
         let wt = Wildtype::new(sequence, &attribute_definitions);
         let population: Population<Nt> = crate::population![wt.clone(), POPULATION_SIZE];
-        BasicSimulation::new(wt, population, hosts, SETTINGS, 0)
+        let generation = Arc::new(Generation::new(0));
+        BasicSimulation::new(wt, population, hosts, SETTINGS, generation)
     }
 
     #[test]
     fn increment_generation() {
         let mut simulation = setup_test_simulation();
         simulation.increment_generation();
-        assert_eq!(simulation.generation, 1);
+        assert_eq!(simulation.generation.get(), 1);
     }
 
     #[test]

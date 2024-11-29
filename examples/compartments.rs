@@ -1,17 +1,17 @@
 extern crate virolution;
 
-use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use virolution::config::{FitnessModelField, Parameters, Schedule};
-use virolution::core::attributes::{AttributeProviderType, AttributeSetDefinition};
+use virolution::core::attributes::AttributeSetDefinition;
 use virolution::core::fitness::init::*;
 use virolution::core::fitness::utility::UtilityFunction;
 use virolution::core::fitness::FitnessProvider;
 use virolution::core::haplotype::*;
 use virolution::core::population::Population;
 use virolution::encoding::Nucleotide as Nt;
+use virolution::providers::Generation;
 use virolution::simulation::*;
 
 use virolution::population;
@@ -32,12 +32,15 @@ fn main() {
     });
     let fitness_model = FitnessModel::new(distribution.clone(), UtilityFunction::Linear);
 
-    let name = Cow::Borrowed("fitness");
-    let fitness_provider = FitnessProvider::from_model(name.clone(), &sequence, &fitness_model)
+    let name = "fitness";
+    let fitness_provider = FitnessProvider::from_model(name, &sequence, &fitness_model)
         .expect("Failed to create fitness table");
 
+    let generation_provider = Arc::new(Generation::new(0));
+
     let mut attribute_definition = AttributeSetDefinition::new();
-    attribute_definition.register(Arc::new(fitness_provider), AttributeProviderType::Lazy);
+    attribute_definition.register(Arc::new(fitness_provider));
+    attribute_definition.register(generation_provider.clone());
 
     let wt = Wildtype::new(sequence, &attribute_definition);
     let parameters = Parameters {
@@ -61,8 +64,14 @@ fn main() {
     let mut compartment_simulations: Vec<BasicSimulation<Nt>> = (0..n_compartments)
         .map(|_| {
             let population = population![wt.clone(), 1_000_000];
-            let hosts = vec![(0..parameters.host_population_size, name.clone())];
-            BasicSimulation::new(wt.clone(), population, hosts, parameters.clone(), 0)
+            let hosts = vec![(0..parameters.host_population_size, name)];
+            BasicSimulation::new(
+                wt.clone(),
+                population,
+                hosts,
+                parameters.clone(),
+                generation_provider.clone(),
+            )
         })
         .collect();
 

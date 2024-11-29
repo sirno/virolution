@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -8,7 +7,7 @@ use super::init::{FitnessDistribution, FitnessModel};
 use super::table::FitnessTable;
 use super::utility::UtilityFunction;
 
-use crate::core::attributes::{AttributeProvider, AttributeValue};
+use crate::core::attributes::{AttributeProvider, AttributeProviderType, AttributeValue};
 use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
 use crate::references::HaplotypeRef;
@@ -19,7 +18,7 @@ use crate::references::HaplotypeRef;
 /// sequence and the fitness model.
 #[derive(Clone, Debug)]
 pub struct FitnessProvider<S: Symbol> {
-    name: Cow<'static, str>,
+    name: &'static str,
     function: FitnessFunction<S>,
     utility: UtilityFunction,
 }
@@ -36,7 +35,7 @@ impl<S: Symbol> FitnessProvider<S> {
     /// Fitness models can be specified in the configuration file. Available fitness models are
     /// defined in `virolution::core::fitness::init`.
     pub fn from_model(
-        name: Cow<'static, str>,
+        name: &'static str,
         sequence: &[S],
         model: &FitnessModel,
     ) -> Result<Self, VirolutionError> {
@@ -81,7 +80,7 @@ impl<S: Symbol> FitnessProvider<S> {
                     haplotype
                         .try_get_ancestor()
                         .expect("Could not find ancestor during fitness update...")
-                        .get_attribute_or_compute(&self.name)
+                        .get_attribute_or_compute(self.name)
                         .unwrap(),
                 )
                 .unwrap();
@@ -112,12 +111,19 @@ impl<S: Symbol> FitnessProvider<S> {
 }
 
 impl<S: Symbol> AttributeProvider<S> for FitnessProvider<S> {
-    fn name(&self) -> &str {
-        &self.name
+    fn name(&self) -> &'static str {
+        self.name
     }
 
-    fn compute(&self, haplotype: &HaplotypeRef<S>) -> AttributeValue {
-        AttributeValue::F64(self.get_fitness(haplotype))
+    fn get_provider_type(&self) -> AttributeProviderType {
+        AttributeProviderType::Lazy
+    }
+
+    fn compute(&self, haplotype: &Option<HaplotypeRef<S>>) -> AttributeValue {
+        match haplotype {
+            Some(haplotype) => AttributeValue::F64(self.get_fitness(haplotype)),
+            None => panic!("Haplotype not found during fitness computation."),
+        }
     }
 
     fn map(&self, value: AttributeValue) -> AttributeValue {

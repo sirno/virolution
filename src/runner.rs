@@ -6,7 +6,6 @@ use itertools::Itertools;
 use rand::prelude::*;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::fs;
@@ -16,11 +15,12 @@ use std::sync::Arc;
 
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
-use crate::core::attributes::{AttributeProvider, AttributeProviderType, AttributeSetDefinition};
+use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
 use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
 
+use crate::providers::Generation;
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
@@ -58,15 +58,18 @@ impl Runner {
 
         // initialize attributes and host settings
         let settings_path = Path::new(&args.settings).parent();
-        let (attribute_definitions, host_specs) =
+        let (mut attribute_definitions, host_specs) =
             Self::create_attribute_definitions(&settings, &sequence, settings_path)?;
+
         let providers = attribute_definitions
             .providers()
             .iter()
             .map(|(_range, provider)| provider)
             .collect::<Vec<_>>();
-
         Self::write_fitness_tables(providers, args.outdir.as_ref().map(Path::new));
+
+        let generation = Arc::new(Generation::new(0));
+        attribute_definitions.register(generation.clone());
 
         let wildtype = Haplotype::load_wildtype(sequence, &attribute_definitions);
 
@@ -84,8 +87,13 @@ impl Runner {
 
         // create individual compartments
         println!("Creating {} compartments...", args.n_compartments);
-        let simulations: Vec<Box<SimulationTrait<Nt>>> =
-            Self::create_simulations(&args, &wildtype, &host_specs, &settings.parameters[0]);
+        let simulations: Vec<Box<SimulationTrait<Nt>>> = Self::create_simulations(
+            &args,
+            &wildtype,
+            &host_specs,
+            &settings.parameters[0],
+            &generation,
+        );
 
         // check if ancestry is requested and supported
         if cfg!(feature = "parallel") && args.ancestry.is_some() {
@@ -225,41 +233,39 @@ impl Runner {
                 let mut fitness_model = fitness_model.clone();
 
                 // resolve relative paths within fitness model
-                if let Some(path) = path {
+                if let Some(path) = path
+                    && path != Path::new("")
+                {
                     fitness_model.prepend_path(path.to_str().unwrap());
                 }
 
-                let name = Cow::Borrowed("fitness");
-                attribute_definitions.register(
-                    Arc::new(FitnessProvider::from_model(
-                        name.clone(),
-                        sequence,
-                        &fitness_model,
-                    )?),
-                    AttributeProviderType::Lazy,
-                );
+                let name = "fitness";
+                attribute_definitions.register(Arc::new(FitnessProvider::from_model(
+                    name,
+                    sequence,
+                    &fitness_model,
+                )?));
 
-                host_specs.push((0..default_settings.host_population_size, name.clone()));
+                host_specs.push((0..default_settings.host_population_size, name));
             }
             FitnessModelField::MultiHost(fitness_models) => {
                 for (id, fitness_model_frac) in fitness_models.iter().enumerate() {
                     let mut fitness_model = fitness_model_frac.fitness_model.clone();
 
                     // resolve relative paths within fitness model
-                    if let Some(path) = path {
+                    if let Some(path) = path
+                        && path != Path::new("")
+                    {
                         fitness_model.prepend_path(path.to_str().unwrap());
                     }
 
-                    let name: Cow<'static, str> = Cow::Owned(format!("fitness_{}", id));
+                    let name = Box::leak(Box::new(format!("fitness_{}", id)));
 
-                    attribute_definitions.register(
-                        Arc::new(FitnessProvider::from_model(
-                            name.clone(),
-                            sequence,
-                            &fitness_model,
-                        )?),
-                        AttributeProviderType::Lazy,
-                    );
+                    attribute_definitions.register(Arc::new(FitnessProvider::from_model(
+                        name,
+                        sequence,
+                        &fitness_model,
+                    )?));
 
                     let n_hosts = (fitness_model_frac.fraction
                         * default_settings.host_population_size as f64)
@@ -267,7 +273,7 @@ impl Runner {
                     let lower = id * n_hosts;
                     let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
 
-                    host_specs.push((lower..upper, name.clone()));
+                    host_specs.push((lower..upper, name));
                 }
             }
         };
@@ -291,6 +297,7 @@ impl Runner {
         wildtype: &HaplotypeRef<Nt>,
         host_specs: &[HostSpec],
         parameters: &Parameters,
+        generation: &Arc<Generation>,
     ) -> Vec<Box<SimulationTrait<Nt>>> {
         (0..args.n_compartments)
             .map(|_compartment_idx| {
@@ -314,7 +321,7 @@ impl Runner {
                     init_population,
                     host_specs.to_vec(),
                     parameters.clone(),
-                    0,
+                    generation.clone(),
                 )
             })
             .map(|sim| Box::new(sim) as Box<SimulationTrait<Nt>>)

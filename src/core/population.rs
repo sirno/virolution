@@ -30,7 +30,7 @@ pub type Haplotypes<S> = HashMap<usize, HaplotypeRef<S>>;
 /// # use virolution::core::haplotype::Wildtype;
 /// # use virolution::population;
 /// let wt = Wildtype::new(vec![Nucleotide::A; 10], &AttributeSetDefinition::new());
-/// let ht = wt.create_descendant(vec![0], vec![Nucleotide::C], 0);
+/// let ht = wt.create_descendant(vec![0], vec![Nucleotide::C]);
 /// let population = population![&wt; &ht];
 /// ```
 ///
@@ -53,7 +53,7 @@ pub type Haplotypes<S> = HashMap<usize, HaplotypeRef<S>>;
 /// # use virolution::core::haplotype::Wildtype;
 /// # use virolution::population;
 /// let wt = Wildtype::new(vec![Nucleotide::A; 10], &AttributeSetDefinition::new());
-/// let ht = wt.create_descendant(vec![0], vec![Nucleotide::C], 0);
+/// let ht = wt.create_descendant(vec![0], vec![Nucleotide::C]);
 /// let population = population![wt, 10; ht, 5];
 /// ```
 ///

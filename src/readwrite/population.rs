@@ -38,7 +38,7 @@ impl<S: Symbol> PopulationIO<S> for Population<S> {
 
             // parse haplotype
             let (positions, changes) = parse_haplotype(&record.haplotype)?;
-            let haplotype = wildtype.create_descendant(positions, changes, 0);
+            let haplotype = wildtype.create_descendant(positions, changes);
 
             // create population and add for merging
             let population = Population::from_haplotype(haplotype, record.count);
