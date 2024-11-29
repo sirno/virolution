@@ -1053,7 +1053,6 @@ mod tests {
                         ht.create_descendant(
                             vec![pos],
                             vec![Nt::decode(&(((sym.index() + 1) % n_symbols) as u8))],
-                            i,
                         )
                     };
 
