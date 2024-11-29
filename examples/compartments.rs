@@ -39,7 +39,7 @@ fn main() {
     let mut attribute_definition = AttributeSetDefinition::new();
     attribute_definition.register(&name, Arc::new(fitness_provider));
 
-    let wt = Wildtype::new(sequence, attribute_definition.create());
+    let wt = Wildtype::new(sequence, &attribute_definition);
     let parameters = Parameters {
         mutation_rate: 1e-6,
         recombination_rate: 1e-8,

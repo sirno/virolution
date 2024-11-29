@@ -14,7 +14,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::encoding::Symbol;
 use crate::errors::{Result, VirolutionError};
-use crate::references::HaplotypeRef;
+use crate::references::{HaplotypeRef, HaplotypeWeak};
 
 // Attribute value definition
 #[derive(Clone, Debug, TryInto, Display)]
@@ -52,6 +52,16 @@ pub trait AttributeProvider<S: Symbol>: Sync + Send {
     fn write(&self, path: &Path) -> Result<()>;
 }
 
+/// Type of an attribute provider.
+///
+/// The type of an attribute provider determines when the attribute is computed. A lazy provider
+/// computes the attribute only when it is requested. An eager provider computes the attribute
+/// immediately when the attribute set is created.
+pub enum AttributeProviderType {
+    Lazy,
+    Eager,
+}
+
 /// Definition of an attribute set with providers.
 ///
 /// The attribute set definition contains the providers that compute the attributes of the set.
@@ -59,6 +69,7 @@ pub trait AttributeProvider<S: Symbol>: Sync + Send {
 #[derive(Clone)]
 pub struct AttributeSetDefinition<S: Symbol> {
     providers: HashMap<Cow<'static, str>, Arc<dyn AttributeProvider<S> + Send + Sync>>,
+    eager: Vec<Cow<'static, str>>,
 }
 
 impl<S: Symbol> Default for AttributeSetDefinition<S> {
@@ -72,6 +83,7 @@ impl<S: Symbol> AttributeSetDefinition<S> {
     pub fn new() -> Self {
         Self {
             providers: HashMap::new(),
+            eager: Vec::new(),
         }
     }
 
@@ -89,10 +101,11 @@ impl<S: Symbol> AttributeSetDefinition<S> {
     }
 
     /// Create a new attribute set.
-    pub fn create(&self) -> AttributeSet<S> {
+    pub fn create(&self, haplotype: HaplotypeWeak<S>) -> AttributeSet<S> {
         AttributeSet {
             definition: Arc::new(self.clone()),
             values: RwLock::new(HashMap::new()),
+            haplotype,
         }
     }
 }
@@ -105,33 +118,21 @@ impl<S: Symbol> AttributeSetDefinition<S> {
 pub struct AttributeSet<S: Symbol> {
     definition: Arc<AttributeSetDefinition<S>>,
     values: RwLock<HashMap<Cow<'static, str>, AttributeValue>>,
-}
-
-impl<S: Symbol> Default for AttributeSet<S> {
-    fn default() -> Self {
-        Self::new()
-    }
+    haplotype: HaplotypeWeak<S>,
 }
 
 impl<S: Symbol> AttributeSet<S> {
-    /// Get new empty attribute set.
-    pub fn new() -> Self {
-        AttributeSet {
-            definition: Arc::new(AttributeSetDefinition::new()),
-            values: RwLock::new(HashMap::new()),
-        }
-    }
-
     /// Derive a new attribute set from an attribute set definition with new storage.
-    pub fn derive(&self) -> AttributeSet<S> {
+    pub fn derive(&self, haplotype: HaplotypeWeak<S>) -> AttributeSet<S> {
         AttributeSet {
             definition: self.definition.clone(),
             values: RwLock::new(HashMap::new()),
+            haplotype,
         }
     }
 
     /// Get or compute the value of an attribute.
-    pub fn get_or_compute(&self, id: &str, haplotype: HaplotypeRef<S>) -> Result<AttributeValue> {
+    pub fn get_or_compute(&self, id: &str) -> Result<AttributeValue> {
         let id_cow = Cow::Borrowed(id);
         let provider = self.definition.providers.get(&id_cow).ok_or_else(|| {
             VirolutionError::ImplementationError(format!(
@@ -150,7 +151,7 @@ impl<S: Symbol> AttributeSet<S> {
 
         // Compute the attribute using the provider
         if let Some(provider) = self.definition.providers.get(&id_cow) {
-            let value = provider.compute(&haplotype);
+            let value = provider.compute(&self.haplotype.upgrade().unwrap());
 
             // Write the computed value
             let mut values = self.values.write().unwrap();
@@ -194,6 +195,7 @@ impl<S: Symbol> Clone for AttributeSet<S> {
         AttributeSet {
             definition: self.definition.clone(),
             values: RwLock::new(hash_map.clone()),
+            haplotype: self.haplotype.clone(),
         }
     }
 }

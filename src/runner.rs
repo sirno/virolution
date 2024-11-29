@@ -68,7 +68,7 @@ impl Runner {
 
         Self::write_fitness_tables(providers, args.outdir.as_ref().map(Path::new));
 
-        let wildtype = Haplotype::load_wildtype(sequence, attribute_definitions.create());
+        let wildtype = Haplotype::load_wildtype(sequence, &attribute_definitions);
 
         dbg!(&wildtype);
 

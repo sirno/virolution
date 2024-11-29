@@ -36,6 +36,7 @@ use macros::require_deferred_drop;
 
 use super::attributes::{AttributeSet, AttributeValue};
 use super::cache::{CachedValue, VirolutionCache};
+use super::AttributeSetDefinition;
 
 pub static N_FITNESS_TABLES: OnceLock<usize> = OnceLock::new();
 
@@ -389,8 +390,7 @@ impl<S: Symbol> Haplotype<S> {
     }
 
     pub fn get_attribute_or_compute(&self, id: &str) -> Result<AttributeValue> {
-        self.get_attributes()
-            .get_or_compute(id, self.get_reference())
+        self.get_attributes().get_or_compute(id)
     }
 
     pub fn get_record(&self, head: &str) -> OwnedRecord {
@@ -428,7 +428,10 @@ impl<S: Symbol> Haplotype<S> {
 
 impl<S: Symbol> Wildtype<S> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(sequence: Vec<S>, attributes: AttributeSet<S>) -> HaplotypeRef<S> {
+    pub fn new(
+        sequence: Vec<S>,
+        attribute_definition: &AttributeSetDefinition<S>,
+    ) -> HaplotypeRef<S> {
         HaplotypeRef::new_cyclic(|reference| {
             Haplotype::Wildtype(Self {
                 // head
@@ -437,7 +440,7 @@ impl<S: Symbol> Wildtype<S> {
 
                 // body
                 sequence: sequence.clone(),
-                attributes: attributes.clone(),
+                attributes: attribute_definition.create(reference.clone()),
 
                 // sync
                 _dirty_descendants: AtomicIsize::new(0),
@@ -491,7 +494,7 @@ impl<S: Symbol> Mutant<S> {
                 // body
                 changes,
                 generation,
-                attributes: ancestor.get_attributes().derive(),
+                attributes: ancestor.get_attributes().derive(reference.clone()),
 
                 // sync
                 _dirty_descendants: AtomicIsize::new(0),
@@ -740,7 +743,7 @@ impl<S: Symbol> Recombinant<S> {
                 left_position,
                 right_position,
                 generation,
-                attributes: left_ancestor.get_attributes().derive(),
+                attributes: left_ancestor.get_attributes().derive(reference.clone()),
 
                 // sync
                 _dirty_descendants: AtomicIsize::new(0),
@@ -848,7 +851,7 @@ mod tests {
     fn initiate_wildtype() {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
         let attribute_definition = AttributeSetDefinition::new();
-        let wt = Wildtype::new(symbols.clone(), attribute_definition.create());
+        let wt = Wildtype::new(symbols.clone(), &attribute_definition);
         for i in symbols.iter().enumerate() {
             assert_eq!(wt.get_base(&i.0), *i.1);
         }
@@ -858,7 +861,7 @@ mod tests {
     fn create_descendant() {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
         let attribute_definition = AttributeSetDefinition::new();
-        let wt = Wildtype::new(symbols.clone(), attribute_definition.create());
+        let wt = Wildtype::new(symbols.clone(), &attribute_definition);
         let ht = wt.create_descendant(vec![0], vec![Nt::G], 0);
         assert_eq!(ht.get_base(&0), Nt::G);
         assert_eq!(ht.get_base(&1), Nt::T);
@@ -870,7 +873,7 @@ mod tests {
     fn create_wide_geneaology() {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
         let attribute_definition = AttributeSetDefinition::new();
-        let wt = Wildtype::new(symbols.clone(), attribute_definition.create());
+        let wt = Wildtype::new(symbols.clone(), &attribute_definition);
         let _hts: Vec<HaplotypeRef<Nt>> = (0..100)
             .map(|i| {
                 wt.create_descendant(
@@ -898,7 +901,7 @@ mod tests {
         let mut haplotypes: Vec<HaplotypeRef<Nt>> = Vec::new();
         let symbols = vec![Nt::T; 100];
         let attribute_definition = AttributeSetDefinition::new();
-        let wildtype = Wildtype::new(symbols, attribute_definition.create());
+        let wildtype = Wildtype::new(symbols, &attribute_definition);
         haplotypes.push(wildtype.clone());
         for i in 0..100 {
             let ht = haplotypes.last().unwrap().clone();
@@ -925,7 +928,7 @@ mod tests {
     fn get_length() {
         let symbols = vec![Nt::A; 100];
         let attribute_definition = AttributeSetDefinition::new();
-        let wildtype = Wildtype::new(symbols, attribute_definition.create());
+        let wildtype = Wildtype::new(symbols, &attribute_definition);
         let haplotype = wildtype.create_descendant(vec![0], vec![Nt::T], 0);
         let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75, 0);
         assert_eq!(wildtype.get_length(), 100);
@@ -938,7 +941,7 @@ mod tests {
     fn get_sequence() {
         let symbols = vec![Nt::A; 100];
         let attribute_definition = AttributeSetDefinition::new();
-        let wildtype = Wildtype::new(symbols, attribute_definition.create());
+        let wildtype = Wildtype::new(symbols, &attribute_definition);
         let haplotype = wildtype.create_descendant(vec![0], vec![Nt::T], 0);
         let recombinant = Haplotype::create_recombinant(&wildtype, &haplotype, 25, 75, 0);
 
@@ -953,7 +956,7 @@ mod tests {
     fn create_tree() {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
         let attribute_definition = AttributeSetDefinition::new();
-        let wt = Wildtype::new(symbols, attribute_definition.create());
+        let wt = Wildtype::new(symbols, &attribute_definition);
 
         let ht = wt.create_descendant(vec![0], vec![Nt::G], 1);
         let ht_id = ht.get_block_id();
@@ -971,7 +974,7 @@ mod tests {
     fn merge_nodes() {
         let symbols = vec![Nt::A, Nt::T, Nt::C, Nt::G];
         let attribute_definition = AttributeSetDefinition::new();
-        let wt = Wildtype::new(symbols, attribute_definition.create());
+        let wt = Wildtype::new(symbols, &attribute_definition);
 
         let ht1 = wt.create_descendant(vec![0], vec![Nt::T], 1);
         let ht2 = ht1.create_descendant(vec![0], vec![Nt::C], 2);
@@ -1028,7 +1031,7 @@ mod tests {
 
         let symbols = vec![Nt::A; n_sites];
         let attribute_definition = AttributeSetDefinition::new();
-        let wt = Wildtype::new(symbols, attribute_definition.create());
+        let wt = Wildtype::new(symbols, &attribute_definition);
 
         // memory corruption should be found in this many iterations...
         let n_mutations = 100000;

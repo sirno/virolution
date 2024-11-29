@@ -7,7 +7,7 @@ use virolution::encoding::Nucleotide as Nt;
 fn main() {
     let bytes = vec![Nt::A; 4];
     let attribute_definition = AttributeSetDefinition::new();
-    let wt = Wildtype::new(bytes, attribute_definition.create());
+    let wt = Wildtype::new(bytes, &attribute_definition);
     let ht = wt.create_descendant(vec![2], vec![Nt::T], 0);
     let ht2 = ht.create_descendant(vec![1], vec![Nt::C], 0);
     let ht3 = ht2.create_descendant(vec![2], vec![Nt::G], 0);

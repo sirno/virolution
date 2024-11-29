@@ -276,8 +276,8 @@ mod tests {
 
     fn get_population() -> Population<Nt> {
         let attribute_definition = AttributeSetDefinition::new();
-        let wt1 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
-        let wt2 = Wildtype::new(vec![Nt::A; 10], attribute_definition.create());
+        let wt1 = Wildtype::new(vec![Nt::A; 10], &attribute_definition);
+        let wt2 = Wildtype::new(vec![Nt::A; 10], &attribute_definition);
 
         population![&wt1; &wt1; &wt2; &wt2]
     }

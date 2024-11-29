@@ -1,7 +1,7 @@
 use seq_io::fasta;
 use seq_io::fasta::Record;
 
-use crate::core::attributes::AttributeSet;
+use crate::core::attributes::AttributeSetDefinition;
 use crate::core::haplotype::{Haplotype, Wildtype};
 use crate::encoding::Symbol;
 use crate::errors::{Result, VirolutionError};
@@ -9,10 +9,16 @@ use crate::references::HaplotypeRef;
 
 pub trait HaplotypeIO<S: Symbol> {
     /// Load wildtype from a fasta file
-    fn load_wildtype_from_file(path: &str, attributes: AttributeSet<S>) -> Result<HaplotypeRef<S>>;
+    fn load_wildtype_from_file(
+        path: &str,
+        attribute_definition: &AttributeSetDefinition<S>,
+    ) -> Result<HaplotypeRef<S>>;
 
     /// Load wildtype from a sequence
-    fn load_wildtype(sequence: Vec<S>, attributes: AttributeSet<S>) -> HaplotypeRef<S>;
+    fn load_wildtype(
+        sequence: Vec<S>,
+        attribute_definition: &AttributeSetDefinition<S>,
+    ) -> HaplotypeRef<S>;
 
     /// Read a sequence from a fasta file
     fn read_sequence_from_file(path: &str) -> Result<Vec<S>> {
@@ -50,12 +56,18 @@ fn decode_sequence<S: Symbol>(record: impl Record) -> Result<Vec<S>> {
 }
 
 impl<S: Symbol> HaplotypeIO<S> for Haplotype<S> {
-    fn load_wildtype_from_file(path: &str, attributes: AttributeSet<S>) -> Result<HaplotypeRef<S>> {
+    fn load_wildtype_from_file(
+        path: &str,
+        attribute_definition: &AttributeSetDefinition<S>,
+    ) -> Result<HaplotypeRef<S>> {
         let sequence = Self::read_sequence_from_file(path)?;
-        Ok(Wildtype::new(sequence, attributes))
+        Ok(Wildtype::new(sequence, attribute_definition))
     }
 
-    fn load_wildtype(sequence: Vec<S>, attributes: AttributeSet<S>) -> HaplotypeRef<S> {
-        Wildtype::new(sequence, attributes)
+    fn load_wildtype(
+        sequence: Vec<S>,
+        attribute_definition: &AttributeSetDefinition<S>,
+    ) -> HaplotypeRef<S> {
+        Wildtype::new(sequence, attribute_definition)
     }
 }

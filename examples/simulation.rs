@@ -35,7 +35,7 @@ fn main() {
         &name,
         Arc::new(FitnessProvider::from_model(name.clone(), &sequence, &fitness_model).unwrap()),
     );
-    let wt = Wildtype::new(sequence, attribute_definition.create());
+    let wt = Wildtype::new(sequence, &attribute_definition);
     let ht = wt.create_descendant(vec![2], vec![Nt::T], 0);
     let ht2 = ht.create_descendant(vec![1], vec![Nt::C], 0);
     let ht3 = ht2.create_descendant(vec![2], vec![Nt::G], 0);

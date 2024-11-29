@@ -477,7 +477,7 @@ mod tests {
         );
         let hosts = vec![(0..SETTINGS.host_population_size, name.clone())];
 
-        let wt = Wildtype::new(sequence, attribute_definitions.create());
+        let wt = Wildtype::new(sequence, &attribute_definitions);
         let population: Population<Nt> = crate::population![wt.clone(), POPULATION_SIZE];
         BasicSimulation::new(wt, population, hosts, SETTINGS, 0)
     }
