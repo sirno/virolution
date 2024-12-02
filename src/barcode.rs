@@ -2,6 +2,7 @@ use std::io::{Error, Write};
 
 use serde::Serialize;
 
+// TODO: Move to readwrite module and add documentation
 #[derive(Serialize)]
 pub struct BarcodeEntry<'a> {
     pub barcode: &'a String,

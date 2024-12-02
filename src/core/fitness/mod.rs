@@ -1,6 +1,7 @@
 //! This module contains a fitness provider and any associated structures to load and initialize
 //! fitness tables.
 
+// TODO: Move to providers module and add documentation about module structure
 mod epistasis;
 mod table;
 

@@ -151,6 +151,22 @@ impl<S: Symbol> Drop for Haplotype<S> {
 }
 
 impl<S: Symbol> Haplotype<S> {
+    /// Create a new haplotype from a sequence and an attribute definition.
+    ///
+    /// This can be the starting point of a new phylogeny. The attribute definition is used to
+    /// register different traits that can be used to derive new attributes for the haplotype.
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(
+        sequence: Vec<S>,
+        attribute_definition: &AttributeSetDefinition<S>,
+    ) -> HaplotypeRef<S> {
+        Wildtype::new(sequence, attribute_definition)
+    }
+
+    /// Create a mutant haplotype from a parent haplotype and a set of changes.
+    ///
+    /// The changes are represented as a vector of positions and a vector of symbols. The parent
+    /// haplotype is the ancestor of the new mutant haplotype.
     pub fn create_descendant(&self, positions: Vec<usize>, changes: Vec<S>) -> HaplotypeRef<S> {
         let ancestor = self.get_reference();
         let wildtype = self.get_wildtype();
@@ -172,6 +188,13 @@ impl<S: Symbol> Haplotype<S> {
         descendant
     }
 
+    /// Create a recombinant haplotype from two parent haplotypes and two positions.
+    ///
+    /// The two parent haplotypes are the ancestors of the new recombinant haplotype. The
+    /// recombinant is characterized by two positions, that characterize the left and right
+    /// starting points of the recombination, i.e. the left parent haplotype will be used from the
+    /// left position to the right position and the right parent haplotype will be used from the
+    /// right position to the left position.
     pub fn create_recombinant(
         left_ancestor: &HaplotypeRef<S>,
         right_ancestor: &HaplotypeRef<S>,

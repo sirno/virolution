@@ -30,7 +30,16 @@ pub enum FitnessFunction<S: Symbol> {
 }
 
 impl<S: Symbol> FitnessProvider<S> {
-    /// Create a new fitness provider from a fitness model.
+    /// Create a new fitness provider.
+    pub fn new(name: &'static str, function: FitnessFunction<S>, utility: UtilityFunction) -> Self {
+        Self {
+            name,
+            function,
+            utility,
+        }
+    }
+
+    /// Create a new fitness provider from a fitness model definition.
     ///
     /// Fitness models can be specified in the configuration file. Available fitness models are
     /// defined in `virolution::core::fitness::init`.

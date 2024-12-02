@@ -1,3 +1,4 @@
+//! Application runner for the virolution simulation binary.
 use anyhow::{anyhow, Result};
 
 use indicatif::{ProgressBar, ProgressStyle};
