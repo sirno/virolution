@@ -112,8 +112,22 @@
 //! assert_eq!(recombinant.get_sequence(), vec![Nt::A, Nt::A, Nt::C, Nt::A]);
 //! ```
 //!
+//! ## Installation
+//!
+//! To install the binary, you can use the following command:
+//!
+//! ```shell
+//! cargo install virolution
+//! ```
+//!
+//! To use the library, you can add the following to your `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! virolution = "0.5"
+//! ```
+//!
 #![feature(let_chains)]
-#![feature(get_mut_unchecked)]
 #![feature(extract_if)]
 #![feature(test)]
 
