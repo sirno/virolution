@@ -43,7 +43,9 @@ impl<S: Symbol> HaplotypeRef<S> {
     #[inline]
     pub fn get_block_id(&self) -> String {
         let reference_ptr = Rc::as_ptr(&self.0) as u64;
-        BLOCK_ID.with(|generator| generator.encode_string(reference_ptr))
+        BLOCK_ID
+            .with(|generator| generator.encode_string(reference_ptr))
+            .expect("Unable to generate block ID")
     }
 
     #[inline]
@@ -112,7 +114,9 @@ impl<S: Symbol> HaplotypeWeak<S> {
     #[inline]
     pub fn get_block_id(&self) -> String {
         let reference_ptr = Weak::as_ptr(&self.0) as u64;
-        BLOCK_ID.with(|generator| generator.encode_string(reference_ptr))
+        BLOCK_ID
+            .with(|generator| generator.encode_string(reference_ptr))
+            .expect("Unable to generate block ID")
     }
 
     #[inline]

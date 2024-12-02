@@ -1,4 +1,4 @@
-use evalexpr::context_map;
+use evalexpr::{context_map, DefaultNumericTypes, Value};
 use phf::phf_map;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -243,9 +243,9 @@ fn match_generation(record: &ScheduleRecord, generation: usize) -> bool {
         Ok(record_generation) => record_generation == generation,
         Err(_) => {
             let context = context_map! {
-                "x" => generation as i64,
-                "generation" => generation as i64,
-                "{}" => generation as i64,
+                "x" => Value::<DefaultNumericTypes>::Int(generation as i64),
+                "generation" => Value::<DefaultNumericTypes>::Int(generation as i64),
+                "{}" => Value::<DefaultNumericTypes>::Int(generation as i64),
             }
             .unwrap();
             match evalexpr::eval_int_with_context(record.generation.as_str(), &context) {
