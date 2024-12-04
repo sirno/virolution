@@ -47,7 +47,7 @@
 
         };
 
-        devShell.default = pkgs.mkShell {
+        devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
             rust-bin.nightly.latest.default
           ];
