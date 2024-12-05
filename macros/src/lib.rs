@@ -28,16 +28,7 @@ pub fn require_deferred_drop(_attr: TokenStream, item: TokenStream) -> TokenStre
 
             let __require_deferred_drop_result = (|| #block )();
 
-            match self.inquire_deferred_drop() {
-                Ok(Some(haplotype_ref)) => {
-                    drop(haplotype_ref);
-                },
-                Ok(None) => {},
-                Err(e) => {
-                    // Handle or propagate the error as needed
-                    // For example, you can return Err(e);
-                },
-            }
+            self.inquire_deferred_drop();
 
             __require_deferred_drop_result
         }

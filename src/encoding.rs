@@ -18,6 +18,8 @@ pub trait Symbol:
     + std::cmp::PartialEq
     + std::cmp::Eq
     + std::hash::Hash
+    + std::fmt::Display
+    + 'static
 {
     const SIZE: usize;
     fn decode(s: &u8) -> Self;
@@ -67,5 +69,11 @@ impl Symbol for Nucleotide {
             Nucleotide::C => &2,
             Nucleotide::G => &3,
         }
+    }
+}
+
+impl std::fmt::Display for Nucleotide {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.encode() as char)
     }
 }
