@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::mem::ManuallyDrop;
 use std::sync::atomic::{AtomicIsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::encoding::Symbol;
 use crate::errors::Result;
@@ -37,8 +37,6 @@ use macros::require_deferred_drop;
 use super::attributes::{AttributeSet, AttributeValue};
 use super::cache::{CachedValue, VirolutionCache};
 use super::AttributeSetDefinition;
-
-pub static N_FITNESS_TABLES: OnceLock<usize> = OnceLock::new();
 
 // #[derive(Clone, Debug, Deref)]
 // pub type Symbol = Option<u8>;
@@ -585,7 +583,6 @@ impl<S: Symbol> Mutant<S> {
         wildtype: HaplotypeWeak<S>,
         changes: SmallVec<Changes<S>>,
     ) {
-        eprintln!("Create new mutant and replace.");
         // collect all descendants that are still alive
         let descendants: Vec<HaplotypeWeak<S>> = last
             .descendants
@@ -634,7 +631,6 @@ impl<S: Symbol> Mutant<S> {
 
         // check if anyone has requested a deferred drop
         if deference_cell.get_requests() > 0 {
-            eprintln!("- Defer drop.");
             let dangled_ref = ManuallyDrop::new(tmp_ref);
             deference_cell.leak.set(Some(dangled_ref));
         }
@@ -774,10 +770,10 @@ impl<S: Symbol> Mutant<S> {
     /// If no other thread has requested deferred drop, the drop will be executed.
     fn inquire_deferred_drop(&self) {
         if self._defer_drop.inquire_deferred_drop() {
-            dbg!("Drop deferred.");
-            let mut dangling_ptr = self._defer_drop.leak.take().unwrap();
-            unsafe {
-                ManuallyDrop::drop(&mut dangling_ptr);
+            if let Some(mut dangling_ptr) = self._defer_drop.leak.take() {
+                unsafe {
+                    ManuallyDrop::drop(&mut dangling_ptr);
+                }
             }
         }
     }
@@ -1094,8 +1090,9 @@ mod tests {
         assert_eq!(ht3.get_mutations().get(&0), Some(&(*Nt::G.index() as u8)));
     }
 
+    #[allow(dead_code)]
     fn mutator(
-        pop: &Vec<Mutex<HaplotypeRef<Nt>>>,
+        pop: &[Mutex<HaplotypeRef<Nt>>],
         pop_size: usize,
         n_mutations: usize,
         n_sites: usize,
@@ -1124,7 +1121,8 @@ mod tests {
         }
     }
 
-    fn reader(pop: &Vec<Mutex<HaplotypeRef<Nt>>>, pop_size: usize, n_reads: usize, n_sites: usize) {
+    #[allow(dead_code)]
+    fn reader(pop: &[Mutex<HaplotypeRef<Nt>>], pop_size: usize, n_reads: usize, n_sites: usize) {
         use rand::prelude::*;
         for _ in 0..n_reads {
             let mut rng = rand::thread_rng();

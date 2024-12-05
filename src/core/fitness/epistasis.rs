@@ -1,3 +1,4 @@
+#![allow(non_local_definitions, unexpected_cfgs)]
 use npyz::WriterBuilder;
 use smallvec::SmallVec;
 use std::collections::HashMap;
