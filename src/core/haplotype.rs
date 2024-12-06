@@ -44,9 +44,9 @@ use super::AttributeSetDefinition;
 
 const SMALL_VEC_SIZE: usize = 1;
 #[cfg(all(feature = "parallel", test))]
-static N_LEAKED: AtomicUsize = AtomicUsize::new(0);
+static N_LEAKED: AtomicIsize = AtomicIsize::new(0);
 #[cfg(all(feature = "parallel", test))]
-static N_DROPPED: AtomicUsize = AtomicUsize::new(0);
+static N_DROPPED: AtomicIsize = AtomicIsize::new(0);
 
 #[derive(Debug, Clone)]
 pub struct Change<S: Symbol> {
@@ -86,6 +86,9 @@ pub struct Wildtype<S: Symbol> {
 #[derive(Derivative)]
 #[derivative(Debug)]
 struct DeferenceCell<T> {
+    // a lock to synchronize deferred drops, needs to be shared between the original and the
+    // deferred haplotype to ensure that the deference requesters can both, access through the
+    // reference and the deferred haplotype directly
     lock: Arc<ReentrantMutex<Cell<u8>>>,
     dirty: Cell<bool>,
     #[derivative(Debug = "ignore")]
@@ -618,8 +621,7 @@ impl<S: Symbol> Mutant<S> {
         let new_ptr = tmp_ref.as_ptr() as *mut Mutant<S>;
 
         // synchronize swapping and deference with other threads
-        let _guard_old = (*old_ptr)._defer_drop.lock();
-        let _guard_new = (*new_ptr)._defer_drop.lock();
+        let _guard = (*old_ptr)._defer_drop.lock();
 
         // replace the old reference with the new one inside the haplotype ref
         // this swaps the reference count of the old reference for the new one
