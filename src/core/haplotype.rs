@@ -19,6 +19,7 @@
 //!
 
 use derivative::Derivative;
+use parking_lot::{ReentrantMutex, ReentrantMutexGuard};
 use seq_io::fasta::OwnedRecord;
 use smallvec::SmallVec;
 use std::cell::Cell;
@@ -26,7 +27,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::mem::ManuallyDrop;
 use std::sync::atomic::{AtomicIsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
 
 use crate::encoding::Symbol;
 use crate::errors::Result;
@@ -42,6 +43,10 @@ use super::AttributeSetDefinition;
 // pub type Symbol = Option<u8>;
 
 const SMALL_VEC_SIZE: usize = 1;
+#[cfg(all(feature = "parallel", test))]
+static N_LEAKED: AtomicUsize = AtomicUsize::new(0);
+#[cfg(all(feature = "parallel", test))]
+static N_DROPPED: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone)]
 pub struct Change<S: Symbol> {
@@ -81,8 +86,7 @@ pub struct Wildtype<S: Symbol> {
 #[derive(Derivative)]
 #[derivative(Debug)]
 struct DeferenceCell<T> {
-    lock: Arc<Mutex<()>>,
-    requests: Cell<u8>,
+    lock: Arc<ReentrantMutex<Cell<u8>>>,
     dirty: Cell<bool>,
     #[derivative(Debug = "ignore")]
     leak: Cell<Option<ManuallyDrop<T>>>,
@@ -91,9 +95,8 @@ struct DeferenceCell<T> {
 impl<T> DeferenceCell<T> {
     fn new() -> Self {
         Self {
-            lock: Arc::new(Mutex::new(())),
+            lock: Arc::new(ReentrantMutex::new(Cell::new(0))),
             leak: Cell::new(None),
-            requests: Cell::new(0),
             dirty: Cell::new(false),
         }
     }
@@ -102,34 +105,32 @@ impl<T> DeferenceCell<T> {
         Self {
             lock: self.lock.clone(),
             leak: Cell::new(None),
-            requests: Cell::new(self.requests.get()),
             dirty: Cell::new(false),
         }
     }
 
-    fn lock(&self) -> MutexGuard<()> {
-        self.lock.lock().unwrap()
+    fn lock(&self) -> ReentrantMutexGuard<Cell<u8>> {
+        self.lock.lock()
     }
 
     fn require_deferred_drop(&self) {
-        let _guard = self.lock();
-        self.requests.set(self.requests.get() + 1);
+        let guard = self.lock();
+        guard.set(guard.get() + 1);
     }
 
     // returns true if a deferred drop should be executed
     fn inquire_deferred_drop(&self) -> bool {
-        let _guard = self.lock();
+        let guard = self.lock();
 
         // decrement the number of requests
-        let requests = self.requests.get();
-        self.requests.set(requests - 1);
+        guard.set(guard.get() - 1);
 
         // return true if the haplotype is dirty and no more requests are pending
-        self.dirty.get() && requests == 0
+        self.dirty.get() && guard.get() == 0
     }
 
     fn get_requests(&self) -> u8 {
-        self.requests.get()
+        self.lock.lock().get()
     }
 
     fn is_dirty(&self) -> bool {
@@ -569,7 +570,7 @@ impl<S: Symbol> Mutant<S> {
 
                 // sync
                 _dirty_descendants: AtomicIsize::new(0),
-                _defer_drop: DeferenceCell::new().into(),
+                _defer_drop: DeferenceCell::new(),
             })
         })
     }
@@ -617,22 +618,23 @@ impl<S: Symbol> Mutant<S> {
         let new_ptr = tmp_ref.as_ptr() as *mut Mutant<S>;
 
         // synchronize swapping and deference with other threads
-        let _guard = last._defer_drop.lock();
+        let _guard_old = (*old_ptr)._defer_drop.lock();
+        let _guard_new = (*new_ptr)._defer_drop.lock();
 
         // replace the old reference with the new one inside the haplotype ref
         // this swaps the reference count of the old reference for the new one
         std::ptr::swap(old_ptr, new_ptr);
 
-        // get the deference cell of the old reference
-        let deference_cell = &last._defer_drop;
-
         // mark the old reference as dirty
-        deference_cell.set_dirty();
+        (*old_ptr)._defer_drop.set_dirty();
 
         // check if anyone has requested a deferred drop
-        if deference_cell.get_requests() > 0 {
+        if (*old_ptr)._defer_drop.get_requests() > 0 {
+            eprintln!("Leaking reference to haplotype.");
             let dangled_ref = ManuallyDrop::new(tmp_ref);
-            deference_cell.leak.set(Some(dangled_ref));
+            (*old_ptr)._defer_drop.leak.set(Some(dangled_ref));
+            #[cfg(all(feature = "parallel", test))]
+            N_LEAKED.fetch_add(1, Ordering::Relaxed);
         }
     }
 
@@ -771,6 +773,9 @@ impl<S: Symbol> Mutant<S> {
     fn inquire_deferred_drop(&self) {
         if self._defer_drop.inquire_deferred_drop() {
             if let Some(mut dangling_ptr) = self._defer_drop.leak.take() {
+                #[cfg(all(feature = "parallel", test))]
+                N_DROPPED.fetch_add(1, Ordering::Relaxed);
+                eprintln!("Dropping reference to haplotype.");
                 unsafe {
                     ManuallyDrop::drop(&mut dangling_ptr);
                 }
@@ -916,6 +921,8 @@ mod tests {
     use crate::providers::Generation;
     use serial_test::serial;
     use std::sync::Arc;
+    #[cfg(feature = "parallel")]
+    use std::sync::Mutex;
 
     #[test]
     fn initiate_wildtype() {
@@ -1159,6 +1166,13 @@ mod tests {
             s.spawn(|| mutator(&pop, pop_size, n_mutations, n_sites, n_symbols));
             s.spawn(|| reader(&pop, pop_size, n_reads, n_sites));
         });
+
+        let n_leaked = N_LEAKED.load(Ordering::Relaxed);
+        let n_dropped = N_DROPPED.load(Ordering::Relaxed);
+        assert_eq!(
+            n_leaked, n_dropped,
+            "Number of leaked and dropped nodes should be equal."
+        );
     }
 
     #[test]
