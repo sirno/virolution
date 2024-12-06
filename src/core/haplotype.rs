@@ -1099,9 +1099,9 @@ mod tests {
         assert_eq!(ht3.get_mutations().get(&0), Some(&(*Nt::G.index() as u8)));
     }
 
-    #[allow(dead_code)]
+    #[cfg(feature = "parallel")]
     fn mutator(
-        pop: &[Mutex<HaplotypeRef<Nt>>],
+        pop: &[ReentrantMutex<HaplotypeRef<Nt>>],
         pop_size: usize,
         n_mutations: usize,
         n_sites: usize,
@@ -1130,8 +1130,13 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
-    fn reader(pop: &[Mutex<HaplotypeRef<Nt>>], pop_size: usize, n_reads: usize, n_sites: usize) {
+    #[cfg(feature = "parallel")]
+    fn reader(
+        pop: &[ReentrantMutex<HaplotypeRef<Nt>>],
+        pop_size: usize,
+        n_reads: usize,
+        n_sites: usize,
+    ) {
         use rand::prelude::*;
         for _ in 0..n_reads {
             let mut rng = rand::thread_rng();
