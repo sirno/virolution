@@ -1101,7 +1101,7 @@ mod tests {
 
     #[cfg(feature = "parallel")]
     fn mutator(
-        pop: &[ReentrantMutex<HaplotypeRef<Nt>>],
+        pop: &[Mutex<HaplotypeRef<Nt>>],
         pop_size: usize,
         n_mutations: usize,
         n_sites: usize,
@@ -1131,12 +1131,7 @@ mod tests {
     }
 
     #[cfg(feature = "parallel")]
-    fn reader(
-        pop: &[ReentrantMutex<HaplotypeRef<Nt>>],
-        pop_size: usize,
-        n_reads: usize,
-        n_sites: usize,
-    ) {
+    fn reader(pop: &[Mutex<HaplotypeRef<Nt>>], pop_size: usize, n_reads: usize, n_sites: usize) {
         use rand::prelude::*;
         for _ in 0..n_reads {
             let mut rng = rand::thread_rng();
