@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::{cmp::min_by, ops::Range};
 
 use crate::config::Parameters;
+use crate::core::hosts::Host;
 use crate::core::{Haplotype, Population};
 use crate::encoding::Symbol;
 use crate::providers::Generation;
@@ -20,6 +21,72 @@ use crate::references::HaplotypeRef;
 pub type HostMap = Vec<Vec<usize>>;
 // TODO: Review host spec abstraction
 pub type HostSpec = (Range<usize>, &'static str);
+
+struct BasicHost {
+    parameters: Parameters,
+
+    infection_fitness_provider: &'static str,
+    replicative_fitness_provider: &'static str,
+
+    infection_sampler: Bernoulli,
+    mutation_sampler: Binomial,
+    recombination_sampler: Bernoulli,
+    replication_sampler: Poisson<f64>,
+}
+
+impl BasicHost {
+    pub fn new(
+        n_sites: usize,
+        parameters: &Parameters,
+        replicative_fitness_provider: &'static str,
+        infection_fitness_provider: &'static str,
+    ) -> Self {
+        Self {
+            parameters: parameters.clone(),
+
+            infection_fitness_provider,
+            replicative_fitness_provider,
+
+            infection_sampler: Bernoulli::new(parameters.infection_fraction).unwrap(),
+            mutation_sampler: Binomial::new(n_sites as u64, parameters.mutation_rate).unwrap(),
+            recombination_sampler: Bernoulli::new(parameters.recombination_rate).unwrap(),
+            replication_sampler: Poisson::new(parameters.basic_reproductive_number).unwrap(),
+        }
+    }
+}
+
+impl<S: Symbol> Host<S> for BasicHost {
+    fn infect(&self, _haplotype: &HaplotypeRef<S>) -> bool {
+        true
+    }
+
+    fn mutate(&self, haplotype: &mut [HaplotypeRef<S>]) {}
+
+    fn replicate(&self, haplotypes: &[HaplotypeRef<S>], offspring: &mut [usize]) {
+        // let fitness_values: Vec<f64> = haplotypes
+        //     .iter()
+        //     .map(|infectant| {
+        //         f64::try_from(
+        //             infectant
+        //                 .get_attribute_or_compute(self.replicative_fitness_provider)
+        //                 .unwrap(),
+        //         )
+        //         .unwrap()
+        //     })
+        //     .collect();
+
+        // let fitness_sum: f64 = fitness_values.iter().sum();
+        // host.iter()
+        //     .zip(fitness_values.iter())
+        //     .for_each(|(infectant, fitness)| {
+        //         if let Ok(dist) =
+        //             Poisson::new(fitness * self.parameters.basic_reproductive_number / fitness_sum)
+        //         {
+        //             offspring[*infectant] = dist.sample(&mut rng) as usize;
+        //         }
+        //     });
+    }
+}
 
 #[cfg(feature = "parallel")]
 pub type SimulationTrait<S> = dyn Simulation<S> + Send + Sync;
@@ -239,7 +306,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                         });
                 });
 
-            // collect recominants
+            // collect recombinants
             for (position, recombinant) in recombination_receiver.iter() {
                 self.population.insert(&position, &recombinant);
             }
@@ -296,7 +363,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
         let mut offspring = vec![0; self.population.len()];
         let offspring_ptr = offspring.as_mut_ptr() as usize;
         self.hosts.par_iter().for_each(|(range, provider_id)| {
-            host_map[range.clone()].iter().for_each(|host| {
+            host_map[range.clone()].par_iter().for_each(|host| {
                 let fitness_values: Vec<f64> = host
                     .iter()
                     .map(|infectant| {
@@ -309,7 +376,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                     })
                     .collect();
                 let fitness_sum: f64 = fitness_values.iter().sum();
-                host.iter()
+                host.par_iter()
                     .zip(fitness_values.iter())
                     .for_each(|(infectant, fitness)| {
                         if let Ok(dist) = Poisson::new(

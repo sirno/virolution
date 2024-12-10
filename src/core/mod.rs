@@ -9,6 +9,7 @@ pub mod attributes;
 pub mod population;
 pub mod fitness;
 pub mod haplotype;
+pub mod hosts;
 
 pub use ancestry::Ancestry;
 pub use attributes::{
