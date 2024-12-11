@@ -17,6 +17,7 @@ use std::sync::Arc;
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
+use crate::core::hosts::{HostMapBuffer, HostSpec};
 use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
@@ -27,7 +28,7 @@ use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
 #[cfg(feature = "parallel")]
 use crate::simulation::HostMap;
-use crate::simulation::{BasicSimulation, HostSpec, SimulationTrait};
+use crate::simulation::{BasicSimulation, SimulationTrait};
 #[cfg(not(feature = "parallel"))]
 use crate::stats::population::{PopulationDistance, PopulationFrequencies};
 
@@ -542,6 +543,20 @@ impl Runner {
                 std::process::exit(1);
             }
         };
+
+        // create host buffers
+        let hostmap_buffers = (0..self.args.n_compartments)
+            .map(|_| {
+                HostMapBuffer::new(
+                    self.settings.parameters.first().unwrap().max_population,
+                    self.settings
+                        .parameters
+                        .first()
+                        .unwrap()
+                        .host_population_size,
+                )
+            })
+            .collect::<Vec<_>>();
 
         for generation in 0..=self.args.generations {
             // logging

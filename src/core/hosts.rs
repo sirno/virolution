@@ -35,24 +35,97 @@ pub trait Host<S: Symbol> {
 
 /// A host specification that associates a host with a specific `Host` implementation.
 pub struct HostSpec<S: Symbol = Nucleotide> {
-    range: Range<usize>,
-    host: dyn Host<S>,
+    pub range: Range<usize>,
+    pub host: Box<dyn Host<S>>,
+}
+
+/// A buffer to store the host map in.
+///
+/// This buffer can be used to reuse memory for the host map between generations
+pub struct HostMapBuffer {
+    infections: Vec<Option<usize>>,
+    offsets: Vec<usize>,
+    hosts: Vec<usize>,
 }
 
 /// A map from host index to infectant indices.
 ///
-/// The map is constructed from a list of associations between infectant and host indices. It uses
+/// The map is constructed from a list of infections between infectant and host indices. It uses
+/// memory allocated by the caller to store the map, such that the map can reuse the memory, when
+/// associations change.
+impl HostMapBuffer {
+    pub fn new(n_hosts: usize, n_infectants: usize) -> Self {
+        Self {
+            infections: vec![None; n_infectants],
+            offsets: vec![0; n_hosts + 1],
+            hosts: vec![0; n_infectants],
+        }
+    }
+
+    pub fn build<F: FnMut(&mut Option<usize>)>(&mut self, builder: F) {
+        // set new infections
+        self.infections.iter_mut().map(builder);
+
+        // reset offsets
+        self.offsets.fill(0);
+
+        // compute prefix sum in place
+        for host_idx in self.infections.iter().flatten() {
+            self.offsets[*host_idx] += 1;
+        }
+
+        for i in 0..self.offsets.len() - 1 {
+            self.offsets[i + 1] += self.offsets[i];
+        }
+
+        // fill host maps using backfill with offsets
+        // after the loop, we will have offsets - count
+        for (infectant_idx, maybe_host) in self.infections.iter().enumerate() {
+            if let Some(host_idx) = maybe_host {
+                self.hosts[self.offsets[*host_idx] - 1] = infectant_idx;
+                self.offsets[*host_idx] -= 1;
+            }
+        }
+    }
+
+    /// Get the slice of infectants that are associated with the host.
+    pub fn get_slice(&self, host_idx: usize) -> &[usize] {
+        if host_idx >= self.offsets.len() {
+            return &[];
+        }
+
+        let start = self.offsets[host_idx];
+        let end = self.offsets[host_idx + 1];
+
+        &self.hosts[start..end]
+    }
+
+    /// Find the host that is associated with the infectant.
+    pub fn find_host(&self, infectant_idx: usize) -> Option<usize> {
+        self.infections[infectant_idx]
+    }
+
+    pub fn iter_hosts(&self) -> impl Iterator<Item = &[usize]> + '_ {
+        self.offsets
+            .windows(2)
+            .map(move |window| &self.hosts[window[0]..window[1]])
+    }
+}
+
+/// A map from host index to infectant indices.
+///
+/// The map is constructed from a list of infections between infectant and host indices. It uses
 /// memory allocated by the caller to store the map, such that the map can reuse the memory, when
 /// associations change.
 pub struct HostMap<'a> {
-    associations: &'a [Option<usize>],
+    infections: &'a [Option<usize>],
     offsets: &'a [usize],
     hosts: &'a [usize],
 }
 
 impl<'a> HostMap<'a> {
     pub fn new(
-        associations: &'a [Option<usize>],
+        infections: &'a [Option<usize>],
         offsets: &'a mut [usize],
         hosts: &'a mut [usize],
     ) -> Self {
@@ -60,7 +133,7 @@ impl<'a> HostMap<'a> {
         offsets.fill(0);
 
         // compute prefix sum in place
-        for host_idx in associations.iter().flatten() {
+        for host_idx in infections.iter().flatten() {
             offsets[*host_idx] += 1;
         }
 
@@ -72,7 +145,7 @@ impl<'a> HostMap<'a> {
 
         // fill host maps using backfill with offsets
         // after the loop, we will have offsets - count
-        for (infectant_idx, maybe_host) in associations.iter().enumerate() {
+        for (infectant_idx, maybe_host) in infections.iter().enumerate() {
             if let Some(host_idx) = maybe_host {
                 dbg!(infectant_idx);
                 hosts[offsets[*host_idx] - 1] = infectant_idx;
@@ -81,7 +154,7 @@ impl<'a> HostMap<'a> {
         }
 
         Self {
-            associations,
+            infections,
             offsets,
             hosts,
         }
@@ -101,7 +174,7 @@ impl<'a> HostMap<'a> {
 
     /// Find the host that is associated with the infectant.
     pub fn find_host(&self, infectant_idx: usize) -> Option<usize> {
-        self.associations[infectant_idx]
+        self.infections[infectant_idx]
     }
 }
 
