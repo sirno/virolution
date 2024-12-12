@@ -357,7 +357,6 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     #[cfg(feature = "parallel")]
     fn mutate_infectants(&mut self) {
         // mutate infectants based on host cell assignment
-        let (mutant_sender, mutant_receiver) = channel();
         self.host_specs.par_iter().for_each(|spec| {
             spec.range.clone().into_par_iter().for_each(|position| {
                 let infectant_ids = self.host_map_buffer.get_slice(position);
@@ -367,7 +366,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                     .collect::<Vec<HaplotypeRef<S>>>();
                 spec.host.mutate(infectants.as_mut_slice());
                 for (id, infectant) in infectant_ids.iter().zip(infectants.iter()) {
-                    self.population.insert(id, infectant);
+                    self.population.insert(id, infectant.clone());
                 }
             });
         });
@@ -386,7 +385,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                     .collect::<Vec<HaplotypeRef<S>>>();
                 spec.host.mutate(infectants.as_mut_slice());
                 for (id, infectant) in infectant_ids.iter().zip(infectants.iter()) {
-                    self.population.insert(id, infectant);
+                    self.population.insert(id, infectant.clone());
                 }
             });
         });

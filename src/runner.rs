@@ -549,20 +549,6 @@ impl Runner {
             }
         };
 
-        // create host buffers
-        let hostmap_buffers = (0..self.args.n_compartments)
-            .map(|_| {
-                HostMapBuffer::new(
-                    self.settings.parameters.first().unwrap().max_population,
-                    self.settings
-                        .parameters
-                        .first()
-                        .unwrap()
-                        .host_population_size,
-                )
-            })
-            .collect::<Vec<_>>();
-
         for generation in 0..=self.args.generations {
             // logging
             log::debug!("Generate logging message for generation {generation}...");
