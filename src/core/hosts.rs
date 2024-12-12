@@ -7,9 +7,8 @@
 //!    implementation.
 //! 3. `HostMap`: A map from host indices to infectant indices, which is used to efficiently
 //!    invert the host-infectant relationship.
-use crate::encoding::{Nucleotide, Symbol};
+use crate::encoding::Symbol;
 use crate::references::HaplotypeRef;
-
 use std::ops::Range;
 
 /// A host that can be infected by infectants.
@@ -22,7 +21,7 @@ use std::ops::Range;
 ///    recombinations.
 /// 3. Replication: Compute the number of infectants that will be released from the host.
 ///
-pub trait Host<S: Symbol> {
+pub trait Host<S: Symbol>: std::fmt::Debug + Send + Sync + 'static {
     /// Decide whether the infectant should infect the host.
     fn infect(&self, haplotype: &HaplotypeRef<S>) -> bool;
 
@@ -31,12 +30,36 @@ pub trait Host<S: Symbol> {
 
     /// Compute the number of infectants that will be released.
     fn replicate(&self, haplotype: &[HaplotypeRef<S>], offspring: &mut [usize]);
+
+    /// Clone the host.
+    fn clone_box(&self) -> Box<dyn Host<S>>;
 }
 
 /// A host specification that associates a host with a specific `Host` implementation.
-pub struct HostSpec<S: Symbol = Nucleotide> {
+#[derive(Debug)]
+pub struct HostSpec<S: Symbol> {
     pub range: Range<usize>,
     pub host: Box<dyn Host<S>>,
+}
+
+#[cfg(feature = "parallel")]
+unsafe impl<S: Symbol> Send for HostSpec<S> {}
+#[cfg(feature = "parallel")]
+unsafe impl<S: Symbol> Sync for HostSpec<S> {}
+
+impl<S: Symbol> HostSpec<S> {
+    pub fn new(range: Range<usize>, host: Box<dyn Host<S>>) -> Self {
+        Self { range, host }
+    }
+}
+
+impl<S: Symbol> Clone for HostSpec<S> {
+    fn clone(&self) -> Self {
+        Self {
+            range: self.range.clone(),
+            host: self.host.clone_box(),
+        }
+    }
 }
 
 /// A buffer to store the host map in.
@@ -64,7 +87,7 @@ impl HostMapBuffer {
 
     pub fn build<F: FnMut(&mut Option<usize>)>(&mut self, builder: F) {
         // set new infections
-        self.infections.iter_mut().map(builder);
+        self.infections.iter_mut().for_each(builder);
 
         // reset offsets
         self.offsets.fill(0);
@@ -109,6 +132,10 @@ impl HostMapBuffer {
         self.offsets
             .windows(2)
             .map(move |window| &self.hosts[window[0]..window[1]])
+    }
+
+    pub fn iter_range(&self, range: Range<usize>) -> impl Iterator<Item = &[usize]> + '_ {
+        range.map(move |i| &self.hosts[self.offsets[i]..self.offsets[i + 1]])
     }
 }
 

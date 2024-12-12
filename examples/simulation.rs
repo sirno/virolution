@@ -8,6 +8,7 @@ use virolution::core::fitness::init::*;
 use virolution::core::fitness::utility::UtilityFunction;
 use virolution::core::fitness::FitnessProvider;
 use virolution::core::haplotype::*;
+use virolution::core::hosts::HostSpec;
 use virolution::core::Population;
 use virolution::encoding::Nucleotide as Nt;
 use virolution::providers::Generation;
@@ -17,6 +18,7 @@ use virolution::population;
 
 fn main() {
     let sequence = vec![Nt::A; 100];
+    let sequence_length = sequence.len();
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,
@@ -73,23 +75,29 @@ fn main() {
     let settings = Parameters::read_from_file("parameters_example.yaml")
         .expect("Failed to read settings from file");
     fs::remove_file("parameters_example.yaml").expect("Unable to remove file.");
-    let host_spec = vec![(0..simulation_settings.host_population_size, name)];
+    let host_specs = vec![HostSpec::new(
+        0..simulation_settings.host_population_size,
+        Box::new(BasicHost::new(
+            sequence_length,
+            &simulation_settings,
+            Some(name),
+            None,
+        )),
+    )];
     let mut simulation = BasicSimulation::new(
         wt,
         population,
-        host_spec,
         settings.clone(),
+        host_specs,
         generation_provider,
     );
-    let host_map = simulation.get_host_map();
-    simulation.mutate_infectants(&host_map);
-    let offspring = simulation.replicate_infectants(&host_map);
+    simulation.infect();
+    simulation.mutate_infectants();
+    let offspring = simulation.replicate_infectants();
     let population2 = simulation.subsample_population(&offspring, 1.);
 
     println!("---simulation_settings---");
     println!("{:#?}", settings);
-    println!("---infection-mapping---");
-    println!("host_map: {:?}", host_map);
     println!(
         "population: {:?}",
         simulation

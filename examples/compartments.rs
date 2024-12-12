@@ -9,6 +9,7 @@ use virolution::core::fitness::init::*;
 use virolution::core::fitness::utility::UtilityFunction;
 use virolution::core::fitness::FitnessProvider;
 use virolution::core::haplotype::*;
+use virolution::core::hosts::HostSpec;
 use virolution::core::population::Population;
 use virolution::encoding::Nucleotide as Nt;
 use virolution::providers::Generation;
@@ -20,6 +21,7 @@ fn main() {
     let plan_path = PathBuf::from_iter([env!("CARGO_MANIFEST_DIR"), "data/plan.csv"]);
     let plan = Schedule::read(plan_path.to_str().unwrap()).expect("Failed to read plan");
     let sequence = vec![Nt::A; 5386];
+    let sequence_length = sequence.len();
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,
@@ -64,12 +66,16 @@ fn main() {
     let mut compartment_simulations: Vec<BasicSimulation<Nt>> = (0..n_compartments)
         .map(|_| {
             let population = population![wt.clone(), 1_000_000];
-            let hosts = vec![(0..parameters.host_population_size, name)];
+            let host = BasicHost::new(sequence_length, &parameters, Some(name), None);
+            let host_specs = vec![HostSpec::new(
+                0..parameters.host_population_size,
+                Box::new(host),
+            )];
             BasicSimulation::new(
                 wt.clone(),
                 population,
-                hosts,
                 parameters.clone(),
+                host_specs,
                 generation_provider.clone(),
             )
         })
@@ -80,9 +86,9 @@ fn main() {
         let offsprings: Vec<Vec<usize>> = compartment_simulations
             .iter_mut()
             .map(|simulation| {
-                let host_map = simulation.get_host_map();
-                simulation.mutate_infectants(&host_map);
-                simulation.replicate_infectants(&host_map)
+                simulation.infect();
+                simulation.mutate_infectants();
+                simulation.replicate_infectants()
             })
             .collect();
 

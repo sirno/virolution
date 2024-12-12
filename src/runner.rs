@@ -28,7 +28,7 @@ use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
 #[cfg(feature = "parallel")]
 use crate::simulation::HostMap;
-use crate::simulation::{BasicSimulation, SimulationTrait};
+use crate::simulation::{BasicHost, BasicSimulation, SimulationTrait};
 #[cfg(not(feature = "parallel"))]
 use crate::stats::population::{PopulationDistance, PopulationFrequencies};
 
@@ -92,7 +92,7 @@ impl Runner {
         let simulations: Vec<Box<SimulationTrait<Nt>>> = Self::create_simulations(
             &args,
             &wildtype,
-            &host_specs,
+            host_specs,
             &settings.parameters[0],
             &generation,
         );
@@ -226,10 +226,10 @@ impl Runner {
         settings: &Settings,
         sequence: &[S],
         path: Option<&Path>,
-    ) -> Result<(AttributeSetDefinition<S>, Vec<HostSpec>)> {
+    ) -> Result<(AttributeSetDefinition<S>, Vec<HostSpec<S>>)> {
         let default_settings = &settings.parameters[0];
         let mut attribute_definitions = AttributeSetDefinition::new();
-        let mut host_specs: Vec<HostSpec> = Vec::new();
+        let mut host_specs: Vec<HostSpec<S>> = Vec::new();
         match &default_settings.fitness_model {
             FitnessModelField::SingleHost(fitness_model) => {
                 let mut fitness_model = fitness_model.clone();
@@ -248,7 +248,10 @@ impl Runner {
                     &fitness_model,
                 )?));
 
-                host_specs.push((0..default_settings.host_population_size, name));
+                let host = BasicHost::new(sequence.len(), &default_settings, Some(name), None);
+                let host_spec: HostSpec<S> =
+                    HostSpec::new(0..default_settings.host_population_size, Box::new(host));
+                host_specs.push(host_spec);
             }
             FitnessModelField::MultiHost(fitness_models) => {
                 for (id, fitness_model_frac) in fitness_models.iter().enumerate() {
@@ -275,7 +278,9 @@ impl Runner {
                     let lower = id * n_hosts;
                     let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
 
-                    host_specs.push((lower..upper, name));
+                    let host = BasicHost::new(sequence.len(), &default_settings, Some(name), None);
+                    let host_spec = HostSpec::new(lower..upper, Box::new(host));
+                    host_specs.push(host_spec);
                 }
             }
         };
@@ -297,7 +302,7 @@ impl Runner {
     fn create_simulations(
         args: &Args,
         wildtype: &HaplotypeRef<Nt>,
-        host_specs: &[HostSpec],
+        host_specs: Vec<HostSpec<Nt>>,
         parameters: &Parameters,
         generation: &Arc<Generation>,
     ) -> Vec<Box<SimulationTrait<Nt>>> {
@@ -321,8 +326,8 @@ impl Runner {
                 BasicSimulation::new(
                     wildtype.clone(),
                     init_population,
-                    host_specs.to_vec(),
                     parameters.clone(),
+                    host_specs.clone(),
                     generation.clone(),
                 )
             })
@@ -613,9 +618,9 @@ impl Runner {
                     if simulation.get_population().is_empty() {
                         return Vec::new();
                     }
-                    let host_map = simulation.get_host_map();
-                    simulation.mutate_infectants(&host_map);
-                    simulation.replicate_infectants(&host_map)
+                    simulation.infect();
+                    simulation.mutate_infectants();
+                    simulation.replicate_infectants()
                 })
                 .collect();
 

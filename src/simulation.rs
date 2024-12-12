@@ -6,41 +6,38 @@ use rand::prelude::*;
 use rand_distr::{Bernoulli, Binomial, Poisson, Uniform, WeightedAliasIndex, WeightedIndex};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
+use std::cmp::min_by;
 #[cfg(feature = "parallel")]
 use std::sync::mpsc::channel;
 use std::sync::Arc;
-use std::{cmp::min_by, ops::Range};
 
 use crate::config::Parameters;
-use crate::core::hosts::{Host, HostMap, HostMapBuffer, HostSpec};
+use crate::core::hosts::{Host, HostMapBuffer, HostSpec};
 use crate::core::{Haplotype, Population};
 use crate::encoding::Symbol;
 use crate::providers::Generation;
 use crate::references::HaplotypeRef;
 
-// pub type HostMap = Vec<Vec<usize>>;
-// TODO: Review host spec abstraction
-// pub type HostSpec = (Range<usize>, &'static str);
-
-struct BasicHost {
+#[derive(Debug, Clone)]
+pub struct BasicHost {
     parameters: Parameters,
 
-    infection_fitness_provider: &'static str,
-    replicative_fitness_provider: &'static str,
+    infection_fitness_provider: Option<&'static str>,
+    replicative_fitness_provider: Option<&'static str>,
 
     site_sampler: Uniform<usize>,
     infection_sampler: Bernoulli,
     mutation_sampler: Binomial,
     recombination_sampler: Bernoulli,
-    replication_sampler: Poisson<f64>,
+    // replication_sampler: Poisson<f64>,
 }
 
 impl BasicHost {
     pub fn new(
         n_sites: usize,
         parameters: &Parameters,
-        replicative_fitness_provider: &'static str,
-        infection_fitness_provider: &'static str,
+        replicative_fitness_provider: Option<&'static str>,
+        infection_fitness_provider: Option<&'static str>,
     ) -> Self {
         Self {
             parameters: parameters.clone(),
@@ -52,7 +49,7 @@ impl BasicHost {
             infection_sampler: Bernoulli::new(parameters.infection_fraction).unwrap(),
             mutation_sampler: Binomial::new(n_sites as u64, parameters.mutation_rate).unwrap(),
             recombination_sampler: Bernoulli::new(parameters.recombination_rate).unwrap(),
-            replication_sampler: Poisson::new(parameters.basic_reproductive_number).unwrap(),
+            // replication_sampler: Poisson::new(parameters.basic_reproductive_number).unwrap(),
         }
     }
 }
@@ -131,12 +128,14 @@ impl<S: Symbol> Host<S> for BasicHost {
 
         // collect fitness and compute sum
         for (infectant, offspring_field) in haplotypes.iter().zip(offspring_float_view.iter_mut()) {
-            *offspring_field = f64::try_from(
-                infectant
-                    .get_attribute_or_compute(self.replicative_fitness_provider)
+            *offspring_field = match self.replicative_fitness_provider {
+                Some(provider) => infectant
+                    .get_attribute_or_compute(provider)
+                    .unwrap()
+                    .try_into()
                     .unwrap(),
-            )
-            .unwrap()
+                None => 1.,
+            };
         }
         let fitness_sum: f64 = offspring_float_view.iter().sum();
 
@@ -149,6 +148,10 @@ impl<S: Symbol> Host<S> for BasicHost {
                 offspring[i] = dist.sample(&mut rng) as usize;
             }
         }
+    }
+
+    fn clone_box(&self) -> Box<dyn Host<S>> {
+        Box::new(self.clone())
     }
 }
 
@@ -218,7 +221,7 @@ impl<S: Symbol> BasicSimulation<S> {
         wildtype: HaplotypeRef<S>,
         population: Population<S>,
         parameters: Parameters,
-        host_specs: Vec<HostSpec>,
+        host_specs: Vec<HostSpec<S>>,
         generation: Arc<Generation>,
     ) -> Self {
         let mutation_sampler =
@@ -352,137 +355,92 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     }
 
     #[cfg(feature = "parallel")]
-    fn mutate_infectants(&mut self, host_map: &HostMap) {
+    fn mutate_infectants(&mut self) {
         // mutate infectants based on host cell assignment
-        let sequence_length = self.wildtype.get_length();
-
-        if self.parameters.recombination_rate > 0. {
-            // create recombination channel
-            let (recombination_sender, recombination_receiver) = channel();
-
-            // recombine infectants
-            host_map
-                .par_iter()
-                .for_each_with(recombination_sender, |sender, infectants| {
-                    // Recombine
-                    self._recombine_infectants(sequence_length, infectants)
-                        .into_iter()
-                        .for_each(|recombination| {
-                            sender.send(recombination).unwrap();
-                        });
-                });
-
-            // collect recombinants
-            for (position, recombinant) in recombination_receiver.iter() {
-                self.population.insert(&position, &recombinant);
-            }
-        }
-
-        // create mutation channel
-        let (mutation_sender, mutation_receiver) = channel();
-
-        // mutate infectant
-        host_map
-            .par_iter()
-            .for_each_with(mutation_sender, |sender, infectants| {
-                self._mutate_infectants(sequence_length, infectants)
-                    .into_iter()
-                    .for_each(|mutation| {
-                        sender.send(mutation).unwrap();
-                    });
+        let (mutant_sender, mutant_receiver) = channel();
+        self.host_specs.par_iter().for_each(|spec| {
+            spec.range.clone().into_par_iter().for_each(|position| {
+                let infectant_ids = self.host_map_buffer.get_slice(position);
+                let mut infectants = infectant_ids
+                    .iter()
+                    .map(|infectant_id| self.population[infectant_id].clone())
+                    .collect::<Vec<HaplotypeRef<S>>>();
+                spec.host.mutate(infectants.as_mut_slice());
+                for (id, infectant) in infectant_ids.iter().zip(infectants.iter()) {
+                    self.population.insert(id, infectant);
+                }
             });
-
-        // collect mutants
-        for (position, mutant) in mutation_receiver.iter() {
-            self.population.insert(&position, &mutant);
-        }
+        });
     }
 
     #[cfg(not(feature = "parallel"))]
     fn mutate_infectants(&mut self) {
         // mutate infectants based on host cell assignment
-        if self.parameters.recombination_rate > 0. {
-            // recombine infectants
-            self.host_specs.iter().for_each(|spec| {
-                spec.range.clone().for_each(|position| {
-                    let infectant_ids = self.host_map_buffer.get_slice(position);
-                    let mut infectants = infectant_ids
-                        .iter()
-                        .map(|infectant_id| self.population[infectant_id].clone())
-                        .collect::<Vec<HaplotypeRef<S>>>();
-                    spec.host.mutate(infectants.as_mut_slice());
-                    for (id, infectant) in infectant_ids.iter().zip(infectants.iter()) {
-                        self.population.insert(id, infectant);
-                    }
-                });
+        // recombine infectants
+        self.host_specs.iter().for_each(|spec| {
+            spec.range.clone().for_each(|position| {
+                let infectant_ids = self.host_map_buffer.get_slice(position);
+                let mut infectants = infectant_ids
+                    .iter()
+                    .map(|infectant_id| self.population[infectant_id].clone())
+                    .collect::<Vec<HaplotypeRef<S>>>();
+                spec.host.mutate(infectants.as_mut_slice());
+                for (id, infectant) in infectant_ids.iter().zip(infectants.iter()) {
+                    self.population.insert(id, infectant);
+                }
             });
-        }
+        });
     }
 
     #[cfg(feature = "parallel")]
-    fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
+    fn replicate_infectants(&self) -> Vec<usize> {
+        // TODO: parallelize this method
         let mut offspring = vec![0; self.population.len()];
-        let offspring_ptr = offspring.as_mut_ptr() as usize;
-        self.hosts.par_iter().for_each(|(range, provider_id)| {
-            host_map[range.clone()].par_iter().for_each(|host| {
-                let fitness_values: Vec<f64> = host
-                    .iter()
-                    .map(|infectant| {
-                        f64::try_from(
-                            self.population[infectant]
-                                .get_attribute_or_compute(provider_id)
-                                .unwrap(),
-                        )
-                        .unwrap()
-                    })
-                    .collect();
-                let fitness_sum: f64 = fitness_values.iter().sum();
-                host.par_iter()
-                    .zip(fitness_values.iter())
-                    .for_each(|(infectant, fitness)| {
-                        if let Ok(dist) = Poisson::new(
-                            fitness * self.parameters.basic_reproductive_number / fitness_sum,
-                        ) {
-                            unsafe {
-                                (offspring_ptr as *mut usize)
-                                    .add(*infectant)
-                                    .write(dist.sample(&mut rand::thread_rng()) as usize);
-                            }
-                        }
-                    });
-            });
+        self.host_specs.iter().for_each(|spec| {
+            self.host_map_buffer
+                .iter_range(spec.range.clone())
+                .for_each(|infectants| {
+                    let mut offspring_buf = vec![0; infectants.len()];
+                    spec.host.replicate(
+                        infectants
+                            .iter()
+                            .map(|infectant_id| self.population[infectant_id].clone())
+                            .collect::<Vec<HaplotypeRef<S>>>()
+                            .as_slice(),
+                        offspring_buf.as_mut_slice(),
+                    );
+                    // this can potentially be optimized by using the buffer directly and later
+                    // reordering the values with the host_map.
+                    for (infectant_id, n_offspring) in infectants.iter().zip(offspring_buf.iter()) {
+                        offspring[*infectant_id] = *n_offspring;
+                    }
+                });
         });
         offspring
     }
 
     #[cfg(not(feature = "parallel"))]
-    fn replicate_infectants(&self, host_map: &HostMap) -> Vec<usize> {
+    fn replicate_infectants(&self) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
-        let mut rng = rand::thread_rng();
-        self.hosts.iter().for_each(|(range, provider_id)| {
-            host_map[range.clone()].iter().for_each(|host| {
-                let fitness_values: Vec<f64> = host
-                    .iter()
-                    .map(|infectant| {
-                        f64::try_from(
-                            self.population[infectant]
-                                .get_attribute_or_compute(provider_id)
-                                .unwrap(),
-                        )
-                        .unwrap()
-                    })
-                    .collect();
-                let fitness_sum: f64 = fitness_values.iter().sum();
-                host.iter()
-                    .zip(fitness_values.iter())
-                    .for_each(|(infectant, fitness)| {
-                        if let Ok(dist) = Poisson::new(
-                            fitness * self.parameters.basic_reproductive_number / fitness_sum,
-                        ) {
-                            offspring[*infectant] = dist.sample(&mut rng) as usize;
-                        }
-                    });
-            });
+        self.host_specs.iter().for_each(|spec| {
+            self.host_map_buffer
+                .iter_range(spec.range.clone())
+                .for_each(|infectants| {
+                    let mut offspring_buf = vec![0; infectants.len()];
+                    spec.host.replicate(
+                        infectants
+                            .iter()
+                            .map(|infectant_id| self.population[infectant_id].clone())
+                            .collect::<Vec<HaplotypeRef<S>>>()
+                            .as_slice(),
+                        offspring_buf.as_mut_slice(),
+                    );
+                    // this can potentially be optimized by using the buffer directly and later
+                    // reordering the values with the host_map.
+                    for (infectant_id, n_offspring) in infectants.iter().zip(offspring_buf.iter()) {
+                        offspring[*infectant_id] = *n_offspring;
+                    }
+                });
         });
         offspring
     }
@@ -596,12 +554,17 @@ mod tests {
         attribute_definitions.register(Arc::new(
             FitnessProvider::from_model(name, &sequence, &FITNESS_MODEL).unwrap(),
         ));
-        let hosts = vec![(0..SETTINGS.host_population_size, name)];
+        let host = BasicHost::new(sequence.len(), &SETTINGS, None, Some(name));
+        let host_specs = vec![HostSpec::new(
+            0..SETTINGS.host_population_size,
+            Box::new(host),
+        )];
 
         let wt = Wildtype::new(sequence, &attribute_definitions);
         let population: Population<Nt> = crate::population![wt.clone(), POPULATION_SIZE];
         let generation = Arc::new(Generation::new(0));
-        BasicSimulation::new(wt, population, hosts, SETTINGS, generation)
+
+        BasicSimulation::new(wt, population, SETTINGS, host_specs, generation)
     }
 
     #[test]
@@ -647,23 +610,23 @@ mod tests {
     }
 
     #[bench]
-    fn bench_get_host_map(b: &mut Bencher) {
-        let simulation = setup_test_simulation();
-        b.iter(|| simulation.get_host_map());
+    fn bench_infect(b: &mut Bencher) {
+        let mut simulation = setup_test_simulation();
+        b.iter(|| simulation.infect());
     }
 
     #[bench]
     fn bench_replicate_infectants(b: &mut Bencher) {
-        let simulation = setup_test_simulation();
-        let host_map = simulation.get_host_map();
-        b.iter(|| simulation.replicate_infectants(&host_map));
+        let mut simulation = setup_test_simulation();
+        simulation.infect();
+        b.iter(|| simulation.replicate_infectants());
     }
 
     #[bench]
     fn bench_subsample_population(b: &mut Bencher) {
-        let simulation = setup_test_simulation();
-        let host_map = simulation.get_host_map();
-        let offspring_map = simulation.replicate_infectants(&host_map);
+        let mut simulation = setup_test_simulation();
+        simulation.infect();
+        let offspring_map = simulation.replicate_infectants();
         b.iter(|| simulation.subsample_population(&offspring_map, 1.0));
     }
 }

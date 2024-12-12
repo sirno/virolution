@@ -10,8 +10,8 @@ pub enum Nucleotide {
 
 pub trait Symbol:
     std::marker::Sized
-    + Clone
     + Copy
+    + Clone
     + Send
     + Sync
     + std::fmt::Debug
