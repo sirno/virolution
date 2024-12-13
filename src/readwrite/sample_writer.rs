@@ -335,7 +335,7 @@ mod tests {
             lines[0],
             format!(
                 ">sequence_id=0;block_id={};compartment_id=0;generation=0",
-                population[&0].get_block_id()
+                population.get(&0).get_block_id()
             )
         );
         assert_eq!(lines[1], "AAAAAAAAAA");
@@ -343,7 +343,7 @@ mod tests {
             lines[2],
             format!(
                 ">sequence_id=1;block_id={};compartment_id=0;generation=0",
-                population[&1].get_block_id()
+                population.get(&1).get_block_id()
             )
         );
         assert_eq!(lines[3], "AAAAAAAAAA");
@@ -351,7 +351,7 @@ mod tests {
             lines[4],
             format!(
                 ">sequence_id=2;block_id={};compartment_id=0;generation=0",
-                population[&2].get_block_id()
+                population.get(&2).get_block_id()
             )
         );
         assert_eq!(lines[5], "AAAAAAAAAA");
@@ -359,7 +359,7 @@ mod tests {
             lines[6],
             format!(
                 ">sequence_id=3;block_id={};compartment_id=0;generation=0",
-                population[&3].get_block_id()
+                population.get(&3).get_block_id()
             )
         );
         assert_eq!(lines[7], "AAAAAAAAAA");

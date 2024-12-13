@@ -17,7 +17,7 @@ use std::sync::Arc;
 use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
-use crate::core::hosts::{HostMapBuffer, HostSpec};
+use crate::core::hosts::HostSpec;
 use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
@@ -26,8 +26,6 @@ use crate::providers::Generation;
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::HaplotypeRef;
-#[cfg(feature = "parallel")]
-use crate::simulation::HostMap;
 use crate::simulation::{BasicHost, BasicSimulation, SimulationTrait};
 #[cfg(not(feature = "parallel"))]
 use crate::stats::population::{PopulationDistance, PopulationFrequencies};
@@ -445,19 +443,16 @@ impl Runner {
 
             // simulate compartmentalized population in parallel
             log::debug!("Generate host maps...");
-            let host_maps: Vec<HostMap> = self
-                .simulations
+            self.simulations
                 .par_iter_mut()
-                .map(|simulation| simulation.get_host_map())
-                .collect();
+                .for_each(|simulation| simulation.infect());
             log::debug!("Generate offsprings...");
             let offsprings: Vec<Vec<usize>> = self
                 .simulations
                 .par_iter_mut()
-                .zip(host_maps.par_iter())
-                .map(|(simulation, host_map)| {
-                    simulation.mutate_infectants(host_map);
-                    simulation.replicate_infectants(host_map)
+                .map(|simulation| {
+                    simulation.mutate_infectants();
+                    simulation.replicate_infectants()
                 })
                 .collect();
 

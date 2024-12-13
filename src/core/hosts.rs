@@ -7,6 +7,7 @@
 //!    implementation.
 //! 3. `HostMap`: A map from host indices to infectant indices, which is used to efficiently
 //!    invert the host-infectant relationship.
+//!
 use crate::encoding::Symbol;
 use crate::references::HaplotypeRef;
 use std::ops::Range;

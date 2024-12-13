@@ -7,8 +7,6 @@ use rand_distr::{Bernoulli, Binomial, Poisson, Uniform, WeightedAliasIndex, Weig
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::cmp::min_by;
-#[cfg(feature = "parallel")]
-use std::sync::mpsc::channel;
 use std::sync::Arc;
 
 use crate::config::Parameters;
@@ -264,8 +262,8 @@ impl<S: Symbol> BasicSimulation<S> {
                     rand::seq::index::sample(&mut rng, sequence_length, 2).into_vec();
                 recombination_sites.sort();
                 let recombinant = Haplotype::create_recombinant(
-                    &self.population[infectant_pair[0]],
-                    &self.population[infectant_pair[1]],
+                    &self.population.get(infectant_pair[0]),
+                    &self.population.get(infectant_pair[1]),
                     recombination_sites[0],
                     recombination_sites[1],
                 );
@@ -283,7 +281,7 @@ impl<S: Symbol> BasicSimulation<S> {
             .iter()
             .filter_map(|infectant| {
                 let mut rng = rand::thread_rng();
-                let infectant_ref = &self.population[infectant];
+                let infectant_ref = &self.population.get(infectant);
                 let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
                 if n_mutations == 0 {
                     return None;
@@ -362,11 +360,11 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                 let infectant_ids = self.host_map_buffer.get_slice(position);
                 let mut infectants = infectant_ids
                     .iter()
-                    .map(|infectant_id| self.population[infectant_id].clone())
+                    .map(|infectant_id| self.population.get(infectant_id).clone())
                     .collect::<Vec<HaplotypeRef<S>>>();
                 spec.host.mutate(infectants.as_mut_slice());
                 for (id, infectant) in infectant_ids.iter().zip(infectants.iter()) {
-                    self.population.insert(id, infectant.clone());
+                    self.population.insert_sync(id, infectant.clone());
                 }
             });
         });
@@ -381,7 +379,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                 let infectant_ids = self.host_map_buffer.get_slice(position);
                 let mut infectants = infectant_ids
                     .iter()
-                    .map(|infectant_id| self.population[infectant_id].clone())
+                    .map(|infectant_id| self.population.get(infectant_id).clone())
                     .collect::<Vec<HaplotypeRef<S>>>();
                 spec.host.mutate(infectants.as_mut_slice());
                 for (id, infectant) in infectant_ids.iter().zip(infectants.iter()) {
@@ -403,7 +401,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                     spec.host.replicate(
                         infectants
                             .iter()
-                            .map(|infectant_id| self.population[infectant_id].clone())
+                            .map(|infectant_id| self.population.get(infectant_id).clone())
                             .collect::<Vec<HaplotypeRef<S>>>()
                             .as_slice(),
                         offspring_buf.as_mut_slice(),
@@ -429,7 +427,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                     spec.host.replicate(
                         infectants
                             .iter()
-                            .map(|infectant_id| self.population[infectant_id].clone())
+                            .map(|infectant_id| self.population.get(infectant_id).clone())
                             .collect::<Vec<HaplotypeRef<S>>>()
                             .as_slice(),
                         offspring_buf.as_mut_slice(),
