@@ -18,6 +18,7 @@ use crate::args::Args;
 use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
 use crate::core::hosts::HostSpec;
+use crate::core::population::Store;
 use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
@@ -306,7 +307,7 @@ impl Runner {
     ) -> Vec<Box<SimulationTrait<Nt>>> {
         (0..args.n_compartments)
             .map(|_compartment_idx| {
-                let init_population: Population<Nt> = {
+                let init_population: Population<Store<Nt>> = {
                     let initial_population_size = match args.initial_population_size {
                         Some(size) => size,
                         None => parameters.max_population,
@@ -677,7 +678,7 @@ impl Runner {
             }
 
             // perform the migration and create new populations
-            let populations: Vec<Population<Nt>> = (0..self.args.n_compartments)
+            let populations: Vec<Population<Store<Nt>>> = (0..self.args.n_compartments)
                 .map(|target| {
                     Population::from_iter((0..self.args.n_compartments).map(|origin| {
                         self.simulations[origin]

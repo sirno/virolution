@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use crate::config::Parameters;
 use crate::core::hosts::{Host, HostMapBuffer, HostSpec};
+use crate::core::population::Store;
 use crate::core::{Haplotype, Population};
 use crate::encoding::Symbol;
 use crate::providers::Generation;
@@ -165,8 +166,8 @@ pub trait Simulation<S: Symbol> {
 
     fn get_generation(&self) -> usize;
 
-    fn get_population(&self) -> &Population<S>;
-    fn set_population(&mut self, population: Population<S>);
+    fn get_population(&self) -> &Population<Store<S>>;
+    fn set_population(&mut self, population: Population<Store<S>>);
 
     fn infect(&mut self);
     fn mutate_infectants(&mut self);
@@ -175,7 +176,7 @@ pub trait Simulation<S: Symbol> {
     // methods that require `offspring_map` for processing
     fn target_size(&self, offspring_map: &[usize]) -> f64;
     fn sample_indices(&self, offspring_map: &[usize], factor: usize) -> Vec<usize>;
-    fn subsample_population(&self, offspring_map: &[usize], dilution: f64) -> Population<S>;
+    fn subsample_population(&self, offspring_map: &[usize], dilution: f64) -> Population<Store<S>>;
 
     fn print_population(&self) -> Vec<String>;
 
@@ -202,7 +203,7 @@ pub trait Simulation<S: Symbol> {
 
 pub struct BasicSimulation<S: Symbol> {
     wildtype: HaplotypeRef<S>,
-    population: Population<S>,
+    population: Population<Store<S>>,
     parameters: Parameters,
     host_specs: Vec<HostSpec<S>>,
     mutation_sampler: Binomial,
@@ -217,7 +218,7 @@ pub struct BasicSimulation<S: Symbol> {
 impl<S: Symbol> BasicSimulation<S> {
     pub fn new(
         wildtype: HaplotypeRef<S>,
-        population: Population<S>,
+        population: Population<Store<S>>,
         parameters: Parameters,
         host_specs: Vec<HostSpec<S>>,
         generation: Arc<Generation>,
@@ -318,11 +319,11 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
         self.generation.get()
     }
 
-    fn get_population(&self) -> &Population<S> {
+    fn get_population(&self) -> &Population<Store<S>> {
         &self.population
     }
 
-    fn set_population(&mut self, population: Population<S>) {
+    fn set_population(&mut self, population: Population<Store<S>>) {
         self.population = population;
     }
 
@@ -471,7 +472,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
         (0..amount).map(|_| sampler.sample(&mut rng)).collect()
     }
 
-    fn subsample_population(&self, offspring_map: &[usize], factor: f64) -> Population<S> {
+    fn subsample_population(&self, offspring_map: &[usize], factor: f64) -> Population<Store<S>> {
         // if there is no offspring, return empty population
         if offspring_map.is_empty() {
             return Population::new();
@@ -558,7 +559,7 @@ mod tests {
         )];
 
         let wt = Wildtype::new(sequence, &attribute_definitions);
-        let population: Population<Nt> = crate::population![wt.clone(), POPULATION_SIZE];
+        let population: Population<Store<Nt>> = crate::population![wt.clone(), POPULATION_SIZE];
         let generation = Arc::new(Generation::new(0));
 
         BasicSimulation::new(wt, population, SETTINGS, host_specs, generation)
@@ -581,7 +582,7 @@ mod tests {
     #[test]
     fn set_population() {
         let mut simulation = setup_test_simulation();
-        let population: Population<Nt> = crate::population![simulation.wildtype.clone(), 42];
+        let population: Population<Store<Nt>> = crate::population![simulation.wildtype.clone(), 42];
         simulation.set_population(population.clone());
         assert_eq!(simulation.population.len(), 42);
         assert_eq!(simulation.population, population);

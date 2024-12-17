@@ -9,6 +9,9 @@ use std::rc::{Rc, Weak};
 
 use crate::core::Haplotype;
 use crate::encoding::Symbol;
+use crate::references::Identifiable;
+
+use super::{DerefHaplotype, HaplotypeTraitBound};
 
 #[derive(Deref, DerefMut)]
 #[derive_where(Clone)]
@@ -16,6 +19,15 @@ pub struct HaplotypeRef<S: Symbol>(pub Rc<Haplotype<S>>);
 
 thread_local! {
     pub static BLOCK_ID: BlockId<char> = BlockId::new(Alphabet::new(&("ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect::<Vec<char>>())), 0, 1);
+}
+
+impl<S: Symbol> HaplotypeTraitBound<S> for HaplotypeRef<S> {}
+
+impl<S: Symbol> DerefHaplotype<S> for HaplotypeRef<S> {
+    #[inline]
+    fn deref_haplotype(&self) -> &Haplotype<S> {
+        &self.0
+    }
 }
 
 impl<S: Symbol> HaplotypeRef<S> {
@@ -49,11 +61,6 @@ impl<S: Symbol> HaplotypeRef<S> {
     }
 
     #[inline]
-    pub fn get_id(&self) -> usize {
-        Rc::as_ptr(&self.0) as usize
-    }
-
-    #[inline]
     pub fn try_unwrap(&self) -> Option<Haplotype<S>> {
         Rc::try_unwrap(self.0.clone()).ok()
     }
@@ -61,6 +68,13 @@ impl<S: Symbol> HaplotypeRef<S> {
     #[inline]
     pub fn as_ptr(&self) -> *const Haplotype<S> {
         Rc::as_ptr(&self.0)
+    }
+}
+
+impl<S: Symbol> Identifiable for HaplotypeRef<S> {
+    #[inline]
+    fn get_id(&self) -> usize {
+        Rc::as_ptr(&self.0) as usize
     }
 }
 
@@ -118,9 +132,11 @@ impl<S: Symbol> HaplotypeWeak<S> {
             .with(|generator| generator.encode_string(reference_ptr))
             .expect("Unable to generate block ID")
     }
+}
 
+impl<S: Symbol> Identifiable for HaplotypeWeak<S> {
     #[inline]
-    pub fn get_id(&self) -> usize {
+    fn get_id(&self) -> usize {
         Weak::as_ptr(&self.0) as usize
     }
 }

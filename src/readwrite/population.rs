@@ -1,12 +1,12 @@
 use serde::Deserialize;
 
-use crate::core::population::Population;
+use crate::core::population::{HaplotypeStore, Population};
 use crate::encoding::Symbol;
 use crate::errors::{Result, VirolutionError};
-use crate::references::HaplotypeRef;
+use crate::references::{DerefHaplotype, HaplotypeRef};
 
-pub trait PopulationIO<S: Symbol> {
-    fn read(path: &str, wildtype: HaplotypeRef<S>) -> Result<Population<S>>;
+pub trait PopulationIO<M: HaplotypeStore> {
+    fn read(path: &str, wildtype: M::Item) -> Result<Population<M>>;
     fn write(&self, path: &str);
 }
 
@@ -16,15 +16,15 @@ struct HaplotypeRecord {
     count: usize,
 }
 
-impl<S: Symbol> PopulationIO<S> for Population<S> {
+impl<M: HaplotypeStore> PopulationIO<M> for Population<M> {
     /// Reads a CSV file containing haplotypes and their counts.
     ///
     /// Warning: This function will create multiple instances of the same
     /// haplotype if it is present multiple times in the CSV file.
-    fn read(path: &str, wildtype: HaplotypeRef<S>) -> Result<Population<S>> {
+    fn read(path: &str, wildtype: M::Item) -> Result<Population<M>> {
         let mut reader = csv::Reader::from_path(path)
             .map_err(|_err| VirolutionError::ReadError(format!("Failed to read from {path}")))?;
-        let mut populations: Vec<Population<S>> = Vec::new();
+        let mut populations: Vec<Population<M>> = Vec::new();
 
         for record in reader.deserialize() {
             let record: HaplotypeRecord = record.map_err(|_err| {
@@ -38,7 +38,9 @@ impl<S: Symbol> PopulationIO<S> for Population<S> {
 
             // parse haplotype
             let (positions, changes) = parse_haplotype(&record.haplotype)?;
-            let haplotype = wildtype.create_descendant(positions, changes);
+            let haplotype = wildtype
+                .deref_haplotype()
+                .create_descendant(positions, changes);
 
             // create population and add for merging
             let population = Population::from_haplotype(haplotype, record.count);
