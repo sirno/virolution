@@ -9,6 +9,7 @@ use virolution::core::fitness::utility::UtilityFunction;
 use virolution::core::fitness::FitnessProvider;
 use virolution::core::haplotype::*;
 use virolution::core::hosts::HostSpec;
+use virolution::core::population::Store;
 use virolution::core::Population;
 use virolution::encoding::Nucleotide as Nt;
 use virolution::providers::Generation;
@@ -51,7 +52,7 @@ fn main() {
     println!("ht3: {}", ht3.get_attribute_or_compute("fitness").unwrap());
     println!("ht4: {}", ht4.get_attribute_or_compute("fitness").unwrap());
 
-    let population: Population<Nt> = population![wt.clone(), 10];
+    let population: Population<Store<Nt>> = population![wt.clone(), 10];
     let simulation_settings = Parameters {
         mutation_rate: 1e-6,
         recombination_rate: 0.,

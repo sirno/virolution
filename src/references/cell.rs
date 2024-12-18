@@ -1,59 +1,47 @@
 #![allow(dead_code)]
 
 use block_id::{Alphabet, BlockId};
-use derive_more::{Deref, DerefMut};
-use derive_where::derive_where;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::{Rc, Weak};
 
 use crate::core::Haplotype;
 use crate::encoding::Symbol;
-use crate::references::Identifiable;
 
-use super::{DerefHaplotype, HaplotypeTraitBound};
+use crate::references::{HaplotypeRefTrait, HaplotypeWeakTrait};
 
-#[derive(Deref, DerefMut)]
-#[derive_where(Clone)]
 pub struct HaplotypeRef<S: Symbol>(pub Rc<Haplotype<S>>);
 
 thread_local! {
     pub static BLOCK_ID: BlockId<char> = BlockId::new(Alphabet::new(&("ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect::<Vec<char>>())), 0, 1);
 }
 
-impl<S: Symbol> HaplotypeTraitBound<S> for HaplotypeRef<S> {}
+impl<S: Symbol> HaplotypeRefTrait for HaplotypeRef<S> {
+    type Symbol = S;
 
-impl<S: Symbol> DerefHaplotype<S> for HaplotypeRef<S> {
-    #[inline]
-    fn deref_haplotype(&self) -> &Haplotype<S> {
-        &self.0
-    }
-}
-
-impl<S: Symbol> HaplotypeRef<S> {
-    pub fn new(haplotype: Haplotype<S>) -> Self {
+    fn new(haplotype: Haplotype<Self::Symbol>) -> Self {
         Self(Rc::new(haplotype))
     }
 
-    pub fn new_cyclic<F>(data_fn: F) -> Self
+    fn new_cyclic<F>(data_fn: F) -> Self
     where
-        F: std::ops::FnOnce(&HaplotypeWeak<S>) -> Haplotype<S>,
+        F: std::ops::FnOnce(&HaplotypeWeak<Self::Symbol>) -> Haplotype<Self::Symbol>,
     {
         Self(Rc::new_cyclic(|weak| data_fn(&HaplotypeWeak(weak.clone()))))
     }
 
     #[inline]
-    pub fn get_strong_count(&self) -> usize {
+    fn get_strong_count(&self) -> usize {
         Rc::strong_count(&self.0)
     }
 
     #[inline]
-    pub fn get_weak(&self) -> HaplotypeWeak<S> {
+    fn get_weak(&self) -> HaplotypeWeak<Self::Symbol> {
         HaplotypeWeak(Rc::downgrade(&self.0))
     }
 
     #[inline]
-    pub fn get_block_id(&self) -> String {
+    fn get_block_id(&self) -> String {
         let reference_ptr = Rc::as_ptr(&self.0) as u64;
         BLOCK_ID
             .with(|generator| generator.encode_string(reference_ptr))
@@ -61,20 +49,34 @@ impl<S: Symbol> HaplotypeRef<S> {
     }
 
     #[inline]
-    pub fn try_unwrap(&self) -> Option<Haplotype<S>> {
+    fn get_id(&self) -> usize {
+        Rc::as_ptr(&self.0) as usize
+    }
+
+    #[inline]
+    fn try_unwrap(&self) -> Option<Haplotype<S>> {
         Rc::try_unwrap(self.0.clone()).ok()
     }
 
     #[inline]
-    pub fn as_ptr(&self) -> *const Haplotype<S> {
+    fn as_ptr(&self) -> *const Haplotype<S> {
         Rc::as_ptr(&self.0)
     }
 }
 
-impl<S: Symbol> Identifiable for HaplotypeRef<S> {
+impl<S: Symbol> std::ops::Deref for HaplotypeRef<S> {
+    type Target = Haplotype<S>;
+
     #[inline]
-    fn get_id(&self) -> usize {
-        Rc::as_ptr(&self.0) as usize
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<S: Symbol> Clone for HaplotypeRef<S> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
@@ -87,7 +89,7 @@ impl<S: Symbol> fmt::Debug for HaplotypeRef<S> {
 impl<S: Symbol> PartialEq for HaplotypeRef<S> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(self, other)
+        Rc::ptr_eq(&self.0, &other.0)
     }
 }
 
@@ -110,34 +112,44 @@ impl<S: Symbol> Drop for HaplotypeRef<S> {
     }
 }
 
-#[derive(Deref, DerefMut)]
-#[derive_where(Clone)]
 pub struct HaplotypeWeak<S: Symbol>(Weak<Haplotype<S>>);
 
-impl<S: Symbol> HaplotypeWeak<S> {
+impl<S: Symbol> HaplotypeWeakTrait for HaplotypeWeak<S> {
+    type Symbol = S;
+
     #[inline]
-    pub fn upgrade(&self) -> Option<HaplotypeRef<S>> {
+    fn upgrade(&self) -> Option<HaplotypeRef<Self::Symbol>> {
         self.0.upgrade().map(HaplotypeRef)
     }
 
     #[inline]
-    pub fn exists(&self) -> bool {
+    fn exists(&self) -> bool {
         self.0.strong_count() > 0
     }
 
     #[inline]
-    pub fn get_block_id(&self) -> String {
+    fn get_block_id(&self) -> String {
         let reference_ptr = Weak::as_ptr(&self.0) as u64;
         BLOCK_ID
             .with(|generator| generator.encode_string(reference_ptr))
             .expect("Unable to generate block ID")
     }
-}
 
-impl<S: Symbol> Identifiable for HaplotypeWeak<S> {
     #[inline]
     fn get_id(&self) -> usize {
         Weak::as_ptr(&self.0) as usize
+    }
+
+    #[inline]
+    fn as_ptr(&self) -> *const Haplotype<Self::Symbol> {
+        Weak::as_ptr(&self.0)
+    }
+}
+
+impl<S: Symbol> Clone for HaplotypeWeak<S> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
@@ -153,6 +165,6 @@ impl<S: Symbol> fmt::Debug for HaplotypeWeak<S> {
 impl<S: Symbol> PartialEq for HaplotypeWeak<S> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.ptr_eq(other)
+        self.0.ptr_eq(&other.0)
     }
 }

@@ -3,10 +3,10 @@ use serde::Deserialize;
 use crate::core::population::{HaplotypeStore, Population};
 use crate::encoding::Symbol;
 use crate::errors::{Result, VirolutionError};
-use crate::references::{DerefHaplotype, HaplotypeRef};
+use crate::references::{HaplotypeRef, HaplotypeRefTrait};
 
 pub trait PopulationIO<M: HaplotypeStore> {
-    fn read(path: &str, wildtype: M::Item) -> Result<Population<M>>;
+    fn read(path: &str, wildtype: HaplotypeRef<M::Symbol>) -> Result<Population<M>>;
     fn write(&self, path: &str);
 }
 
@@ -16,12 +16,15 @@ struct HaplotypeRecord {
     count: usize,
 }
 
-impl<M: HaplotypeStore> PopulationIO<M> for Population<M> {
+impl<M> PopulationIO<M> for Population<M>
+where
+    M: HaplotypeStore<Item = HaplotypeRef<<M as HaplotypeStore>::Symbol>>,
+{
     /// Reads a CSV file containing haplotypes and their counts.
     ///
     /// Warning: This function will create multiple instances of the same
     /// haplotype if it is present multiple times in the CSV file.
-    fn read(path: &str, wildtype: M::Item) -> Result<Population<M>> {
+    fn read(path: &str, wildtype: HaplotypeRef<M::Symbol>) -> Result<Population<M>> {
         let mut reader = csv::Reader::from_path(path)
             .map_err(|_err| VirolutionError::ReadError(format!("Failed to read from {path}")))?;
         let mut populations: Vec<Population<M>> = Vec::new();
@@ -38,9 +41,7 @@ impl<M: HaplotypeStore> PopulationIO<M> for Population<M> {
 
             // parse haplotype
             let (positions, changes) = parse_haplotype(&record.haplotype)?;
-            let haplotype = wildtype
-                .deref_haplotype()
-                .create_descendant(positions, changes);
+            let haplotype = wildtype.create_descendant(positions, changes);
 
             // create population and add for merging
             let population = Population::from_haplotype(haplotype, record.count);

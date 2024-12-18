@@ -10,9 +10,10 @@ use virolution::core::fitness::utility::UtilityFunction;
 use virolution::core::fitness::FitnessProvider;
 use virolution::core::haplotype::*;
 use virolution::core::hosts::HostSpec;
-use virolution::core::population::Population;
+use virolution::core::population::{Population, Store};
 use virolution::encoding::Nucleotide as Nt;
 use virolution::providers::Generation;
+use virolution::references::HaplotypeRefTrait;
 use virolution::simulation::*;
 
 use virolution::population;
@@ -94,7 +95,7 @@ fn main() {
 
         let transfers = plan.get_transfer_matrix(gen);
 
-        let populations: Vec<Population<Nt>> = (0..n_compartments)
+        let populations: Vec<Population<Store<Nt>>> = (0..n_compartments)
             .map(|target| {
                 Population::from_iter((0..n_compartments).map(|origin| {
                     compartment_simulations[origin]

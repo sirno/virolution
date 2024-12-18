@@ -9,8 +9,10 @@ use std::{
 
 use itertools::Itertools;
 
+use crate::core::population::Store;
 use crate::core::{Historian, Population};
 use crate::encoding::Symbol;
+use crate::references::HaplotypeRefTrait;
 use crate::{barcode::BarcodeEntry, simulation::SimulationTrait};
 
 pub trait SampleWriter<S: Symbol + 'static> {
@@ -61,7 +63,7 @@ pub trait SampleWriter<S: Symbol + 'static> {
     /// Write a sample to a file and return the barcode
     fn write(
         &self,
-        population: &Population<S>,
+        population: &Population<Store<S>>,
         generation: usize,
         compartment: usize,
     ) -> Result<String, std::io::Error>;
@@ -158,7 +160,7 @@ impl<'a, S: Symbol + 'static> SampleWriter<S> for FastaSampleWriter<'a> {
 
     fn write(
         &self,
-        population: &Population<S>,
+        population: &Population<Store<S>>,
         generation: usize,
         compartment: usize,
     ) -> Result<String, std::io::Error> {
@@ -225,7 +227,7 @@ impl<'a, S: Symbol + 'static> SampleWriter<S> for CsvSampleWriter<'a> {
 
     fn write(
         &self,
-        population: &Population<S>,
+        population: &Population<Store<S>>,
         generation: usize,
         compartment: usize,
     ) -> Result<String, std::io::Error> {
@@ -254,7 +256,7 @@ impl<'a, S: Symbol + 'static> SampleWriter<S> for CsvSampleWriter<'a> {
                     haplotype_ref.get_block_id().to_string(),
                     compartment.to_string(),
                     generation.to_string(),
-                    haplotype_ref.as_ref().get_string(),
+                    haplotype_ref.get_string(),
                     haplotype_count.to_string(),
                 ])
                 .expect("Unable to write to samples file.")
@@ -273,8 +275,9 @@ mod tests {
     use crate::core::attributes::AttributeSetDefinition;
     use crate::core::haplotype::Wildtype;
     use crate::encoding::Nucleotide as Nt;
+    use crate::references::HaplotypeRefTrait;
 
-    fn get_population() -> Population<Nt> {
+    fn get_population() -> Population<Store<Nt>> {
         let attribute_definition = AttributeSetDefinition::new();
         let wt1 = Wildtype::new(vec![Nt::A; 10], &attribute_definition);
         let wt2 = Wildtype::new(vec![Nt::A; 10], &attribute_definition);

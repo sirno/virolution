@@ -12,21 +12,38 @@ pub use cell::{HaplotypeRef, HaplotypeWeak};
 
 pub use desc::DescendantsCell;
 
-pub trait Identifiable {
-    fn get_id(&self) -> usize;
-}
-
-pub trait DerefHaplotype<S: crate::encoding::Symbol> {
-    fn deref_haplotype(&self) -> &crate::core::Haplotype<S>;
-}
-
-pub trait HaplotypeTraitBound<S: crate::encoding::Symbol>:
+pub trait HaplotypeRefTrait:
     Clone
-    + Identifiable
-    + DerefHaplotype<S>
+    + std::ops::Deref<Target = crate::core::haplotype::Haplotype<Self::Symbol>>
     + std::fmt::Debug
     + std::cmp::PartialEq
     + std::cmp::Eq
     + std::hash::Hash
 {
+    type Symbol: crate::encoding::Symbol;
+
+    fn new(haplotype: crate::core::haplotype::Haplotype<Self::Symbol>) -> Self;
+    fn new_cyclic<
+        F: std::ops::FnOnce(
+            &HaplotypeWeak<Self::Symbol>,
+        ) -> crate::core::haplotype::Haplotype<Self::Symbol>,
+    >(
+        data_fn: F,
+    ) -> Self;
+    fn get_strong_count(&self) -> usize;
+    fn get_weak(&self) -> HaplotypeWeak<Self::Symbol>;
+    fn get_block_id(&self) -> String;
+    fn get_id(&self) -> usize;
+    fn try_unwrap(&self) -> Option<crate::core::haplotype::Haplotype<Self::Symbol>>;
+    fn as_ptr(&self) -> *const crate::core::haplotype::Haplotype<Self::Symbol>;
+}
+
+pub trait HaplotypeWeakTrait: Clone + Sized {
+    type Symbol: crate::encoding::Symbol;
+
+    fn upgrade(&self) -> Option<HaplotypeRef<Self::Symbol>>;
+    fn exists(&self) -> bool;
+    fn get_block_id(&self) -> String;
+    fn get_id(&self) -> usize;
+    fn as_ptr(&self) -> *const crate::core::haplotype::Haplotype<Self::Symbol>;
 }

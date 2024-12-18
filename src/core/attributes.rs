@@ -13,7 +13,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::encoding::Symbol;
 use crate::errors::{Result, VirolutionError};
-use crate::references::{HaplotypeRef, HaplotypeWeak};
+use crate::references::{HaplotypeRef, HaplotypeWeak, HaplotypeWeakTrait};
 
 // Attribute value definition
 #[derive(Clone, Debug, TryInto, Display)]

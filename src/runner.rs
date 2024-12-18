@@ -26,7 +26,7 @@ use crate::encoding::Symbol;
 use crate::providers::Generation;
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
-use crate::references::HaplotypeRef;
+use crate::references::{HaplotypeRef, HaplotypeRefTrait};
 use crate::simulation::{BasicHost, BasicSimulation, SimulationTrait};
 #[cfg(not(feature = "parallel"))]
 use crate::stats::population::{PopulationDistance, PopulationFrequencies};
@@ -148,10 +148,7 @@ impl Runner {
 
             for (haplotype_ref, haplotype_count) in compartment.get_population().iter().counts() {
                 sequence_file
-                    .write_record(&[
-                        haplotype_ref.as_ref().get_string(),
-                        haplotype_count.to_string(),
-                    ])
+                    .write_record(&[haplotype_ref.get_string(), haplotype_count.to_string()])
                     .expect("Unable to write to samples file.")
             }
         }

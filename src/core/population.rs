@@ -16,7 +16,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 
 use crate::encoding::Symbol;
-use crate::references::{HaplotypeRef, HaplotypeTraitBound, Identifiable};
+use crate::references::{HaplotypeRef, HaplotypeRefTrait};
 
 #[cfg(not(feature = "parallel"))]
 pub type Store<S> = HashMap<usize, HaplotypeRef<S>>;
@@ -26,7 +26,7 @@ pub type Store<S> = DashMap<usize, HaplotypeRef<S>>;
 pub trait HaplotypeStore:
     Clone + std::fmt::Debug + Default + FromIterator<(usize, Self::Item)>
 {
-    type Item: HaplotypeTraitBound<Self::Symbol>;
+    type Item: HaplotypeRefTrait;
     type Symbol: Symbol;
 
     fn get_value(&self, id: &usize) -> Option<Self::Item>;
@@ -93,7 +93,7 @@ impl<S: Symbol> SyncHaplotypeStore<S> for DashMap<usize, HaplotypeRef<S>> {
 /// # use virolution::population;
 /// let wt = Wildtype::new(vec![Nt::A; 10], &AttributeSetDefinition::new());
 /// let ht = wt.create_descendant(vec![0], vec![Nt::C]);
-/// let population: Population<Nt, Store<Nt>> = population![&wt; &ht];
+/// let population: Population<Store<Nt>> = population![&wt; &ht];
 /// ```
 ///
 /// - Create a `Population` with a haplotype and a size:
@@ -105,7 +105,7 @@ impl<S: Symbol> SyncHaplotypeStore<S> for DashMap<usize, HaplotypeRef<S>> {
 /// # use virolution::core::population::{Store, Population};
 /// # use virolution::population;
 /// let wt = Wildtype::new(vec![Nt::A; 10], &AttributeSetDefinition::new());
-/// let population: Population<Nt, Store<Nt>> = population![wt, 10];
+/// let population: Population<Store<Nt>> = population![wt, 10];
 /// ```
 ///
 /// - Create a `Population` from a list of haplotypes and sizes:
@@ -118,7 +118,7 @@ impl<S: Symbol> SyncHaplotypeStore<S> for DashMap<usize, HaplotypeRef<S>> {
 /// # use virolution::population;
 /// let wt = Wildtype::new(vec![Nt::A; 10], &AttributeSetDefinition::new());
 /// let ht = wt.create_descendant(vec![0], vec![Nt::C]);
-/// let population: Population<Nt, Store<Nt>> = population![wt, 10; ht, 5];
+/// let population: Population<Store<Nt>> = population![wt, 10; ht, 5];
 /// ```
 ///
 #[macro_export]
@@ -144,7 +144,7 @@ macro_rules! population {
 }
 
 /// A `Population` is a collection of haplotypes.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Population<M: HaplotypeStore> {
     population: Vec<Cell<usize>>,
     haplotypes: M,

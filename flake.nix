@@ -49,7 +49,15 @@
 
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
-            rust-bin.nightly.latest.default
+            (rust-bin.selectLatestNightlyWith (
+              toolchain:
+              toolchain.default.override {
+                extensions = [
+                  "rust-analyzer"
+                  "rust-src"
+                ];
+              }
+            ))
           ];
         };
 
