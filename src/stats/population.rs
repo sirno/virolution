@@ -3,7 +3,7 @@ use itertools::Itertools;
 use crate::core::population::HaplotypeStore;
 use crate::core::Population;
 use crate::encoding::Symbol;
-use crate::references::{HaplotypeRefTrait, HaplotypeWeakTrait};
+use crate::references::HaplotypeWeakTrait;
 
 /// Trait extension to compute frequencies of nucleotides in a population
 pub trait PopulationFrequencies {

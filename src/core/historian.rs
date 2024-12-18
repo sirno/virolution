@@ -8,7 +8,6 @@
 
 use crate::core::population::HaplotypeStore;
 use crate::core::Population;
-use crate::encoding::Symbol;
 use std::fmt;
 
 #[derive(Debug)]

@@ -34,8 +34,11 @@ pub trait HaplotypeStore:
     fn extend_store(&mut self, haplotypes: Self);
 }
 
-pub trait SyncHaplotypeStore<S: Symbol>: HaplotypeStore + Send + Sync {
-    fn put_value_sync(&self, id: usize, haplotype: HaplotypeRef<S>);
+pub trait SyncHaplotypeStore: HaplotypeStore + Send + Sync {
+    type Item: HaplotypeRefTrait;
+    type Symbol: Symbol;
+
+    fn put_value_sync(&self, id: usize, haplotype: <Self as SyncHaplotypeStore>::Item);
 }
 
 impl<S: Symbol> HaplotypeStore for HashMap<usize, HaplotypeRef<S>> {
@@ -56,7 +59,10 @@ impl<S: Symbol> HaplotypeStore for HashMap<usize, HaplotypeRef<S>> {
 }
 
 #[cfg(feature = "parallel")]
-impl<S: Symbol> HaplotypeStore<S> for DashMap<usize, HaplotypeRef<S>> {
+impl<S: Symbol> HaplotypeStore for DashMap<usize, HaplotypeRef<S>> {
+    type Item = HaplotypeRef<S>;
+    type Symbol = S;
+
     fn get_value(&self, id: &usize) -> Option<HaplotypeRef<S>> {
         self.get(id).map(|entry| entry.clone())
     }
@@ -73,7 +79,10 @@ impl<S: Symbol> HaplotypeStore<S> for DashMap<usize, HaplotypeRef<S>> {
 }
 
 #[cfg(feature = "parallel")]
-impl<S: Symbol> SyncHaplotypeStore<S> for DashMap<usize, HaplotypeRef<S>> {
+impl<S: Symbol> SyncHaplotypeStore for DashMap<usize, HaplotypeRef<S>> {
+    type Item = HaplotypeRef<S>;
+    type Symbol = S;
+
     fn put_value_sync(&self, id: usize, haplotype: HaplotypeRef<S>) {
         self.entry(id).or_insert(haplotype);
     }
@@ -202,17 +211,16 @@ impl<M: HaplotypeStore> PartialEq for Population<M> {
 }
 
 #[cfg(feature = "parallel")]
-impl<S, M> Population<S, M>
+impl<M> Population<M>
 where
-    S: Symbol,
-    M: SyncHaplotypeStore<S>,
+    M: SyncHaplotypeStore,
 {
     /// Insert a `HaplotypeRef` at a specific position.
     ///
     /// This method is partially thread safe, if it it is operated on disjoint positions of the
     /// population. If the same position is accessed by multiple threads, the behavior is
     /// undefined.
-    pub fn insert_sync(&self, position: &usize, haplotype: HaplotypeRef<S>) {
+    pub fn insert_sync(&self, position: &usize, haplotype: <M as SyncHaplotypeStore>::Item) {
         let ref_id = haplotype.get_id();
         self.population[*position].set(ref_id);
         self.haplotypes.put_value_sync(ref_id, haplotype);
@@ -246,7 +254,6 @@ where
         Self {
             population,
             haplotypes,
-            _marker: std::marker::PhantomData,
         }
     }
 }

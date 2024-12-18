@@ -18,6 +18,7 @@ thread_local! {
 
 impl<S: Symbol> HaplotypeRefTrait for HaplotypeRef<S> {
     type Symbol = S;
+    type Weak = HaplotypeWeak<Self::Symbol>;
 
     fn new(haplotype: Haplotype<Self::Symbol>) -> Self {
         Self(Rc::new(haplotype))
@@ -116,6 +117,7 @@ pub struct HaplotypeWeak<S: Symbol>(Weak<Haplotype<S>>);
 
 impl<S: Symbol> HaplotypeWeakTrait for HaplotypeWeak<S> {
     type Symbol = S;
+    type Ref = HaplotypeRef<Self::Symbol>;
 
     #[inline]
     fn upgrade(&self) -> Option<HaplotypeRef<Self::Symbol>> {

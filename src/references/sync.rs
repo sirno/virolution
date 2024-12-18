@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use block_id::{Alphabet, BlockId};
-use derive_more::{Deref, DerefMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Weak};
@@ -9,19 +8,23 @@ use std::sync::{Arc, Weak};
 use crate::core::Haplotype;
 use crate::encoding::Symbol;
 
-#[derive(Clone, Deref, DerefMut)]
+use super::{HaplotypeRefTrait, HaplotypeWeakTrait};
+
 pub struct HaplotypeRef<S: Symbol>(pub Arc<Haplotype<S>>);
 
 thread_local! {
     pub static BLOCK_ID: BlockId<char> = BlockId::new(Alphabet::new(&("ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect::<Vec<char>>())), 0, 1);
 }
 
-impl<S: Symbol> HaplotypeRef<S> {
-    pub fn new(haplotype: Haplotype<S>) -> Self {
+impl<S: Symbol> HaplotypeRefTrait for HaplotypeRef<S> {
+    type Symbol = S;
+    type Weak = HaplotypeWeak<Self::Symbol>;
+
+    fn new(haplotype: Haplotype<S>) -> Self {
         Self(Arc::new(haplotype))
     }
 
-    pub fn new_cyclic<F>(data_fn: F) -> Self
+    fn new_cyclic<F>(data_fn: F) -> Self
     where
         F: std::ops::FnOnce(&HaplotypeWeak<S>) -> Haplotype<S>,
     {
@@ -31,7 +34,7 @@ impl<S: Symbol> HaplotypeRef<S> {
     }
 
     #[inline]
-    pub fn get_block_id(&self) -> String {
+    fn get_block_id(&self) -> String {
         let reference_ptr = Arc::as_ptr(&self.0) as u64;
         BLOCK_ID
             .with(|generator| generator.encode_string(reference_ptr))
@@ -39,28 +42,36 @@ impl<S: Symbol> HaplotypeRef<S> {
     }
 
     #[inline]
-    pub fn get_id(&self) -> usize {
+    fn get_id(&self) -> usize {
         Arc::as_ptr(&self.0) as usize
     }
 
     #[inline]
-    pub fn get_strong_count(&self) -> usize {
+    fn get_strong_count(&self) -> usize {
         Arc::strong_count(&self.0)
     }
 
     #[inline]
-    pub fn get_weak(&self) -> HaplotypeWeak<S> {
+    fn get_weak(&self) -> HaplotypeWeak<S> {
         HaplotypeWeak(Arc::downgrade(&self.0))
     }
 
     #[inline]
-    pub fn try_unwrap(&self) -> Option<Haplotype<S>> {
+    fn try_unwrap(&self) -> Option<Haplotype<S>> {
         Arc::try_unwrap(self.0.clone()).ok()
     }
 
     #[inline]
-    pub fn as_ptr(&self) -> *const Haplotype<S> {
+    fn as_ptr(&self) -> *const Haplotype<S> {
         Arc::as_ptr(&self.0)
+    }
+}
+
+impl<S: Symbol> std::ops::Deref for HaplotypeRef<S> {
+    type Target = Haplotype<S>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -73,7 +84,7 @@ impl<S: Symbol> fmt::Debug for HaplotypeRef<S> {
 impl<S: Symbol> PartialEq for HaplotypeRef<S> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(self, other)
+        Arc::ptr_eq(&self.0, &other.0)
     }
 }
 
@@ -83,6 +94,13 @@ impl<S: Symbol> Hash for HaplotypeRef<S> {
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         Arc::as_ptr(&self.0).hash(state)
+    }
+}
+
+impl<S: Symbol> Clone for HaplotypeRef<S> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
@@ -96,22 +114,24 @@ impl<S: Symbol> Drop for HaplotypeRef<S> {
     }
 }
 
-#[derive(Clone, Deref, DerefMut)]
 pub struct HaplotypeWeak<S: Symbol>(Weak<Haplotype<S>>);
 
-impl<S: Symbol> HaplotypeWeak<S> {
+impl<S: Symbol> HaplotypeWeakTrait for HaplotypeWeak<S> {
+    type Symbol = S;
+    type Ref = HaplotypeRef<Self::Symbol>;
+
     #[inline]
-    pub fn upgrade(&self) -> Option<HaplotypeRef<S>> {
+    fn upgrade(&self) -> Option<HaplotypeRef<S>> {
         self.0.upgrade().map(HaplotypeRef)
     }
 
     #[inline]
-    pub fn exists(&self) -> bool {
+    fn exists(&self) -> bool {
         self.0.strong_count() > 0
     }
 
     #[inline]
-    pub fn get_block_id(&self) -> String {
+    fn get_block_id(&self) -> String {
         let reference_ptr = Weak::as_ptr(&self.0) as u64;
         BLOCK_ID
             .with(|generator| generator.encode_string(reference_ptr))
@@ -119,8 +139,19 @@ impl<S: Symbol> HaplotypeWeak<S> {
     }
 
     #[inline]
-    pub fn get_id(&self) -> usize {
+    fn get_id(&self) -> usize {
         Weak::as_ptr(&self.0) as usize
+    }
+
+    #[inline]
+    fn as_ptr(&self) -> *const Haplotype<S> {
+        Weak::as_ptr(&self.0)
+    }
+}
+
+impl<S: Symbol> Clone for HaplotypeWeak<S> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
@@ -136,6 +167,6 @@ impl<S: Symbol> fmt::Debug for HaplotypeWeak<S> {
 impl<S: Symbol> PartialEq for HaplotypeWeak<S> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.ptr_eq(other)
+        self.0.ptr_eq(&other.0)
     }
 }

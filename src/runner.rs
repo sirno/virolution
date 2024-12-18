@@ -457,7 +457,7 @@ impl Runner {
             // transfer between compartments
             log::debug!("Transfer between compartments...");
             let transfer = self.settings.schedule.get_transfer_matrix(generation);
-            let populations: Vec<Population<Nt>> = (0..self.args.n_compartments)
+            let populations: Vec<Population<Store<Nt>>> = (0..self.args.n_compartments)
                 .into_par_iter()
                 .map(|target| {
                     (0..self.args.n_compartments)

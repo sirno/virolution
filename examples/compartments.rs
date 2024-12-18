@@ -13,7 +13,6 @@ use virolution::core::hosts::HostSpec;
 use virolution::core::population::{Population, Store};
 use virolution::encoding::Nucleotide as Nt;
 use virolution::providers::Generation;
-use virolution::references::HaplotypeRefTrait;
 use virolution::simulation::*;
 
 use virolution::population;

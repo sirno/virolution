@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::core::population::{HaplotypeStore, Population};
 use crate::encoding::Symbol;
 use crate::errors::{Result, VirolutionError};
-use crate::references::{HaplotypeRef, HaplotypeRefTrait};
+use crate::references::HaplotypeRef;
 
 pub trait PopulationIO<M: HaplotypeStore> {
     fn read(path: &str, wildtype: HaplotypeRef<M::Symbol>) -> Result<Population<M>>;
