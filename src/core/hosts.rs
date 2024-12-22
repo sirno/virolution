@@ -11,6 +11,7 @@
 use crate::encoding::Symbol;
 use crate::references::HaplotypeRef;
 use std::ops::Range;
+use rand::prelude::*;
 
 /// A host that can be infected by infectants.
 ///
@@ -24,13 +25,13 @@ use std::ops::Range;
 ///
 pub trait Host<S: Symbol>: std::fmt::Debug + Send + Sync + 'static {
     /// Decide whether the infectant should infect the host.
-    fn infect(&self, haplotype: &HaplotypeRef<S>) -> bool;
+    fn infect(&self, haplotype: &HaplotypeRef<S>, rng: &mut ThreadRng) -> bool;
 
     /// Any mutations that the infectants should experience after
-    fn mutate(&self, haplotype: &mut [HaplotypeRef<S>]);
+    fn mutate(&self, haplotype: &mut [HaplotypeRef<S>], rng: &mut ThreadRng);
 
     /// Compute the number of infectants that will be released.
-    fn replicate(&self, haplotype: &[HaplotypeRef<S>], offspring: &mut [usize]);
+    fn replicate(&self, haplotype: &[HaplotypeRef<S>], offspring: &mut [usize], rng: &mut ThreadRng);
 
     /// Clone the host.
     fn clone_box(&self) -> Box<dyn Host<S>>;
