@@ -63,10 +63,8 @@ impl<S: Symbol> Host<S> for BasicHost {
             // recombine infectants
             for (i, j) in (0..haplotype.len()).tuple_combinations() {
                 if self.recombination_sampler.sample(rng) {
-                    let mut recombination_sites = [
-                        self.site_sampler.sample(rng),
-                        self.site_sampler.sample(rng),
-                    ];
+                    let mut recombination_sites =
+                        [self.site_sampler.sample(rng), self.site_sampler.sample(rng)];
                     // ensure that recombination sites are different
                     while recombination_sites[0] == recombination_sites[1] {
                         recombination_sites[1] = self.site_sampler.sample(rng);
@@ -113,7 +111,12 @@ impl<S: Symbol> Host<S> for BasicHost {
         });
     }
 
-    fn replicate(&self, haplotypes: &[HaplotypeRef<S>], offspring: &mut [usize], rng: &mut ThreadRng) {
+    fn replicate(
+        &self,
+        haplotypes: &[HaplotypeRef<S>],
+        offspring: &mut [usize],
+        rng: &mut ThreadRng,
+    ) {
         assert_eq!(haplotypes.len(), offspring.len());
 
         // create float view to use as temporary fitness buffer
@@ -353,23 +356,27 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     fn mutate_infectants(&mut self) {
         // mutate infectants based on host cell assignment
         self.host_specs.par_iter().for_each(|spec| {
-            spec.range.clone().into_par_iter().for_each_init(|| rand::thread_rng(), |rng, position| {
-                let infectant_ids = self.host_map_buffer.get_slice(position);
-                let mut infectants = infectant_ids
-                    .iter()
-                    .map(|infectant_id| self.population.get(infectant_id).clone())
-                    .collect::<Vec<HaplotypeRef<S>>>();
-                spec.host.mutate(infectants.as_mut_slice(), rng);
-                for (id, infectant) in infectant_ids.iter().zip(infectants.iter()) {
-                    self.population.insert_sync(id, infectant.clone());
-                }
-            });
+            spec.range.clone().into_par_iter().for_each_init(
+                || rand::thread_rng(),
+                |rng, position| {
+                    let infectant_ids = self.host_map_buffer.get_slice(position);
+                    let mut infectants = infectant_ids
+                        .iter()
+                        .map(|infectant_id| self.population.get(infectant_id).clone())
+                        .collect::<Vec<HaplotypeRef<S>>>();
+                    spec.host.mutate(infectants.as_mut_slice(), rng);
+                    for (id, infectant) in infectant_ids.iter().zip(infectants.iter()) {
+                        self.population.insert_sync(id, infectant.clone());
+                    }
+                },
+            );
         });
     }
 
     #[cfg(not(feature = "parallel"))]
-    fn mutate_infectants(&mut self, rng: &mut ThreadRng) {
+    fn mutate_infectants(&mut self) {
         // mutate infectants based on host cell assignment
+        let mut rng = rand::thread_rng();
         // recombine infectants
         self.host_specs.iter().for_each(|spec| {
             spec.range.clone().for_each(|position| {
@@ -378,7 +385,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                     .iter()
                     .map(|infectant_id| self.population.get(infectant_id).clone())
                     .collect::<Vec<HaplotypeRef<S>>>();
-                spec.host.mutate(infectants.as_mut_slice(), rng);
+                spec.host.mutate(infectants.as_mut_slice(), &mut rng);
                 for (id, infectant) in infectant_ids.iter().zip(infectants.iter()) {
                     self.population.insert(id, infectant.clone());
                 }
@@ -418,6 +425,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     #[cfg(not(feature = "parallel"))]
     fn replicate_infectants(&self) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
+        let mut rng = rand::thread_rng();
         self.host_specs.iter().for_each(|spec| {
             self.host_map_buffer
                 .iter_range(spec.range.clone())
@@ -430,6 +438,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                             .collect::<Vec<HaplotypeRef<S>>>()
                             .as_slice(),
                         offspring_buf.as_mut_slice(),
+                        &mut rng,
                     );
                     // this can potentially be optimized by using the buffer directly and later
                     // reordering the values with the host_map.
