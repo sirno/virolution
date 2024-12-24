@@ -323,6 +323,9 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
 
     fn set_population(&mut self, population: Population<Store<S>>) {
         self.population = population;
+
+        // update host map buffer
+        self.host_map_buffer.limit_infectants(self.population.len());
     }
 
     /// Set the parameters for the simulation
@@ -543,11 +546,11 @@ mod tests {
             [1., 1., 0., 1.],
             [1., 1., 1., 0.],
         ],
-        host_population_size: 5,
+        host_population_size: 20,
         infection_fraction: 1.0,
         basic_reproductive_number: 100.,
         max_population: POPULATION_SIZE,
-        dilution: 0.17,
+        dilution: 1.,
         fitness_model: FitnessModelField::SingleHost(FITNESS_MODEL),
     };
 

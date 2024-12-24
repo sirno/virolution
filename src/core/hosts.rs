@@ -10,8 +10,8 @@
 //!
 use crate::encoding::Symbol;
 use crate::references::HaplotypeRef;
-use std::ops::Range;
 use rand::prelude::*;
+use std::ops::Range;
 
 /// A host that can be infected by infectants.
 ///
@@ -31,7 +31,12 @@ pub trait Host<S: Symbol>: std::fmt::Debug + Send + Sync + 'static {
     fn mutate(&self, haplotype: &mut [HaplotypeRef<S>], rng: &mut ThreadRng);
 
     /// Compute the number of infectants that will be released.
-    fn replicate(&self, haplotype: &[HaplotypeRef<S>], offspring: &mut [usize], rng: &mut ThreadRng);
+    fn replicate(
+        &self,
+        haplotype: &[HaplotypeRef<S>],
+        offspring: &mut [usize],
+        rng: &mut ThreadRng,
+    );
 
     /// Clone the host.
     fn clone_box(&self) -> Box<dyn Host<S>>;
@@ -68,6 +73,12 @@ impl<S: Symbol> Clone for HostSpec<S> {
 ///
 /// This buffer can be used to reuse memory for the host map between generations
 pub struct HostMapBuffer {
+    // number of hosts and infectants
+    // this is used to set the limits of the buffer without resizing it
+    n_hosts: usize,
+    n_infectants: usize,
+
+    // buffers
     infections: Vec<Option<usize>>,
     offsets: Vec<usize>,
     hosts: Vec<usize>,
@@ -81,31 +92,57 @@ pub struct HostMapBuffer {
 impl HostMapBuffer {
     pub fn new(n_hosts: usize, n_infectants: usize) -> Self {
         Self {
+            n_hosts,
+            n_infectants,
+
             infections: vec![None; n_infectants],
             offsets: vec![0; n_hosts + 1],
             hosts: vec![0; n_infectants],
         }
     }
 
+    /// Set the number of infectants that are currently active
+    pub fn limit_infectants(&mut self, n_infectants: usize) {
+        self.n_infectants = n_infectants;
+
+        // resize the buffer if necessary
+        if self.infections.len() < n_infectants {
+            self.infections.resize(n_infectants, None);
+            self.hosts.resize(n_infectants, 0);
+        }
+    }
+
+    /// Set the number of hosts that are currently active
+    pub fn limit_hosts(&mut self, n_hosts: usize) {
+        self.n_hosts = n_hosts;
+
+        // resize the buffer if necessary
+        if self.offsets.len() < n_hosts + 1 {
+            self.offsets.resize(n_hosts + 1, 0);
+        }
+    }
+
     pub fn build<F: FnMut(&mut Option<usize>)>(&mut self, builder: F) {
+        let infection_slice = &mut self.infections[0..self.n_infectants];
+
         // set new infections
-        self.infections.iter_mut().for_each(builder);
+        infection_slice.iter_mut().for_each(builder);
 
         // reset offsets
-        self.offsets.fill(0);
+        self.offsets[0..=self.n_hosts].fill(0);
 
         // compute prefix sum in place
-        for host_idx in self.infections.iter().flatten() {
+        for host_idx in infection_slice.iter().flatten() {
             self.offsets[*host_idx] += 1;
         }
 
-        for i in 0..self.offsets.len() - 1 {
+        for i in 0..self.n_hosts {
             self.offsets[i + 1] += self.offsets[i];
         }
 
         // fill host maps using backfill with offsets
         // after the loop, we will have offsets - count
-        for (infectant_idx, maybe_host) in self.infections.iter().enumerate() {
+        for (infectant_idx, maybe_host) in infection_slice.iter().enumerate() {
             if let Some(host_idx) = maybe_host {
                 self.hosts[self.offsets[*host_idx] - 1] = infectant_idx;
                 self.offsets[*host_idx] -= 1;
@@ -130,12 +167,14 @@ impl HostMapBuffer {
         self.infections[infectant_idx]
     }
 
+    /// Iterate over infectants associated with each host
     pub fn iter_hosts(&self) -> impl Iterator<Item = &[usize]> + '_ {
         self.offsets
             .windows(2)
             .map(move |window| &self.hosts[window[0]..window[1]])
     }
 
+    /// Iterate over the infectants associated with a range of hosts
     pub fn iter_range(&self, range: Range<usize>) -> impl Iterator<Item = &[usize]> + '_ {
         range.map(move |i| &self.hosts[self.offsets[i]..self.offsets[i + 1]])
     }
