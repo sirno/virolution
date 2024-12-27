@@ -43,65 +43,22 @@
           cargo = rust-select;
           rustc = rust-select;
         };
-      in
-      {
-        checks = {
 
-          # run tests for sequential version
-          sequential = rustPlatform.buildRustPackage rec {
-            name = "virolution-sequential-test";
-            src = ./.;
-
-            buildType = "debug";
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-            buildInputs = with pkgs; [
-              rust-select
-            ];
-
-            doInstall = false;
-          };
-
-          # run tests for parallel version
-          parallel = rustPlatform.buildRustPackage rec {
-            name = "virolution-parallel-test";
-            buildFeatures = [ "parallel" ];
-            src = ./.;
-
-            buildType = "debug";
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-            buildInputs = with pkgs; [
-              rust-select
-            ];
-
-            doInstall = false;
-          };
-        };
-
-        packages.default = rustPlatform.buildRustPackage rec {
-
-          name = "virolution";
-          version = "0.5.0-dev";
-          src = ./.;
-
-          nativeBuildInputs = with pkgs; [
-            rust-select
-          ];
-
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-          };
-
-        };
-
-        packages.sequential = rustPlatform.buildRustPackage rec {
-
+        packageDefaults = {
           name = "virolution-sequential";
           version = "0.5.0-dev";
-          src = ./.;
+          src = pkgs.lib.fileset.toSource {
+            root = ./.;
+            fileset = pkgs.lib.fileset.unions [
+              ./Cargo.toml
+              ./Cargo.lock
+              ./build.rs
+              ./examples
+              ./macros
+              ./src
+              ./tests
+            ];
+          };
 
           nativeBuildInputs = with pkgs; [
             rust-select
@@ -110,25 +67,103 @@
           cargoLock = {
             lockFile = ./Cargo.lock;
           };
-
         };
 
-        packages.parallel = rustPlatform.buildRustPackage rec {
+      in
+      {
+        apps = {
+          benchmark = {
+            type = "app";
+            program = "${self.packages.${system}.default-benchmark}/bin/bench.sh";
+          };
+          parallel-benchmark = {
+            type = "app";
+            program = "${self.packages.${system}.parallel-benchmark}/bin/bench.sh parallel";
+          };
+        };
+        checks = {
+          # run tests for sequential version
+          sequential = rustPlatform.buildRustPackage (
+            packageDefaults
+            // {
+              name = "virolution-sequential-test";
+              buildType = "debug";
+              doInstall = false;
+            }
+          );
 
-          name = "virolution-parallel";
-          version = "0.5.0-dev";
-          src = ./.;
+          # run tests for parallel version
+          parallel = rustPlatform.buildRustPackage (
+            packageDefaults
+            // {
+              name = "virolution-parallel-test";
+              buildFeatures = [ "parallel" ];
+              buildType = "debug";
+              doInstall = false;
+            }
+          );
+        };
 
-          buildFeatures = [ "parallel" ];
+        packages.default = rustPlatform.buildRustPackage (
+          packageDefaults
+          // {
+            doCheck = false;
+          }
+        );
 
-          nativeBuildInputs = with pkgs; [
-            rust-select
+        packages.parallel = rustPlatform.buildRustPackage (
+          packageDefaults
+          // {
+            name = "virolution-parallel";
+            buildFeatures = [ "parallel" ];
+            doCheck = false;
+          }
+        );
+
+        packages.default-benchmark = pkgs.stdenv.mkDerivation {
+          name = "virolution-sequential-benchmark";
+          src = packageDefaults.src;
+
+          buildInputs = with pkgs; [
+            self.packages.${system}.default
+            hyperfine
+            pkgs.makeWrapper
           ];
 
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-          };
+          installPhase = ''
+            mkdir -p $out/bin
 
+            # Copy the script
+            cp $src/tests/benchmark.sh $out/bin/benchmark.sh
+            chmod +x $out/bin/benchmark.sh
+
+            # Wrap the script so that virolution (the parallel one) is on the PATH
+            makeWrapper $out/bin/benchmark.sh $out/bin/bench.sh \
+              --prefix PATH : "${self.packages.${system}.default}/bin"
+          '';
+        };
+
+        packages.parallel-benchmark = pkgs.stdenv.mkDerivation rec {
+          name = "virolution-parallel-benchmark";
+          src = packageDefaults.src;
+
+          buildInputs = [
+            self.packages.${system}.parallel
+            pkgs.hyperfine
+            pkgs.makeWrapper
+          ];
+
+          installPhase = ''
+            mkdir -p $out/bin
+
+            # Copy the script
+            cp $src/tests/benchmark.sh $out/bin/benchmark.sh
+            chmod +x $out/bin/benchmark.sh
+
+            # Wrap the script so that virolution (the parallel one) is on the PATH
+            makeWrapper $out/bin/benchmark.sh $out/bin/bench.sh \
+              --prefix PATH : "${self.packages.${system}.parallel}/bin"
+          '';
         };
 
         devShells.default = pkgs.mkShell {
