@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 0.4.0 --- Epistatic Transaction (WIP)
+## 0.4.0 --- Epistatic Transaction (Jan 15, 2025)
 
 - Changed where output is stored: everything is now stored in `--outdir`
 - Paths contained in the settings file will now be loaded relative to the
@@ -13,6 +13,8 @@
 - Introduced generic encoding for symbolic values `virolution::encoding::Symbol`
 - Use smallvec for storing mutations, this should reduce the number of unnecessary
   allocations especially when mutants go extinct right away
+- Host trait: Support for custom host implementations
+- Attribute API: Create custom attributes with lazy and eager evaluation
 
 ## 0.3.0 --- Mixed Performance (May 06, 2024)
 

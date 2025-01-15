@@ -141,7 +141,7 @@ impl<'a> CsvSampleWriter<'a> {
     }
 }
 
-impl<'a, S: Symbol + 'static> SampleWriter<S> for FastaSampleWriter<'a> {
+impl<S: Symbol + 'static> SampleWriter<S> for FastaSampleWriter<'_> {
     fn get_experiment_name(&self) -> &str {
         self.simulation_name
     }
@@ -208,7 +208,7 @@ impl<'a, S: Symbol + 'static> SampleWriter<S> for FastaSampleWriter<'a> {
     }
 }
 
-impl<'a, S: Symbol + 'static> SampleWriter<S> for CsvSampleWriter<'a> {
+impl<S: Symbol + 'static> SampleWriter<S> for CsvSampleWriter<'_> {
     fn get_experiment_name(&self) -> &str {
         self.simulation_name
     }

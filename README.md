@@ -1,98 +1,132 @@
-# Virolution
+# virolution
 
-This tool simulates a virus population under static selective pressure with
-single-nucleotide polymorphism and recombination in discrete generations.  The
-host population is kept constant for each generation, while the virus
-population may change in number and composition. Multiple simulations can be
-run in parallel with controlled mixing. As input, the simulation requires model
-parameters, a wildtype sequence and a file with a schedule for all migration
-and sampling events. As output, multiple fasta files with samples of the
-populations at each sampling event are generated.
+## Virolution - Agent-Based Simulation of Viral Evolution
 
-## Details
+Virolution is a simulation framework that is powered by a sparse genetic representation of
+viral genomes. It is designed to simulate the evolution of large viral populations with large
+genomes. The simulations core data structures are thread-safe and generic to allow for
+adaptation to a wide range of viral or other evolutionary systems.
 
-During each generation, every virus has the chance to infect a randomly chosen
-host, determined by the infection probability $r$ (`infection_fraction`). If a
-host is infected by multiple viruses, any pair of these viruses may recombine
-with a probability $p_r$ (`recombination_rate`). Each virus can then mutate at
-each genomic position with a probability $p_m$ (`mutation_rate`). Following
-these events, each virus will produce offspring. The number of offspring
-produced by each virus follows a Poisson distribution, the mean of which is
-calculated as the product of the virus's fitness and its basic reproductive
-number, adjusted by the number of viruses within the same host.
+### How to use Virolution
 
-## Installation
+There are two ways of using Virolution:
 
-Use rustup to select the nightly toolchain
+- As a binary: You can use the binary to run simulations with a given configuration file. This
+  will run a simulation that approximates the evolution of a viral population in discrete
+  generations in potentially multiple compartments. The simulation can be configured to use
+  different fitness landscapes, mutation rates, and population sizes.
 
-```bash
-rustup toolchain install nightly
-rustup default nightly
+- As a library: You can use the core data structures to build your own simulations. This allows
+  you to create custom simulations that are not possible with the binary. Using the libraries
+  traits you can implement your own fitness landscapes, attribute providers, and host systems.
+  You can also use non-discrete time steps and implement your own selection mechanisms.
+
+### Installation
+
+To install the binary, you can use the following command:
+
+```shell
+cargo install virolution
+cargo install virolution --features parallel
 ```
 
-Use cargo to compile and run and install
+To use the library, you can add the following to your `Cargo.toml`:
 
-```bash
-cargo build
-cargo run -- --settings settings.yaml --sequence reference.fasta
-cargo install --path .
+```toml
+[dependencies]
+virolution = "0.5"
 ```
 
-To utilize multiple cores, select the `parallel` feature, e.g.
+### Basic Usage as a Binary
 
-```bash
-cargo install --path . --features parallel
-```
-
-## Simulation Parameters
-
-```rust
-pub struct Parameters {
-    pub mutation_rate: f64,
-    pub recombination_rate: f64,
-    pub host_population_size: usize,
-    pub infection_fraction: f64,
-    pub basic_reproductive_number: f64,
-    pub max_population: usize,
-    pub dilution: f64,
-    pub substitution_matrix: [[f64; 4]; 4],
-    pub fitness_model: FitnessModel,
-}
-```
-
-### Example
+After installation, you can run the binary with a sequence file and a configuration file. A
+configuration file may look like this:
 
 ```yaml
----
 parameters:
-- mutation_rate: 1e-6
-  recombination_rate: 0
-  host_population_size: 100000
-  infection_fraction: 0.7
-  basic_reproductive_number: 100.0
-  max_population: 100000
-  dilution: 0.02
-  substitution_matrix:
-    - [0.0, 1.0, 1.0, 1.0]
-    - [1.0, 0.0, 1.0, 1.0]
-    - [1.0, 1.0, 0.0, 1.0]
-    - [1.0, 1.0, 1.0, 0.0]
-  fitness_model: !SingleHost
-        distribution: !Exponential
-            weights:
-              beneficial: 0.29
-              deleterious: 0.51
-              lethal: 0.2
-              neutral: 0.0
-            lambda_beneficial: 0.03
-            lambda_deleterious: 0.21
-        utility: !Algebraic
-            upper: 1.5
+ - mutation_rate: 1e-6
+   recombination_rate: 0
+   host_population_size: 10000
+   infection_fraction: 1.0
+   basic_reproductive_number: 100.0
+   max_population: 10000
+   dilution: 0.02
+   substitution_matrix:
+     - [0.0, 1.0, 1.0, 1.0]
+     - [1.0, 0.0, 1.0, 1.0]
+     - [1.0, 1.0, 0.0, 1.0]
+     - [1.0, 1.0, 1.0, 0.0]
+   fitness_model: !SingleHost
+     distribution: !Exponential
+       weights:
+         beneficial: 0.29
+         deleterious: 0.51
+         lethal: 0.2
+         neutral: 0.0
+       lambda_beneficial: 0.03
+       lambda_deleterious: 0.21
+     utility: !Algebraic
+       upper: 1.5
 schedule:
-- generation: '{} % 1'
-  event: transmission
-  value: "[[0.9, 0.1], [0.1, 0.9]]"
-- generation: '{} % 200'
-  event: sample
-  value: 1000
+ - generation: "{} % 1"
+   event: transmission
+   value: "[[0.9, 0.1], [0.1, 0.9]]"
+ - generation: "{} % 200"
+   event: sample
+   value: 1000
 ```
+
+This configuration file will run a simulation with a mutation rate of 1e-6, a host population
+size of 10000, and a basic reproductive number of 100.0. The substitution matrix is a 4x4
+matrix with 0.0 on the diagonal and 1.0 elsewhere, meaning that all mutations are equally
+likely. The fitness model is a single host model with an exponential distribution of fitness
+effects, with a utility function that caps the fitness of the otherwise multiplicative fitness
+at 1.5.
+
+In the schedule, we define two events: transmission and sample. The transmission event will
+occur every generation and will use a 2x2 matrix to determine the probability of transmission
+between two compartments. The sample event will occur every 200 generations and will sample
+1000 individuals from the population. The `{}` in the generation field will be replaced with
+the current generation number and an event will be executed whenever the expression evaluates
+to 0.
+
+There are more events that can be configured in the schedule.
+
+### Basic Usage as a Library
+
+To use Virolution as a library, you can simply create your own binary in Rust and use the
+implementations provided by the library.
+
+A wildtype haplotype is created from a sequence and an attribute definition. From it, mutants
+and recombinants can be derived:
+
+```rust
+use std::sync::Arc;
+
+use virolution::core::*;
+use virolution::core::fitness::init::*;
+use virolution::core::fitness::utility::*;
+use virolution::encoding::Nucleotide as Nt;
+
+let sequence = vec![Nt::A; 4];
+let mut attribute_definitions = AttributeSetDefinition::new();
+attribute_definitions.register(Arc::new(
+    FitnessProvider::from_model(
+        "fitness",
+        &sequence,
+        &FitnessModel::new(FitnessDistribution::Neutral, UtilityFunction::Linear),
+    )
+    .expect("Failed to create fitness table"),
+));
+
+let wildtype = Haplotype::new(sequence, &attribute_definitions);
+let mutant1 = wildtype.create_descendant(vec![2], vec![Nt::T]);
+let mutant2 = wildtype.create_descendant(vec![1, 2], vec![Nt::G, Nt::C]);
+let recombinant = Haplotype::create_recombinant(&mutant1, &mutant2, 0, 2);
+
+assert_eq!(wildtype.get_sequence(), vec![Nt::A, Nt::A, Nt::A, Nt::A]);
+assert_eq!(mutant1.get_sequence(), vec![Nt::A, Nt::A, Nt::T, Nt::A]);
+assert_eq!(mutant2.get_sequence(), vec![Nt::A, Nt::G, Nt::C, Nt::A]);
+assert_eq!(recombinant.get_sequence(), vec![Nt::A, Nt::A, Nt::C, Nt::A]);
+```
+

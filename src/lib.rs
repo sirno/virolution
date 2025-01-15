@@ -19,6 +19,22 @@
 //!   traits you can implement your own fitness landscapes, attribute providers, and host systems.
 //!   You can also use non-discrete time steps and implement your own selection mechanisms.
 //!
+//! ## Installation
+//!
+//! To install the binary, you can use the following command:
+//!
+//! ```shell
+//! cargo install virolution
+//! cargo install virolution --features parallel
+//! ```
+//!
+//! To use the library, you can add the following to your `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! virolution = "0.5"
+//! ```
+//!
 //! ## Basic Usage as a Binary
 //!
 //! After installation, you can run the binary with a sequence file and a configuration file. A
@@ -110,21 +126,6 @@
 //! assert_eq!(mutant1.get_sequence(), vec![Nt::A, Nt::A, Nt::T, Nt::A]);
 //! assert_eq!(mutant2.get_sequence(), vec![Nt::A, Nt::G, Nt::C, Nt::A]);
 //! assert_eq!(recombinant.get_sequence(), vec![Nt::A, Nt::A, Nt::C, Nt::A]);
-//! ```
-//!
-//! ## Installation
-//!
-//! To install the binary, you can use the following command:
-//!
-//! ```shell
-//! cargo install virolution
-//! ```
-//!
-//! To use the library, you can add the following to your `Cargo.toml`:
-//!
-//! ```toml
-//! [dependencies]
-//! virolution = "0.5"
 //! ```
 //!
 #![feature(let_chains)]

@@ -244,7 +244,7 @@ impl Runner {
                     &fitness_model,
                 )?));
 
-                let host = BasicHost::new(sequence.len(), &default_settings, Some(name), None);
+                let host = BasicHost::new(sequence.len(), default_settings, Some(name), None);
                 let host_spec: HostSpec<S> =
                     HostSpec::new(0..default_settings.host_population_size, Box::new(host));
                 host_specs.push(host_spec);
@@ -274,7 +274,7 @@ impl Runner {
                     let lower = id * n_hosts;
                     let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
 
-                    let host = BasicHost::new(sequence.len(), &default_settings, Some(name), None);
+                    let host = BasicHost::new(sequence.len(), default_settings, Some(name), None);
                     let host_spec = HostSpec::new(lower..upper, Box::new(host));
                     host_specs.push(host_spec);
                 }
