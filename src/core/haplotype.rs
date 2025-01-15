@@ -32,8 +32,8 @@ use std::sync::Arc;
 use crate::encoding::Symbol;
 use crate::errors::Result;
 use crate::references::DescendantsCell;
-use crate::references::{HaplotypeRefTrait, HaplotypeWeakTrait, HaplotypeRef, HaplotypeWeak};
-use macros::require_deferred_drop;
+use crate::references::{HaplotypeRef, HaplotypeRefTrait, HaplotypeWeak, HaplotypeWeakTrait};
+use virolution_macros::require_deferred_drop;
 
 use super::attributes::{AttributeSet, AttributeValue};
 use super::cache::{CachedValue, VirolutionCache};

@@ -1,7 +1,11 @@
 [package]
-name = "macros"
+name = "virolution-macros"
 version = "0.1.0"
 edition = "2021"
+description = "Proc macros for virolution."
+authors = ["nicolas ochsner <nicos.letters@gmail.com>"]
+repository = "https://github.com/sirno/virolution"
+license = "MIT"
 
 [lib]
 proc-macro = true

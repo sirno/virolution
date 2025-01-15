@@ -2,7 +2,7 @@
 # Created by https://www.toptal.com/developers/gitignore/api/rust,macos,visualstudiocode,emacs,vim
 # Edit at https://www.toptal.com/developers/gitignore?templates=rust,macos,visualstudiocode,emacs,vim
 
-test/
+tests/
 
 # direnv
 .direnv/
