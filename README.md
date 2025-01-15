@@ -1,5 +1,9 @@
 # virolution
 
+![Crates.io Version](https://img.shields.io/crates/v/virolution?style=for-the-badge)
+![docs.rs](https://img.shields.io/docsrs/virolution?style=for-the-badge)
+![GitHub branch check runs](https://img.shields.io/github/check-runs/sirno/virolution/main?style=for-the-badge)
+
 ## Virolution - Agent-Based Simulation of Viral Evolution
 
 Virolution is a simulation framework that is powered by a sparse genetic representation of
