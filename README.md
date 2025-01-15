@@ -1,8 +1,8 @@
 # virolution
 
-<img alt="Crates.io Version" src="https://img.shields.io/crates/v/virolution?style=for-the-badge&link=https%3A%2F%2Fcrates.io%2Fcrates%2Fvirolution">\
-<img alt="docs.rs" src="https://img.shields.io/docsrs/virolution?style=for-the-badge&link=https%3A%2F%2Fdocs.rs%2Fvirolution">\
-<img alt="GitHub branch check runs" src="https://img.shields.io/github/check-runs/sirno/virolution/main?style=for-the-badge&link=https%3A%2F%2Fgithub.com%2Fsirno%2Fvirolution%2Factions">
+[![Crates.io Version](https://img.shields.io/crates/v/virolution?style=for-the-badge)](https://crates.io/crates/virolution)
+[![docs.rs](https://img.shields.io/docsrs/virolution?style=for-the-badge)](https://docs.rs/virolution)
+[![GitHub Branch](https://img.shields.io/github/check-runs/sirno/virolution/main?style=for-the-badge)](https://github.com/sirno/virolution/actions)
 
 ## Virolution - Agent-Based Simulation of Viral Evolution
 
