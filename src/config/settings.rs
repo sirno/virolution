@@ -1,3 +1,5 @@
+//! Settings module.
+
 use super::parameters::Parameters;
 use super::schedule::Schedule;
 
