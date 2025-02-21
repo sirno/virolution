@@ -2,12 +2,10 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use super::epistasis::EpistasisTable;
-use super::init::{FitnessDistribution, FitnessModel};
-use super::table::FitnessTable;
-use super::utility::UtilityFunction;
+use crate::init::{FitnessDistribution, FitnessModel};
 
 use crate::core::attributes::{AttributeProvider, AttributeProviderType, AttributeValue};
+use crate::core::fitness::{EpistasisTable, FitnessTable, UtilityFunction};
 use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
 use crate::references::HaplotypeRef;
@@ -42,7 +40,7 @@ impl<S: Symbol> FitnessProvider<S> {
     /// Create a new fitness provider from a fitness model definition.
     ///
     /// Fitness models can be specified in the configuration file. Available fitness models are
-    /// defined in `virolution::core::fitness::init`.
+    /// defined in `virolution::init`.
     pub fn from_model(
         name: &'static str,
         sequence: &[S],

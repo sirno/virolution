@@ -4,14 +4,14 @@ use std::fs;
 use std::sync::Arc;
 use virolution::config::{FitnessModelField, Parameters};
 use virolution::core::attributes::AttributeSetDefinition;
-use virolution::core::fitness::init::*;
-use virolution::core::fitness::utility::UtilityFunction;
-use virolution::core::fitness::FitnessProvider;
+use virolution::core::fitness::UtilityFunction;
 use virolution::core::haplotype::*;
 use virolution::core::hosts::HostSpec;
 use virolution::core::population::Store;
 use virolution::core::Population;
 use virolution::encoding::Nucleotide as Nt;
+use virolution::init::fitness::*;
+use virolution::providers::FitnessProvider;
 use virolution::providers::Generation;
 use virolution::simulation::*;
 

@@ -1,6 +1,6 @@
 use npyz::WriterBuilder;
 
-use super::init::{FitnessDistribution, FitnessModel};
+use crate::init::{FitnessDistribution, FitnessModel};
 
 use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
@@ -103,10 +103,10 @@ impl FitnessTable {
 
 #[cfg(test)]
 mod tests {
-    use super::super::init::{ExponentialParameters, MutationCategoryWeights};
-    use super::super::utility::UtilityFunction;
+    use super::super::UtilityFunction;
     use super::*;
     use crate::encoding::Nucleotide as Nt;
+    use crate::init::fitness::{ExponentialParameters, MutationCategoryWeights};
 
     #[test]
     fn get_value() {

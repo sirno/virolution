@@ -1,9 +1,14 @@
+//! Fitness model and distribution definitions.
+//!
+//! Anything needed to initialize the [`FitnessProvider`] at the start of the
+//! simulation.
+
 use npyz::NpyFile;
-use rand_distr::{Distribution, Exp, weighted::WeightedIndex};
+use rand_distr::{weighted::WeightedIndex, Distribution, Exp};
 use serde::{Deserialize, Serialize};
 
-use super::epistasis::EpiEntry;
-use super::utility::UtilityFunction;
+use crate::core::fitness::epistasis::EpiEntry;
+use crate::core::fitness::UtilityFunction;
 use crate::encoding::Symbol;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -205,8 +210,8 @@ impl EpiFileParameters {
 
 #[cfg(test)]
 mod tests {
-    use super::super::table::FitnessTable;
     use super::*;
+    use crate::core::fitness::FitnessTable;
 
     use crate::encoding::Nucleotide as Nt;
 

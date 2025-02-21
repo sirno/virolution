@@ -15,7 +15,6 @@ pub use ancestry::Ancestry;
 pub use attributes::{
     AttributeProvider, AttributeProviderType, AttributeSet, AttributeSetDefinition, AttributeValue,
 };
-pub use fitness::FitnessProvider;
 pub use haplotype::Haplotype;
 pub use historian::Historian;
 pub use population::Population;

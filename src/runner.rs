@@ -19,11 +19,11 @@ use crate::config::{FitnessModelField, Parameters, Settings};
 use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
 use crate::core::hosts::HostSpec;
 use crate::core::population::Store;
-use crate::core::{Ancestry, FitnessProvider, Haplotype, Historian, Population};
+use crate::core::{Ancestry, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
 
-use crate::providers::Generation;
+use crate::providers::{Generation, FitnessProvider};
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::{HaplotypeRef, HaplotypeRefTrait};

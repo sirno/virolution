@@ -65,7 +65,7 @@ mod tests {
 
     use crate::config::parameters::FitnessModelField;
     use crate::config::schedule::ScheduleRecord;
-    use crate::core::fitness::init::FitnessModel;
+    use crate::init::FitnessModel;
 
     #[test]
     fn read_write() {
@@ -80,7 +80,7 @@ mod tests {
                 dilution: 0.1,
                 substitution_matrix: [[0.0; 4]; 4],
                 fitness_model: FitnessModelField::SingleHost(FitnessModel::new(
-                    crate::core::fitness::init::FitnessDistribution::Neutral,
+                    crate::init::fitness::FitnessDistribution::Neutral,
                     crate::core::fitness::utility::UtilityFunction::Linear,
                 )),
             }],

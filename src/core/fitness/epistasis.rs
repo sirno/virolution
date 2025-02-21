@@ -6,9 +6,8 @@ use std::collections::HashMap;
 use crate::core::haplotype::Changes;
 use crate::encoding::Symbol;
 use crate::errors::VirolutionError;
+use crate::init::{FitnessDistribution, FitnessModel};
 use crate::references::HaplotypeRef;
-
-use super::init::{FitnessDistribution, FitnessModel};
 
 type EpistasisTableKey<S> = (usize, S);
 

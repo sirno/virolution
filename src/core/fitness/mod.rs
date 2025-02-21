@@ -1,13 +1,10 @@
 //! This module contains a fitness provider and any associated structures to load and initialize
 //! fitness tables.
 
-// TODO: Move to providers module and add documentation about module structure
-mod epistasis;
-mod table;
+pub(crate) mod epistasis;
+pub(crate) mod table;
+pub(crate) mod utility;
 
-pub mod init;
-pub mod provider;
-pub mod utility;
-
-pub use provider::FitnessProvider;
+pub use epistasis::EpistasisTable;
 pub use table::FitnessTable;
+pub use utility::UtilityFunction;

@@ -510,11 +510,11 @@ mod tests {
     use super::*;
     use crate::config::FitnessModelField;
     use crate::core::attributes::AttributeSetDefinition;
-    use crate::core::fitness::init::{
+    use crate::init::fitness::{
         ExponentialParameters, FitnessDistribution, FitnessModel, MutationCategoryWeights,
     };
     use crate::core::fitness::utility::UtilityFunction;
-    use crate::core::fitness::FitnessProvider;
+    use crate::providers::FitnessProvider;
     use crate::core::haplotype::Wildtype;
     use crate::encoding::Nucleotide as Nt;
     use std::sync::Arc;

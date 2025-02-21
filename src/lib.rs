@@ -102,8 +102,9 @@
 //! use std::sync::Arc;
 //!
 //! use virolution::core::*;
-//! use virolution::core::fitness::init::*;
-//! use virolution::core::fitness::utility::*;
+//! use virolution::init::fitness::*;
+//! use virolution::core::fitness::UtilityFunction;
+//! use virolution::providers::FitnessProvider;
 //! use virolution::encoding::Nucleotide as Nt;
 //!
 //! let sequence = vec![Nt::A; 4];
@@ -140,6 +141,7 @@ pub mod core;
 pub mod config;
 pub mod encoding;
 pub mod errors;
+pub mod init;
 pub mod providers;
 pub mod readwrite;
 pub mod references;
