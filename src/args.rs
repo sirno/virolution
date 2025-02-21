@@ -53,7 +53,7 @@ pub struct Args {
     pub ancestry: Option<String>,
 
     /// Number of compartments
-    #[clap(long, default_value = "3")]
+    #[clap(long, default_value = "1")]
     pub n_compartments: usize,
 
     /// Initial population size
