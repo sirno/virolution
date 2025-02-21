@@ -17,19 +17,139 @@ use crate::references::HaplotypeRef;
 #[derive(Clone, Debug)]
 pub struct FitnessProvider<S: Symbol> {
     name: &'static str,
-    function: FitnessFunction<S>,
+    function: Box<dyn FitnessFunction<S>>,
     utility: UtilityFunction,
 }
 
+/// A trait for fitness functions.
+pub trait FitnessFunction<S: Symbol>: Send + Sync + std::fmt::Debug {
+    fn update_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64;
+    fn compute_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64;
+    fn write(&self, path: &Path, name: &'static str) -> Result<(), VirolutionError>;
+    fn clone_box(&self) -> Box<dyn FitnessFunction<S>>;
+}
+
+impl<S: Symbol> Clone for Box<dyn FitnessFunction<S>> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
+}
+
 #[derive(Clone, Debug)]
-pub enum FitnessFunction<S: Symbol> {
-    NonEpistatic(FitnessTable),
-    SimpleEpistatic(FitnessTable, EpistasisTable<S>),
+pub struct NonEpistatic<S: Symbol> {
+    table: FitnessTable,
+    phantom: std::marker::PhantomData<S>,
+}
+
+impl<S: Symbol> NonEpistatic<S> {
+    pub fn new(table: FitnessTable) -> Self {
+        Self {
+            table,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S: Symbol> FitnessFunction<S> for NonEpistatic<S> {
+    fn update_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
+        self.table.update_fitness(haplotype)
+    }
+
+    fn compute_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
+        self.table.compute_fitness(haplotype)
+    }
+
+    fn write(&self, path: &Path, name: &'static str) -> Result<(), VirolutionError> {
+        let table_name = format!("{}_table.npy", name);
+        let mut table_file = io::BufWriter::new(fs::File::create(path.join(table_name)).unwrap());
+        self.table.write(&mut table_file)?;
+        Ok(())
+    }
+
+    fn clone_box(&self) -> Box<dyn FitnessFunction<S>> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct SimpleEpistatic<S: Symbol> {
+    table: FitnessTable,
+    epistasis: EpistasisTable<S>,
+}
+
+impl<S: Symbol> SimpleEpistatic<S> {
+    pub fn new(table: FitnessTable, epistasis: EpistasisTable<S>) -> Self {
+        Self { table, epistasis }
+    }
+}
+
+impl<S: Symbol> FitnessFunction<S> for SimpleEpistatic<S> {
+    fn update_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
+        self.table.update_fitness(haplotype) * self.epistasis.update_fitness(haplotype)
+    }
+
+    fn compute_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
+        self.table.compute_fitness(haplotype) * self.epistasis.compute_fitness(haplotype)
+    }
+
+    fn write(&self, path: &Path, name: &'static str) -> Result<(), VirolutionError> {
+        let table_name = format!("{}_table.npy", name);
+        let epistasis_name = format!("{}_epistasis_table.npy", name);
+
+        let table_file = fs::File::create(path.join(table_name)).unwrap();
+        let epistasis_path = fs::File::create(path.join(epistasis_name)).unwrap();
+
+        let mut table_writer = io::BufWriter::new(table_file);
+        let mut epistasis_writer = io::BufWriter::new(epistasis_path);
+
+        self.table.write(&mut table_writer)?;
+        self.epistasis.write(&mut epistasis_writer)?;
+        Ok(())
+    }
+
+    fn clone_box(&self) -> Box<dyn FitnessFunction<S>> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Neutral<S: Symbol> {
+    marker: std::marker::PhantomData<S>,
+}
+
+impl<S: Symbol> Neutral<S> {
+    pub fn new() -> Self {
+        Self {
+            marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S: Symbol> FitnessFunction<S> for Neutral<S> {
+    fn update_fitness(&self, _haplotype: &HaplotypeRef<S>) -> f64 {
+        1.0
+    }
+
+    fn compute_fitness(&self, _haplotype: &HaplotypeRef<S>) -> f64 {
+        1.0
+    }
+
+    fn write(&self, _path: &Path, _name: &'static str) -> Result<(), VirolutionError> {
+        Ok(())
+    }
+
+    fn clone_box(&self) -> Box<dyn FitnessFunction<S>> {
+        Box::new(self.clone())
+    }
 }
 
 impl<S: Symbol> FitnessProvider<S> {
     /// Create a new fitness provider.
-    pub fn new(name: &'static str, function: FitnessFunction<S>, utility: UtilityFunction) -> Self {
+    pub fn new(
+        name: &'static str,
+        function: Box<dyn FitnessFunction<S>>,
+        utility: UtilityFunction,
+    ) -> Self {
         Self {
             name,
             function,
@@ -46,27 +166,24 @@ impl<S: Symbol> FitnessProvider<S> {
         sequence: &[S],
         model: &FitnessModel,
     ) -> Result<Self, VirolutionError> {
-        let function = match model.distribution {
-            FitnessDistribution::Neutral => {
-                let table = FitnessTable::from_model(sequence, model)?;
-                FitnessFunction::NonEpistatic(table)
-            }
+        let function: Box<dyn FitnessFunction<S>> = match model.distribution {
+            FitnessDistribution::Neutral => Box::new(Neutral::new()),
             FitnessDistribution::Exponential(_) => {
                 let table = FitnessTable::from_model(sequence, model)?;
-                FitnessFunction::NonEpistatic(table)
+                Box::new(NonEpistatic::new(table))
             }
             FitnessDistribution::Lognormal(_) => {
                 let table = FitnessTable::from_model(sequence, model)?;
-                FitnessFunction::NonEpistatic(table)
+                Box::new(NonEpistatic::new(table))
             }
             FitnessDistribution::File(_) => {
                 let table = FitnessTable::from_model(sequence, model)?;
-                FitnessFunction::NonEpistatic(table)
+                Box::new(NonEpistatic::new(table))
             }
             FitnessDistribution::Epistatic(_) => {
                 let table = FitnessTable::from_model(sequence, model)?;
                 let epistasis = EpistasisTable::from_model(model)?;
-                FitnessFunction::SimpleEpistatic(table, epistasis)
+                Box::new(SimpleEpistatic::new(table, epistasis))
             }
         };
         Ok(Self {
@@ -99,21 +216,11 @@ impl<S: Symbol> FitnessProvider<S> {
     }
 
     fn update_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
-        match &self.function {
-            FitnessFunction::NonEpistatic(table) => table.update_fitness(haplotype),
-            FitnessFunction::SimpleEpistatic(table, epistasis) => {
-                table.update_fitness(haplotype) * epistasis.update_fitness(haplotype)
-            }
-        }
+        self.function.update_fitness(haplotype)
     }
 
     fn compute_fitness(&self, haplotype: &HaplotypeRef<S>) -> f64 {
-        match &self.function {
-            FitnessFunction::NonEpistatic(table) => table.compute_fitness(haplotype),
-            FitnessFunction::SimpleEpistatic(table, epistasis) => {
-                table.compute_fitness(haplotype) * epistasis.compute_fitness(haplotype)
-            }
-        }
+        self.function.compute_fitness(haplotype)
     }
 }
 
@@ -141,27 +248,6 @@ impl<S: Symbol> AttributeProvider<S> for FitnessProvider<S> {
     }
 
     fn write(&self, path: &Path) -> Result<(), VirolutionError> {
-        match &self.function {
-            FitnessFunction::NonEpistatic(table) => {
-                let table_name = format!("{}_table.npy", self.name);
-                let mut table_file =
-                    io::BufWriter::new(fs::File::create(path.join(table_name)).unwrap());
-                table.write(&mut table_file)?;
-            }
-            FitnessFunction::SimpleEpistatic(table, epistasis) => {
-                let table_name = format!("{}_table.npy", self.name);
-                let epistasis_name = format!("{}_epistasis_table.npy", self.name);
-
-                let table_file = fs::File::create(path.join(table_name)).unwrap();
-                let epistasis_path = fs::File::create(path.join(epistasis_name)).unwrap();
-
-                let mut table_writer = io::BufWriter::new(table_file);
-                let mut epistasis_writer = io::BufWriter::new(epistasis_path);
-
-                table.write(&mut table_writer)?;
-                epistasis.write(&mut epistasis_writer)?;
-            }
-        }
-        Ok(())
+        self.function.write(path, self.name)
     }
 }
