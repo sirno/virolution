@@ -622,6 +622,7 @@ impl<S: Symbol> Mutant<S> {
 
         // synchronize swapping and deference with other threads
         let _guard = (*old_ptr)._defer_drop.lock();
+        let _other_guard = (*new_ptr)._defer_drop.lock();
 
         // replace the old reference with the new one inside the haplotype ref
         // this swaps the reference count of the old reference for the new one
@@ -1039,7 +1040,6 @@ mod tests {
         let wt = Wildtype::new(symbols, &attribute_definition);
 
         generation_provider.increment();
-        dbg!(&generation_provider);
         let ht = wt.create_descendant(vec![0], vec![Nt::G]);
         let ht_id = ht.get_block_id();
         assert_eq!(wt.get_tree(), format!("('{}':1)wt;", ht_id));
@@ -1109,11 +1109,11 @@ mod tests {
     ) {
         use rand::prelude::*;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         for i in 0..n_mutations {
-            let from = rng.gen_range(0..pop_size);
-            let to = rng.gen_range(0..pop_size);
+            let from = rng.random_range(0..pop_size);
+            let to = rng.random_range(0..pop_size);
 
             let descendant = {
                 let ht = pop[from].lock().expect("Failed to lock ancestor.");
@@ -1134,8 +1134,8 @@ mod tests {
     fn reader(pop: &[Mutex<HaplotypeRef<Nt>>], pop_size: usize, n_reads: usize, n_sites: usize) {
         use rand::prelude::*;
         for _ in 0..n_reads {
-            let mut rng = rand::thread_rng();
-            let index = rng.gen_range(0..pop_size);
+            let mut rng = rand::rng();
+            let index = rng.random_range(0..pop_size);
             let ht = pop[index].lock().expect("Failed to lock haplotype.");
             let sequence = ht.get_sequence();
             assert_eq!(sequence.len(), n_sites);
@@ -1147,8 +1147,6 @@ mod tests {
     fn merge_nodes_stress() {
         use std::sync::Mutex;
         use std::thread;
-
-        // TODO: investigate potential smallvec issue (unreachable code entered?)
 
         let n_sites = 7;
         let n_symbols = 4;
@@ -1169,8 +1167,10 @@ mod tests {
             s.spawn(|| reader(&pop, pop_size, n_reads, n_sites));
         });
 
-        let n_leaked = N_LEAKED.load(Ordering::Relaxed);
-        let n_dropped = N_DROPPED.load(Ordering::Relaxed);
+        thread::sleep(std::time::Duration::from_millis(100));
+
+        let n_leaked = N_LEAKED.load(Ordering::Acquire);
+        let n_dropped = N_DROPPED.load(Ordering::Acquire);
         assert_eq!(
             n_leaked, n_dropped,
             "Number of leaked and dropped nodes should be equal."

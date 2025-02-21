@@ -427,7 +427,7 @@ impl Runner {
             }
 
             // adjust settings if needed
-            if let Some(parameters) = self.setting.schedule.get_settings(generation) {
+            if let Some(parameters) = self.settings.schedule.get_settings(generation) {
                 log::info!("Adjust settings to:\n{}", parameters);
                 self.simulations.iter_mut().for_each(|simulation| {
                     simulation.set_parameters(parameters.clone());
