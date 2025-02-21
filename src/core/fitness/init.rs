@@ -1,6 +1,5 @@
 use npyz::NpyFile;
-use rand::distributions::{Distribution, WeightedIndex};
-use rand_distr::Exp;
+use rand_distr::{Distribution, Exp, weighted::WeightedIndex};
 use serde::{Deserialize, Serialize};
 
 use super::epistasis::EpiEntry;
@@ -101,7 +100,7 @@ impl MutationCategoryWeights {
 impl ExponentialParameters {
     pub fn create_table<S: Symbol>(&self, n_symbols: usize, sequence: &[S]) -> Vec<f64> {
         let mut table = vec![-1.; sequence.len() * n_symbols];
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // create distributions
         let categories = [
@@ -143,7 +142,7 @@ impl ExponentialParameters {
 impl LognormalParameters {
     pub fn create_table<S: Symbol>(&self, n_symbols: usize, sequence: &[S]) -> Vec<f64> {
         let mut table = vec![-1.; sequence.len() * n_symbols];
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // create distributions
         let lognormal = rand_distr::LogNormal::new(self.mu, self.sigma).unwrap();

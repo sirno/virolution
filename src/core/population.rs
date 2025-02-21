@@ -9,7 +9,7 @@
 use dashmap::DashMap;
 use itertools::Itertools;
 use rand::prelude::*;
-use rand_distr::WeightedAliasIndex;
+use rand_distr::weighted::WeightedAliasIndex;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::cell::Cell;
@@ -232,7 +232,7 @@ where
 
         let population: Vec<Cell<usize>> = (0..size)
             .into_par_iter()
-            .map_init(rand::thread_rng, |rng, _| {
+            .map_init(rand::rng, |rng, _| {
                 self.population[sampler.sample(rng)].clone()
             })
             .collect();
@@ -385,7 +385,7 @@ impl<M: HaplotypeStore> Population<M> {
     pub fn sample(&self, size: usize, weights: &[usize]) -> Self {
         let sampler = WeightedAliasIndex::new(weights.to_vec()).unwrap();
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let population: Vec<Cell<usize>> = (0..size)
             .map(|_| self.population[sampler.sample(&mut rng)].clone())
             .collect();

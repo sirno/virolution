@@ -3,7 +3,8 @@ extern crate test;
 
 use itertools::Itertools;
 use rand::prelude::*;
-use rand_distr::{Bernoulli, Binomial, Poisson, Uniform, WeightedAliasIndex, WeightedIndex};
+use rand_distr::{Bernoulli, Binomial, Poisson, Uniform};
+use rand_distr::weighted::{WeightedAliasIndex, WeightedIndex};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::cmp::min_by;
@@ -44,7 +45,7 @@ impl BasicHost {
             infection_fitness_provider,
             replicative_fitness_provider,
 
-            site_sampler: Uniform::new(0, n_sites),
+            site_sampler: Uniform::new(0, n_sites).unwrap(),
             infection_sampler: Bernoulli::new(parameters.infection_fraction).unwrap(),
             mutation_sampler: Binomial::new(n_sites as u64, parameters.mutation_rate).unwrap(),
             recombination_sampler: Bernoulli::new(parameters.recombination_rate).unwrap(),
@@ -254,9 +255,9 @@ impl<S: Symbol> BasicSimulation<S> {
         infectants
             .iter()
             .combinations(2)
-            .filter(|_| self.recombination_sampler.sample(&mut rand::thread_rng()))
+            .filter(|_| self.recombination_sampler.sample(&mut rand::rng()))
             .map(|infectant_pair| {
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
                 let mut recombination_sites =
                     rand::seq::index::sample(&mut rng, sequence_length, 2).into_vec();
                 recombination_sites.sort();
@@ -279,7 +280,7 @@ impl<S: Symbol> BasicSimulation<S> {
         infectants
             .iter()
             .filter_map(|infectant| {
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
                 let infectant_ref = &self.population.get(infectant);
                 let n_mutations = self.mutation_sampler.sample(&mut rng) as usize;
                 if n_mutations == 0 {
@@ -291,7 +292,7 @@ impl<S: Symbol> BasicSimulation<S> {
                 let bases = mutation_sites
                     .iter()
                     .map(|position| {
-                        let mut rng = rand::thread_rng();
+                        let mut rng = rand::rng();
                         let dist = WeightedIndex::new(
                             self.parameters.substitution_matrix
                                 [*infectant_ref.get_base(position).index()],
@@ -344,8 +345,9 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     }
 
     fn infect(&mut self) {
-        let host_sampler = Uniform::new(0, self.parameters.host_population_size);
-        let mut rng = rand::thread_rng();
+        let host_sampler = Uniform::new(0, self.parameters.host_population_size)
+            .expect("Invalid host population size");
+        let mut rng = rand::rng();
         self.host_map_buffer.build(|ref mut infectant| {
             **infectant = if self.infection_sampler.sample(&mut rng) {
                 Some(host_sampler.sample(&mut rng))
@@ -360,7 +362,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
         // mutate infectants based on host cell assignment
         self.host_specs.par_iter().for_each(|spec| {
             spec.range.clone().into_par_iter().for_each_init(
-                || rand::thread_rng(),
+                || rand::rng(),
                 |rng, position| {
                     let infectant_ids = self.host_map_buffer.get_slice(position);
                     let mut infectants = infectant_ids
@@ -379,7 +381,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     #[cfg(not(feature = "parallel"))]
     fn mutate_infectants(&mut self) {
         // mutate infectants based on host cell assignment
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         // recombine infectants
         self.host_specs.iter().for_each(|spec| {
             spec.range.clone().for_each(|position| {
@@ -400,7 +402,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     fn replicate_infectants(&self) -> Vec<usize> {
         // TODO: parallelize this method
         let mut offspring = vec![0; self.population.len()];
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         self.host_specs.iter().for_each(|spec| {
             self.host_map_buffer
                 .iter_range(spec.range.clone())
@@ -428,7 +430,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
     #[cfg(not(feature = "parallel"))]
     fn replicate_infectants(&self) -> Vec<usize> {
         let mut offspring = vec![0; self.population.len()];
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         self.host_specs.iter().for_each(|spec| {
             self.host_map_buffer
                 .iter_range(spec.range.clone())
@@ -476,7 +478,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
             return Vec::new();
         }
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sampler = WeightedAliasIndex::new(offspring_map.to_vec()).unwrap();
 
         (0..amount).map(|_| sampler.sample(&mut rng)).collect()

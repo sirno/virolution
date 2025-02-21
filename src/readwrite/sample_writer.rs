@@ -37,7 +37,7 @@ pub trait SampleWriter<S: Symbol + 'static> {
 
             // sample population
             let population = compartment.get_population();
-            let sample = population.choose_multiple(&mut rand::thread_rng(), sample_size);
+            let sample = population.choose_multiple(&mut rand::rng(), sample_size);
 
             // write to file
             let barcode = self.write(&sample, compartment.get_generation(), compartment_id)?;

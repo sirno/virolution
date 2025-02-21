@@ -427,8 +427,8 @@ impl Runner {
             }
 
             // adjust settings if needed
-            if let Some(parameters) = self.settings.schedule.get_settings(generation) {
-                log::info!("Adjusting settings to:\n{}", parameters);
+            if let Some(parameters) = self.setting.schedule.get_settings(generation) {
+                log::info!("Adjust settings to:\n{}", parameters);
                 self.simulations.iter_mut().for_each(|simulation| {
                     simulation.set_parameters(parameters.clone());
                 });
@@ -619,12 +619,12 @@ impl Runner {
                                 return 0;
                             }
 
-                            let mut rng = rand::thread_rng();
+                            let mut rng = rand::rng();
 
                             let migration_rate = transfer.get(target, origin);
                             let migration_amount = target_sizes[target] * migration_rate;
                             let residue =
-                                if rng.gen::<f64>() < migration_amount - migration_amount.floor() {
+                                if rng.random::<f64>() < migration_amount - migration_amount.floor() {
                                     1
                                 } else {
                                     0
