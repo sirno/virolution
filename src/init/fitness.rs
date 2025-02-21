@@ -1,6 +1,6 @@
 //! Fitness model and distribution definitions.
 //!
-//! Anything needed to initialize the [`FitnessProvider`] at the start of the
+//! Anything needed to initialize the [`crate::providers::FitnessProvider`] at the start of the
 //! simulation.
 
 use npyz::NpyFile;
