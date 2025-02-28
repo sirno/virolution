@@ -6,27 +6,12 @@ use super::schedule::Schedule;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
+use crate::errors::{Result, VirolutionError};
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Settings {
     pub parameters: Vec<Parameters>,
     pub schedule: Schedule,
-}
-
-#[derive(Debug)]
-pub enum SettingsError {
-    IoError(std::io::Error),
-    YamlError(serde_yaml::Error),
-}
-
-impl std::error::Error for SettingsError {}
-
-impl std::fmt::Display for SettingsError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SettingsError::IoError(error) => write!(formatter, "IO error: {}", error),
-            SettingsError::YamlError(error) => write!(formatter, "YAML error: {}", error),
-        }
-    }
 }
 
 impl std::fmt::Display for Settings {
@@ -38,22 +23,25 @@ impl std::fmt::Display for Settings {
 }
 
 impl Settings {
-    pub fn write(&self, writer: &mut dyn std::io::Write) -> Result<(), SettingsError> {
-        serde_yaml::to_writer(writer, self).map_err(SettingsError::YamlError)
+    pub fn write(&self, writer: &mut dyn std::io::Write) -> Result<()> {
+        serde_yaml::to_writer(writer, self)
+            .map_err(|err| VirolutionError::WriteError(err.to_string()))
     }
 
-    pub fn read(reader: &mut dyn std::io::Read) -> Result<Settings, SettingsError> {
-        serde_yaml::from_reader(reader).map_err(SettingsError::YamlError)
+    pub fn read(reader: &mut dyn std::io::Read) -> Result<Settings> {
+        serde_yaml::from_reader(reader).map_err(|err| VirolutionError::ReadError(err.to_string()))
     }
 
-    pub fn write_to_file(&self, filename: &str) -> Result<(), SettingsError> {
-        let file = fs::File::create(filename).map_err(SettingsError::IoError)?;
+    pub fn write_to_file(&self, filename: &str) -> Result<()> {
+        let file = fs::File::create(filename)
+            .map_err(|err| VirolutionError::WriteError(err.to_string()))?;
         let mut writer = std::io::BufWriter::new(file);
         self.write(&mut writer)
     }
 
-    pub fn read_from_file(filename: &str) -> Result<Settings, SettingsError> {
-        let file = fs::File::open(filename).map_err(SettingsError::IoError)?;
+    pub fn read_from_file(filename: &str) -> Result<Settings> {
+        let file =
+            fs::File::open(filename).map_err(|err| VirolutionError::ReadError(err.to_string()))?;
         let mut reader = std::io::BufReader::new(file);
         Self::read(&mut reader)
     }
@@ -63,7 +51,7 @@ impl Settings {
 mod tests {
     use super::*;
 
-    use crate::config::parameters::FitnessModelField;
+    use crate::config::parameters::{FitnessModelField, HostFitness};
     use crate::config::schedule::ScheduleRecord;
     use crate::init::FitnessModel;
 
@@ -79,9 +67,12 @@ mod tests {
                 max_population: 1000,
                 dilution: 0.1,
                 substitution_matrix: [[0.0; 4]; 4],
-                fitness_model: FitnessModelField::SingleHost(FitnessModel::new(
-                    crate::init::fitness::FitnessDistribution::Neutral,
-                    crate::core::fitness::utility::UtilityFunction::Linear,
+                fitness_model: FitnessModelField::SingleHost(HostFitness::new(
+                    Some(FitnessModel::new(
+                        crate::init::fitness::FitnessDistribution::Neutral,
+                        crate::core::fitness::utility::UtilityFunction::Linear,
+                    )),
+                    None,
                 )),
             }],
             schedule: Schedule::from_vec(vec![

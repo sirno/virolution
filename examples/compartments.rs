@@ -3,15 +3,12 @@ extern crate virolution;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use virolution::config::{FitnessModelField, Parameters, Schedule};
-use virolution::core::attributes::AttributeSetDefinition;
+use virolution::config::{FitnessModelField, HostFitness, Parameters, Schedule};
 use virolution::core::fitness::UtilityFunction;
 use virolution::core::haplotype::*;
-use virolution::core::hosts::HostSpec;
 use virolution::core::population::{Population, Store};
 use virolution::encoding::Nucleotide as Nt;
 use virolution::init::fitness::*;
-use virolution::providers::FitnessProvider;
 use virolution::providers::Generation;
 use virolution::simulation::*;
 
@@ -21,7 +18,6 @@ fn main() {
     let plan_path = PathBuf::from_iter([env!("CARGO_MANIFEST_DIR"), "data/plan.csv"]);
     let plan = Schedule::read(plan_path.to_str().unwrap()).expect("Failed to read plan");
     let sequence = vec![Nt::A; 5386];
-    let sequence_length = sequence.len();
     let distribution = FitnessDistribution::Exponential(ExponentialParameters {
         weights: MutationCategoryWeights {
             beneficial: 0.29,
@@ -32,19 +28,14 @@ fn main() {
         lambda_beneficial: 0.03,
         lambda_deleterious: 0.21,
     });
-    let fitness_model = FitnessModel::new(distribution.clone(), UtilityFunction::Linear);
+    let host_fitness = HostFitness::new(
+        Some(FitnessModel::new(
+            distribution.clone(),
+            UtilityFunction::Linear,
+        )),
+        None,
+    );
 
-    let name = "fitness";
-    let fitness_provider = FitnessProvider::from_model(name, &sequence, &fitness_model)
-        .expect("Failed to create fitness table");
-
-    let generation_provider = Arc::new(Generation::new(0));
-
-    let mut attribute_definition = AttributeSetDefinition::new();
-    attribute_definition.register(Arc::new(fitness_provider));
-    attribute_definition.register(generation_provider.clone());
-
-    let wt = Wildtype::new(sequence, &attribute_definition);
     let parameters = Parameters {
         mutation_rate: 1e-6,
         recombination_rate: 1e-8,
@@ -59,23 +50,27 @@ fn main() {
         basic_reproductive_number: 100.,
         max_population: 1_000_000,
         dilution: 0.02,
-        fitness_model: FitnessModelField::SingleHost(fitness_model),
+        fitness_model: FitnessModelField::SingleHost(host_fitness),
     };
+
+    let (mut attribute_definition, host_specs) = parameters
+        .fitness_model
+        .make_definitions(&parameters, &sequence, None);
+
+    let generation_provider = Arc::new(Generation::new(0));
+    attribute_definition.register(generation_provider.clone());
+
+    let wt = Wildtype::new(sequence, &attribute_definition);
 
     let n_compartments = 3;
     let mut compartment_simulations: Vec<BasicSimulation<Nt>> = (0..n_compartments)
         .map(|_| {
             let population = population![wt.clone(), 1_000_000];
-            let host = BasicHost::new(sequence_length, &parameters, Some(name), None);
-            let host_specs = vec![HostSpec::new(
-                0..parameters.host_population_size,
-                Box::new(host),
-            )];
             BasicSimulation::new(
                 wt.clone(),
                 population,
                 parameters.clone(),
-                host_specs,
+                host_specs.clone(),
                 generation_provider.clone(),
             )
         })

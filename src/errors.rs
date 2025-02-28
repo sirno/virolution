@@ -27,7 +27,7 @@ impl fmt::Display for VirolutionError {
                 write!(f, "ValueError: {}", message)
             }
             VirolutionError::VariantMissmatch(message) => {
-                write!(f, "ValueError: {}", message)
+                write!(f, "VariantMissmatch: {}", message)
             }
             VirolutionError::ReadError(message) => {
                 write!(f, "ReadError: {}", message)

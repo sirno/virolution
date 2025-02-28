@@ -1,6 +1,5 @@
 #![feature(let_chains)]
 #![feature(get_mut_unchecked)]
-#![feature(extract_if)]
 #![feature(test)]
 
 extern crate test;
@@ -83,7 +82,7 @@ mod tests {
         assert!(output.status.success());
 
         // Check if output files are created
-        assert!(std::path::Path::new(&format!("{}/fitness_table.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/reproductive_fitness_0_table.npy", tmp.dir)).exists());
         assert!(std::path::Path::new(&format!("{}/virolution.log", tmp.dir)).exists());
     }
 
@@ -109,8 +108,8 @@ mod tests {
         assert!(output.status.success());
 
         // Check if output files are created
-        assert!(std::path::Path::new(&format!("{}/fitness_0_table.npy", tmp.dir)).exists());
-        assert!(std::path::Path::new(&format!("{}/fitness_1_table.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/reproductive_fitness_0_table.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/reproductive_fitness_1_table.npy", tmp.dir)).exists());
         assert!(std::path::Path::new(&format!("{}/virolution.log", tmp.dir)).exists());
     }
 
@@ -136,8 +135,8 @@ mod tests {
         assert!(output.status.success());
 
         // Check if output files are created
-        assert!(std::path::Path::new(&format!("{}/fitness_table.npy", tmp.dir)).exists());
-        assert!(std::path::Path::new(&format!("{}/fitness_epistasis_table.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/reproductive_fitness_0_table.npy", tmp.dir)).exists());
+        assert!(std::path::Path::new(&format!("{}/reproductive_fitness_0_epistasis_table.npy", tmp.dir)).exists());
         assert!(std::path::Path::new(&format!("{}/virolution.log", tmp.dir)).exists());
     }
 }

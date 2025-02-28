@@ -26,28 +26,30 @@ parameters:
     fitness_model: !MultiHost
       - fraction: 0.5
         fitness_model:
-          distribution: !Exponential
-            weights:
-              beneficial: 0.29
-              deleterious: 0.51
-              lethal: 0.2
-              neutral: 0.0
-            lambda_beneficial: 0.03
-            lambda_deleterious: 0.21
-          utility: !Algebraic
-            upper: 1.5
+          reproductive:
+            distribution: !Exponential
+              weights:
+                beneficial: 0.29
+                deleterious: 0.51
+                lethal: 0.2
+                neutral: 0.0
+              lambda_beneficial: 0.03
+              lambda_deleterious: 0.21
+            utility: !Algebraic
+              upper: 1.5
       - fraction: 0.5
         fitness_model:
-          distribution: !Exponential
-            weights:
-              beneficial: 0.29
-              deleterious: 0.51
-              lethal: 0.2
-              neutral: 0.0
-            lambda_beneficial: 0.03
-            lambda_deleterious: 0.21
-          utility: !Algebraic
-            upper: 1.5
+          reproductive:
+            distribution: !Exponential
+              weights:
+                beneficial: 0.29
+                deleterious: 0.51
+                lethal: 0.2
+                neutral: 0.0
+              lambda_beneficial: 0.03
+              lambda_deleterious: 0.21
+            utility: !Algebraic
+              upper: 1.5
   - mutation_rate: 1e-6
     recombination_rate: 0
     host_population_size: 10000

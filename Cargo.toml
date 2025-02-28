@@ -29,10 +29,9 @@ codegen-units = 1
 members = ["macros"]
 
 [dependencies]
-anyhow = "1.0"
 block-id = "0.2.1"
 cached = "0.54.0"
-clap = { version = "4.3.11", features = ["derive"] }
+clap = { version = "4.5.31", features = ["derive"] }
 csv = "1.2.2"
 dashmap = { version = "6.1.0", optional = true }
 derivative = "2.2.0"

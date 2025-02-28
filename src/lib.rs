@@ -130,7 +130,6 @@
 //! ```
 //!
 #![feature(let_chains)]
-#![feature(extract_if)]
 #![feature(test)]
 
 #[doc(hidden)]

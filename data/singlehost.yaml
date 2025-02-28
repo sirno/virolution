@@ -24,16 +24,17 @@ parameters:
       - 1.0
       - 0.0
   fitness_model: !SingleHost
-        distribution: !Exponential
-            weights:
-              beneficial: 0.29
-              deleterious: 0.51
-              lethal: 0.2
-              neutral: 0.0
-            lambda_beneficial: 0.03
-            lambda_deleterious: 0.21
-        utility: !Algebraic
-            upper: 1.5
+    reproductive:
+      distribution: !Exponential
+          weights:
+            beneficial: 0.29
+            deleterious: 0.51
+            lethal: 0.2
+            neutral: 0.0
+          lambda_beneficial: 0.03
+          lambda_deleterious: 0.21
+      utility: !Algebraic
+          upper: 1.5
 schedule:
 - generation: '{} % 1'
   event: transmission

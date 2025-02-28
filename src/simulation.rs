@@ -3,8 +3,8 @@ extern crate test;
 
 use itertools::Itertools;
 use rand::prelude::*;
-use rand_distr::{Bernoulli, Binomial, Poisson, Uniform};
 use rand_distr::weighted::{WeightedAliasIndex, WeightedIndex};
+use rand_distr::{Bernoulli, Binomial, Poisson, Uniform};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::cmp::min_by;
@@ -508,15 +508,13 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::FitnessModelField;
-    use crate::core::attributes::AttributeSetDefinition;
+    use crate::config::{FitnessModelField, HostFitness};
+    use crate::core::fitness::utility::UtilityFunction;
+    use crate::core::haplotype::Wildtype;
+    use crate::encoding::Nucleotide as Nt;
     use crate::init::fitness::{
         ExponentialParameters, FitnessDistribution, FitnessModel, MutationCategoryWeights,
     };
-    use crate::core::fitness::utility::UtilityFunction;
-    use crate::providers::FitnessProvider;
-    use crate::core::haplotype::Wildtype;
-    use crate::encoding::Nucleotide as Nt;
     use std::sync::Arc;
     use test::Bencher;
 
@@ -532,9 +530,12 @@ mod tests {
             lambda_deleterious: 0.21,
         });
 
-    const FITNESS_MODEL: FitnessModel = FitnessModel {
-        distribution: DISTRIBUTION,
-        utility: UtilityFunction::Linear,
+    const FITNESS_MODEL: HostFitness = HostFitness {
+        reproductive: Some(FitnessModel {
+            distribution: DISTRIBUTION,
+            utility: UtilityFunction::Linear,
+        }),
+        infective: None,
     };
 
     const POPULATION_SIZE: usize = 1000;
@@ -559,16 +560,9 @@ mod tests {
     fn setup_test_simulation() -> BasicSimulation<Nt> {
         let sequence = vec![Nt::A; 100];
 
-        let mut attribute_definitions = AttributeSetDefinition::new();
-        let name = "fitness";
-        attribute_definitions.register(Arc::new(
-            FitnessProvider::from_model(name, &sequence, &FITNESS_MODEL).unwrap(),
-        ));
-        let host = BasicHost::new(sequence.len(), &SETTINGS, None, Some(name));
-        let host_specs = vec![HostSpec::new(
-            0..SETTINGS.host_population_size,
-            Box::new(host),
-        )];
+        let (attribute_definitions, host_specs) = SETTINGS
+            .fitness_model
+            .make_definitions(&SETTINGS, &sequence, None);
 
         let wt = Wildtype::new(sequence, &attribute_definitions);
         let population: Population<Store<Nt>> = crate::population![wt.clone(), POPULATION_SIZE];

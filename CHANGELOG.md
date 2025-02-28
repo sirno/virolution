@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.5.0 --- Infectivity Crisis (WIP)
+
+- Refactor configuration to enable multiple fitness functions
+
 ## 0.4.0 --- Epistatic Transaction (Jan 15, 2025)
 
 - Changed where output is stored: everything is now stored in `--outdir`

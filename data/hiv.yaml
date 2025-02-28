@@ -25,8 +25,9 @@ parameters:
       - 0.24477553
       - 0.0
   fitness_model: !SingleHost
-    distribution: !Neutral
-    utility: Linear
+    reproductive:
+      distribution: !Neutral
+      utility: Linear
 schedule:
 - generation: '{} % 1'
   event: transmission

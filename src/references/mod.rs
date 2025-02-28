@@ -25,9 +25,7 @@ pub trait HaplotypeRefTrait:
 
     fn new(haplotype: crate::core::haplotype::Haplotype<Self::Symbol>) -> Self;
     fn new_cyclic<
-        F: std::ops::FnOnce(
-            &Self::Weak,
-        ) -> crate::core::haplotype::Haplotype<Self::Symbol>,
+        F: std::ops::FnOnce(&Self::Weak) -> crate::core::haplotype::Haplotype<Self::Symbol>,
     >(
         data_fn: F,
     ) -> Self;

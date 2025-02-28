@@ -209,11 +209,15 @@ impl Schedule {
 
     pub fn get_settings(&self, generation: usize) -> Option<Parameters> {
         self.get_event_value("settings", generation)
-            .and_then(|settings_path| Parameters::read_from_file(settings_path).or_else(|err| { 
-                eprintln!("Error reading settings file: {:?}", err);
-                log::error!("Error reading settings file: {:?}", err);
-                Err(err)
-            }).ok())
+            .and_then(|settings_path| {
+                Parameters::read_from_file(settings_path)
+                    .or_else(|err| {
+                        eprintln!("Error reading settings file: {:?}", err);
+                        log::error!("Error reading settings file: {:?}", err);
+                        Err(err)
+                    })
+                    .ok()
+            })
     }
 
     pub fn get_event_value(&self, event: &str, generation: usize) -> Option<&str> {

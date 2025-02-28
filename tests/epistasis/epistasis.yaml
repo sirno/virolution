@@ -24,11 +24,12 @@ parameters:
         - 1.0
         - 0.0
     fitness_model: !SingleHost
-      distribution: !Epistatic
-        path: fitness_table.npy
-        epi_path: epistasis_table.npy
-      utility: !Algebraic
-        upper: 1.5
+      reproductive:
+        distribution: !Epistatic
+          path: fitness_table.npy
+          epi_path: epistasis_table.npy
+        utility: !Algebraic
+          upper: 1.5
 schedule:
   - generation: "{} % 1"
     event: transmission

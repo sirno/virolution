@@ -1,6 +1,4 @@
 //! Application runner for the virolution simulation binary.
-use anyhow::{anyhow, Result};
-
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 #[cfg(not(feature = "parallel"))]
@@ -8,26 +6,26 @@ use rand::prelude::*;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::cell::RefCell;
-use std::cmp::min;
 use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::args::Args;
-use crate::config::{FitnessModelField, Parameters, Settings};
+use crate::config::{Parameters, Settings};
 use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
 use crate::core::hosts::HostSpec;
 use crate::core::population::Store;
 use crate::core::{Ancestry, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
+use crate::errors::{Result, VirolutionError};
 
-use crate::providers::{Generation, FitnessProvider};
+use crate::providers::{Generation};
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::{HaplotypeRef, HaplotypeRefTrait};
-use crate::simulation::{BasicHost, BasicSimulation, SimulationTrait};
+use crate::simulation::{BasicSimulation, SimulationTrait};
 #[cfg(not(feature = "parallel"))]
 use crate::stats::population::{PopulationDistance, PopulationFrequencies};
 
@@ -43,7 +41,8 @@ impl Runner {
     pub fn new(args: Args) -> Result<Runner> {
         // create output directory
         if let Some(outdir) = args.outdir.as_ref() {
-            fs::create_dir_all(outdir)?;
+            fs::create_dir_all(outdir)
+                .map_err(|err| VirolutionError::InitializationError(format!("{:?}", err)))?;
         }
 
         // setup logger and rayon when in parallel mode
@@ -81,8 +80,8 @@ impl Runner {
             .schedule
             .check_transfer_table_sizes(args.n_compartments)
         {
-            return Err(anyhow!(
-                "Incompatible transfer tables (they might be too small)"
+            return Err(VirolutionError::ValueError(
+                "Transfer table sizes do not match compartment count.".to_string(),
             ));
         }
 
@@ -223,64 +222,10 @@ impl Runner {
         sequence: &[S],
         path: Option<&Path>,
     ) -> Result<(AttributeSetDefinition<S>, Vec<HostSpec<S>>)> {
-        let default_settings = &settings.parameters[0];
-        let mut attribute_definitions = AttributeSetDefinition::new();
-        let mut host_specs: Vec<HostSpec<S>> = Vec::new();
-        match &default_settings.fitness_model {
-            FitnessModelField::SingleHost(fitness_model) => {
-                let mut fitness_model = fitness_model.clone();
-
-                // resolve relative paths within fitness model
-                if let Some(path) = path
-                    && path != Path::new("")
-                {
-                    fitness_model.prepend_path(path.to_str().unwrap());
-                }
-
-                let name = "fitness";
-                attribute_definitions.register(Arc::new(FitnessProvider::from_model(
-                    name,
-                    sequence,
-                    &fitness_model,
-                )?));
-
-                let host = BasicHost::new(sequence.len(), default_settings, Some(name), None);
-                let host_spec: HostSpec<S> =
-                    HostSpec::new(0..default_settings.host_population_size, Box::new(host));
-                host_specs.push(host_spec);
-            }
-            FitnessModelField::MultiHost(fitness_models) => {
-                for (id, fitness_model_frac) in fitness_models.iter().enumerate() {
-                    let mut fitness_model = fitness_model_frac.fitness_model.clone();
-
-                    // resolve relative paths within fitness model
-                    if let Some(path) = path
-                        && path != Path::new("")
-                    {
-                        fitness_model.prepend_path(path.to_str().unwrap());
-                    }
-
-                    let name = Box::leak(Box::new(format!("fitness_{}", id)));
-
-                    attribute_definitions.register(Arc::new(FitnessProvider::from_model(
-                        name,
-                        sequence,
-                        &fitness_model,
-                    )?));
-
-                    let n_hosts = (fitness_model_frac.fraction
-                        * default_settings.host_population_size as f64)
-                        .round() as usize;
-                    let lower = id * n_hosts;
-                    let upper = min(lower + n_hosts, settings.parameters[0].host_population_size);
-
-                    let host = BasicHost::new(sequence.len(), default_settings, Some(name), None);
-                    let host_spec = HostSpec::new(lower..upper, Box::new(host));
-                    host_specs.push(host_spec);
-                }
-            }
-        };
-        Ok((attribute_definitions, host_specs))
+        let default_params = &settings.parameters[0];
+        Ok(default_params
+            .fitness_model
+            .make_definitions(default_params, sequence, path))
     }
 
     fn write_fitness_tables<S: Symbol>(
@@ -623,12 +568,13 @@ impl Runner {
 
                             let migration_rate = transfer.get(target, origin);
                             let migration_amount = target_sizes[target] * migration_rate;
-                            let residue =
-                                if rng.random::<f64>() < migration_amount - migration_amount.floor() {
-                                    1
-                                } else {
-                                    0
-                                };
+                            let residue = if rng.random::<f64>()
+                                < migration_amount - migration_amount.floor()
+                            {
+                                1
+                            } else {
+                                0
+                            };
                             migration_amount as usize + residue
                         })
                         .collect()

@@ -104,6 +104,12 @@ impl<S: Symbol> AttributeSetDefinition<S> {
 
     /// Register a new attribute provider.
     pub fn register(&mut self, provider: Arc<dyn AttributeProvider<S> + Send + Sync>) {
+        // notify user if provider with the same name already exists and do not register it twice
+        if self.providers.contains_key(provider.name()) {
+            log::warn!("Provider with name {} already exists", provider.name());
+            return;
+        }
+
         match provider.get_provider_type() {
             AttributeProviderType::Lazy => self.register_lazy(provider),
             AttributeProviderType::Eager => self.register_eager(provider),
@@ -125,6 +131,26 @@ impl<S: Symbol> AttributeSetDefinition<S> {
     /// Create a new attribute set.
     pub fn create(&self, haplotype: HaplotypeWeak<S>) -> AttributeSet<S> {
         AttributeSet::new(Arc::new(self.clone()), haplotype)
+    }
+}
+
+impl<S: Symbol> IntoIterator for AttributeSetDefinition<S> {
+    type Item = Arc<dyn AttributeProvider<S> + Send + Sync>;
+    type IntoIter = std::collections::hash_map::IntoValues<&'static str, Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.providers.into_values()
+    }
+}
+
+impl<S: Symbol> Extend<Arc<dyn AttributeProvider<S> + Send + Sync>> for AttributeSetDefinition<S> {
+    fn extend<T: IntoIterator<Item = Arc<dyn AttributeProvider<S> + Send + Sync>>>(
+        &mut self,
+        iter: T,
+    ) {
+        for provider in iter {
+            self.register(provider);
+        }
     }
 }
 
