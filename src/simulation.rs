@@ -11,7 +11,7 @@ use std::cmp::min_by;
 use std::sync::Arc;
 
 use crate::config::Parameters;
-use crate::core::hosts::{Host, HostMapBuffer, HostSpec};
+use crate::core::hosts::{Host, HostMapBuffer, HostSpecs};
 use crate::core::population::Store;
 use crate::core::{Haplotype, Population};
 use crate::encoding::Symbol;
@@ -26,7 +26,6 @@ pub struct BasicHost {
     replicative_fitness_provider: Option<&'static str>,
 
     site_sampler: Uniform<usize>,
-    infection_sampler: Bernoulli,
     mutation_sampler: Binomial,
     recombination_sampler: Bernoulli,
     // replication_sampler: Poisson<f64>,
@@ -46,7 +45,6 @@ impl BasicHost {
             replicative_fitness_provider,
 
             site_sampler: Uniform::new(0, n_sites).unwrap(),
-            infection_sampler: Bernoulli::new(parameters.infection_fraction).unwrap(),
             mutation_sampler: Binomial::new(n_sites as u64, parameters.mutation_rate).unwrap(),
             recombination_sampler: Bernoulli::new(parameters.recombination_rate).unwrap(),
             // replication_sampler: Poisson::new(parameters.basic_reproductive_number).unwrap(),
@@ -55,8 +53,15 @@ impl BasicHost {
 }
 
 impl<S: Symbol> Host<S> for BasicHost {
-    fn infect(&self, _haplotype: &HaplotypeRef<S>, rng: &mut ThreadRng) -> bool {
-        self.infection_sampler.sample(rng)
+    fn infect(&self, haplotype: &HaplotypeRef<S>, rng: &mut ThreadRng) -> bool {
+        let infectivity = match self.infection_fitness_provider {
+            Some(provider) => {
+                let fitness = haplotype.get_attribute_or_compute(provider).unwrap();
+                fitness.try_into().unwrap()
+            }
+            None => 1.,
+        };
+        rng.random::<f64>() < infectivity
     }
 
     fn mutate(&self, haplotype: &mut [HaplotypeRef<S>], rng: &mut ThreadRng) {
@@ -204,10 +209,9 @@ pub struct BasicSimulation<S: Symbol> {
     wildtype: HaplotypeRef<S>,
     population: Population<Store<S>>,
     parameters: Parameters,
-    host_specs: Vec<HostSpec<S>>,
+    host_specs: HostSpecs<S>,
     mutation_sampler: Binomial,
     recombination_sampler: Bernoulli,
-    infection_sampler: Bernoulli,
     generation: Arc<Generation>,
 
     // internal buffers
@@ -219,13 +223,12 @@ impl<S: Symbol> BasicSimulation<S> {
         wildtype: HaplotypeRef<S>,
         population: Population<Store<S>>,
         parameters: Parameters,
-        host_specs: Vec<HostSpec<S>>,
+        host_specs: HostSpecs<S>,
         generation: Arc<Generation>,
     ) -> Self {
         let mutation_sampler =
             Binomial::new(wildtype.get_length() as u64, parameters.mutation_rate).unwrap();
         let recombination_sampler = Bernoulli::new(parameters.recombination_rate).unwrap();
-        let infection_sampler = Bernoulli::new(parameters.infection_fraction).unwrap();
         let host_map_buffer = HostMapBuffer::new(parameters.host_population_size, population.len());
         Self {
             wildtype,
@@ -234,7 +237,6 @@ impl<S: Symbol> BasicSimulation<S> {
             host_specs,
             mutation_sampler,
             recombination_sampler,
-            infection_sampler,
             generation,
             host_map_buffer,
         }
@@ -341,7 +343,6 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
         )
         .unwrap();
         self.recombination_sampler = Bernoulli::new(self.parameters.recombination_rate).unwrap();
-        self.infection_sampler = Bernoulli::new(self.parameters.infection_fraction).unwrap();
     }
 
     fn infect(&mut self) {
@@ -349,11 +350,14 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
             .expect("Invalid host population size");
         let mut rng = rand::rng();
         self.host_map_buffer.build(|ref mut infectant| {
-            **infectant = if self.infection_sampler.sample(&mut rng) {
-                Some(host_sampler.sample(&mut rng))
-            } else {
-                None
-            };
+            let host_candidate = host_sampler.sample(&mut rng);
+            **infectant = self.host_specs.try_get_spec_from_index(host_candidate).map(|spec| {
+                if spec.host.infect(&self.wildtype, &mut rng) {
+                    Some(host_candidate)
+                } else {
+                    None
+                }
+            }).flatten();
         });
     }
 

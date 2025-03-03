@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::fs;
-use std::sync::Arc;
 use std::path::Path;
+use std::sync::Arc;
 
-use crate::core::hosts::HostSpec;
+use crate::core::hosts::{HostSpec, HostSpecs};
 use crate::core::AttributeSetDefinition;
 use crate::encoding::Symbol;
 use crate::init::FitnessModel;
@@ -89,16 +89,17 @@ impl FitnessModelField {
         parameters: &Parameters,
         sequence: &[S],
         path: Option<&Path>,
-    ) -> (AttributeSetDefinition<S>, Vec<HostSpec<S>>) {
+    ) -> (AttributeSetDefinition<S>, HostSpecs<S>) {
         match self {
             FitnessModelField::SingleHost(host_fitness) => {
-                let (attributes, host) = host_fitness.make_definitions(parameters, sequence, path, 0);
+                let (attributes, host) =
+                    host_fitness.make_definitions(parameters, sequence, path, 0);
                 let host_spec = HostSpec::new(0..parameters.host_population_size, Box::new(host));
-                (attributes, vec![host_spec])
+                (attributes, HostSpecs::from_vec(vec![host_spec]))
             }
             FitnessModelField::MultiHost(models) => {
                 let mut attributes = AttributeSetDefinition::new();
-                let mut hosts = Vec::new();
+                let mut hosts = HostSpecs::new();
                 for (i, host_fraction) in models.iter().enumerate() {
                     let (attrs, host) = host_fraction
                         .fitness_model

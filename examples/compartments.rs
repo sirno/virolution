@@ -53,9 +53,10 @@ fn main() {
         fitness_model: FitnessModelField::SingleHost(host_fitness),
     };
 
-    let (mut attribute_definition, host_specs) = parameters
-        .fitness_model
-        .make_definitions(&parameters, &sequence, None);
+    let (mut attribute_definition, host_specs) =
+        parameters
+            .fitness_model
+            .make_definitions(&parameters, &sequence, None);
 
     let generation_provider = Arc::new(Generation::new(0));
     attribute_definition.register(generation_provider.clone());

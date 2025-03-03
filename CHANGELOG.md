@@ -3,6 +3,8 @@
 ## 0.5.0 --- Infectivity Crisis (WIP)
 
 - Refactor configuration to enable multiple fitness functions
+- Add `Hill` utility function for trait fitness
+- Add `HostSpecs` wrapper to access host implementation by index
 
 ## 0.4.0 --- Epistatic Transaction (Jan 15, 2025)
 

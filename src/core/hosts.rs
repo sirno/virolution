@@ -10,6 +10,7 @@
 //!
 use crate::encoding::Symbol;
 use crate::references::HaplotypeRef;
+use derive_more::{Deref, DerefMut};
 use rand::prelude::*;
 use std::ops::Range;
 
@@ -40,6 +41,29 @@ pub trait Host<S: Symbol>: std::fmt::Debug + Send + Sync + 'static {
 
     /// Clone the host.
     fn clone_box(&self) -> Box<dyn Host<S>>;
+}
+
+/// A collection of hosts that can be accessed by index.
+#[derive(Clone, Debug, Deref, DerefMut)]
+pub struct HostSpecs<S: Symbol>(Vec<HostSpec<S>>);
+
+impl<S: Symbol> HostSpecs<S> {
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn from_vec(specs: Vec<HostSpec<S>>) -> Self {
+        Self(specs)
+    }
+
+    pub fn try_get_spec_from_index(&self, index: usize) -> Option<&HostSpec<S>> {
+        for spec in self.0.iter() {
+            if spec.range.contains(&index) {
+                return Some(spec);
+            }
+        }
+        None
+    }
 }
 
 /// A host specification that associates a host with a specific `Host` implementation.

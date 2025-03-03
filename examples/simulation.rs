@@ -6,7 +6,7 @@ use virolution::config::{FitnessModelField, HostFitness, Parameters};
 use virolution::core::attributes::AttributeSetDefinition;
 use virolution::core::fitness::UtilityFunction;
 use virolution::core::haplotype::*;
-use virolution::core::hosts::HostSpec;
+use virolution::core::hosts::{HostSpec, HostSpecs};
 use virolution::core::population::Store;
 use virolution::core::Population;
 use virolution::encoding::Nucleotide as Nt;
@@ -76,7 +76,7 @@ fn main() {
     let settings = Parameters::read_from_file("parameters_example.yaml")
         .expect("Failed to read settings from file");
     fs::remove_file("parameters_example.yaml").expect("Unable to remove file.");
-    let host_specs = vec![HostSpec::new(
+    let host_specs = HostSpecs::from_vec(vec![HostSpec::new(
         0..simulation_settings.host_population_size,
         Box::new(BasicHost::new(
             sequence_length,
@@ -84,7 +84,7 @@ fn main() {
             Some(name),
             None,
         )),
-    )];
+    )]);
     let mut simulation = BasicSimulation::new(
         wt,
         population,

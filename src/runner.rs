@@ -14,14 +14,14 @@ use std::sync::Arc;
 use crate::args::Args;
 use crate::config::{Parameters, Settings};
 use crate::core::attributes::{AttributeProvider, AttributeSetDefinition};
-use crate::core::hosts::HostSpec;
+use crate::core::hosts::HostSpecs;
 use crate::core::population::Store;
 use crate::core::{Ancestry, Haplotype, Historian, Population};
 use crate::encoding::Nucleotide as Nt;
 use crate::encoding::Symbol;
 use crate::errors::{Result, VirolutionError};
 
-use crate::providers::{Generation};
+use crate::providers::Generation;
 use crate::readwrite::{CsvSampleWriter, FastaSampleWriter, SampleWriter};
 use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::{HaplotypeRef, HaplotypeRefTrait};
@@ -221,7 +221,7 @@ impl Runner {
         settings: &Settings,
         sequence: &[S],
         path: Option<&Path>,
-    ) -> Result<(AttributeSetDefinition<S>, Vec<HostSpec<S>>)> {
+    ) -> Result<(AttributeSetDefinition<S>, HostSpecs<S>)> {
         let default_params = &settings.parameters[0];
         Ok(default_params
             .fitness_model
@@ -243,7 +243,7 @@ impl Runner {
     fn create_simulations(
         args: &Args,
         wildtype: &HaplotypeRef<Nt>,
-        host_specs: Vec<HostSpec<Nt>>,
+        host_specs: HostSpecs<Nt>,
         parameters: &Parameters,
         generation: &Arc<Generation>,
     ) -> Vec<Box<SimulationTrait<Nt>>> {
