@@ -41,6 +41,10 @@ pub struct NonEpistatic<S: Symbol> {
     phantom: std::marker::PhantomData<S>,
 }
 
+/// Non-epistatic fitness function implementation.
+///
+/// The fitness of a haplotype is computed from individual fitness values for each site in the
+/// sequence. The computation is based on a precomputed fitness table.
 impl<S: Symbol> NonEpistatic<S> {
     pub fn new(table: FitnessTable) -> Self {
         Self {
@@ -71,6 +75,11 @@ impl<S: Symbol> FitnessFunction<S> for NonEpistatic<S> {
     }
 }
 
+/// Simple epistatic fitness function implementation.
+///
+/// The fitness of a haplotype is computed from individual fitness values for each site in the
+/// sequence. Additionally the fitness is modulated by an epistasis table which defines first order
+/// interactions between sites.
 #[derive(Clone, Debug)]
 pub struct SimpleEpistatic<S: Symbol> {
     table: FitnessTable,
@@ -112,6 +121,9 @@ impl<S: Symbol> FitnessFunction<S> for SimpleEpistatic<S> {
     }
 }
 
+/// Neutral fitness function implementation.
+///
+/// This avoids unnecessary lookups and computations for neutral fitness values.
 #[derive(Clone, Debug)]
 pub struct Neutral<S: Symbol> {
     marker: std::marker::PhantomData<S>,
