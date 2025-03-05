@@ -101,7 +101,7 @@ impl HostModel {
                 let mut hosts = HostSpecs::new();
                 for (i, host_fraction) in models.iter().enumerate() {
                     let (attrs, host) = host_fraction
-                        .fitness_model
+                        .host_fitness
                         .make_definitions(parameters, sequence, path, i);
                     let n_hosts = (host_fraction.fraction * parameters.host_population_size as f64)
                         .round() as usize;
@@ -178,11 +178,10 @@ mod tests {
                 [1., 1., 1., 0.],
             ],
             host_population_size: 5,
-            infection_fraction: 0.7,
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: HostModel::SingleHost(HostFitness::new(
+            host_model: HostModel::SingleHost(HostFitness::new(
                 Some(FitnessModel::new(
                     FitnessDistribution::Neutral,
                     UtilityFunction::Linear,
@@ -208,11 +207,10 @@ mod tests {
                 [1., 1., 1., 0.],
             ],
             host_population_size: 5,
-            infection_fraction: 0.7,
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: HostModel::SingleHost(HostFitness::new(
+            host_model: HostModel::SingleHost(HostFitness::new(
                 Some(FitnessModel::new(
                     FitnessDistribution::Exponential(ExponentialParameters {
                         weights: MutationCategoryWeights {
@@ -248,11 +246,10 @@ mod tests {
                 [1., 1., 1., 0.],
             ],
             host_population_size: 5,
-            infection_fraction: 0.7,
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: HostModel::SingleHost(HostFitness::new(
+            host_model: HostModel::SingleHost(HostFitness::new(
                 Some(FitnessModel::new(
                     FitnessDistribution::Neutral,
                     UtilityFunction::Linear,

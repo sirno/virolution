@@ -2,7 +2,6 @@ parameters:
   - mutation_rate: 1e-6
     recombination_rate: 0
     host_population_size: 10000
-    infection_fraction: 0.7
     basic_reproductive_number: 100.0
     max_population: 10000
     dilution: 0.02
@@ -23,7 +22,7 @@ parameters:
         - 1.0
         - 1.0
         - 0.0
-    fitness_model: !SingleHost
+    host_model: !SingleHost
       reproductive:
         distribution: !Epistatic
           path: fitness_table.npy

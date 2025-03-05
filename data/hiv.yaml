@@ -3,7 +3,6 @@ parameters:
 - mutation_rate: 2.16e-5
   recombination_rate: 0
   host_population_size: 500
-  infection_fraction: 1.0
   basic_reproductive_number: 6.0
   max_population: 500
   dilution: 1.0
@@ -24,7 +23,7 @@ parameters:
       - 0.11488851
       - 0.24477553
       - 0.0
-  fitness_model: !SingleHost
+  host_model: !SingleHost
     reproductive:
       distribution: !Neutral
       utility: Linear

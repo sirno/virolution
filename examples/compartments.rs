@@ -46,16 +46,15 @@ fn main() {
             [1., 1., 1., 0.],
         ],
         host_population_size: 10_000_000,
-        infection_fraction: 0.7,
         basic_reproductive_number: 100.,
         max_population: 1_000_000,
         dilution: 0.02,
-        fitness_model: HostModel::SingleHost(host_fitness),
+        host_model: HostModel::SingleHost(host_fitness),
     };
 
     let (mut attribute_definition, host_specs) =
         parameters
-            .fitness_model
+            .host_model
             .make_definitions(&parameters, &sequence, None);
 
     let generation_provider = Arc::new(Generation::new(0));

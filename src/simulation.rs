@@ -516,7 +516,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{HostModel, HostFitness};
+    use crate::config::{HostFitness, HostModel};
     use crate::core::fitness::utility::UtilityFunction;
     use crate::core::haplotype::Wildtype;
     use crate::encoding::Nucleotide as Nt;
@@ -558,18 +558,17 @@ mod tests {
             [1., 1., 1., 0.],
         ],
         host_population_size: 20,
-        infection_fraction: 1.0,
         basic_reproductive_number: 100.,
         max_population: POPULATION_SIZE,
         dilution: 1.,
-        fitness_model: HostModel::SingleHost(FITNESS_MODEL),
+        host_model: HostModel::SingleHost(FITNESS_MODEL),
     };
 
     fn setup_test_simulation() -> BasicSimulation<Nt> {
         let sequence = vec![Nt::A; 100];
 
         let (attribute_definitions, host_specs) = SETTINGS
-            .fitness_model
+            .host_model
             .make_definitions(&SETTINGS, &sequence, None);
 
         let wt = Wildtype::new(sequence, &attribute_definitions);

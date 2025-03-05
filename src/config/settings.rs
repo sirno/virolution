@@ -51,7 +51,7 @@ impl Settings {
 mod tests {
     use super::*;
 
-    use crate::config::parameters::{HostModel, HostFitness};
+    use crate::config::parameters::{HostFitness, HostModel};
     use crate::config::schedule::ScheduleRecord;
     use crate::init::FitnessModel;
 
@@ -62,12 +62,11 @@ mod tests {
                 mutation_rate: 0.1,
                 recombination_rate: 0.1,
                 host_population_size: 100,
-                infection_fraction: 0.1,
                 basic_reproductive_number: 1.0,
                 max_population: 1000,
                 dilution: 0.1,
                 substitution_matrix: [[0.0; 4]; 4],
-                fitness_model: HostModel::SingleHost(HostFitness::new(
+                host_model: HostModel::SingleHost(HostFitness::new(
                     Some(FitnessModel::new(
                         crate::init::fitness::FitnessDistribution::Neutral,
                         crate::core::fitness::utility::UtilityFunction::Linear,

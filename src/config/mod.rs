@@ -21,7 +21,6 @@
 //!  - mutation_rate: 1e-6
 //!    recombination_rate: 0
 //!    host_population_size: 10000
-//!    infection_fraction: 1.0
 //!    basic_reproductive_number: 100.0
 //!    max_population: 10000
 //!    dilution: 0.02
@@ -30,7 +29,7 @@
 //!      - [1.0, 0.0, 1.0, 1.0]
 //!      - [1.0, 1.0, 0.0, 1.0]
 //!      - [1.0, 1.0, 1.0, 0.0]
-//!    fitness_model: !SingleHost
+//!    host_model: !SingleHost
 //!      distribution: !Exponential
 //!        weights:
 //!          beneficial: 0.29
@@ -45,13 +44,13 @@
 //!
 //! All available options can be found by looking at the type definition of the
 //! field. For example, one can find the available options for the
-//! `fitness_model` field by following the type definition to the corresponding
+//! `host_model` field by following the type definition to the corresponding
 //! enum: [`HostModel`]. The available options can then be defined in
 //! YAML by using the corresponding tag, e.g., `!SingleHost` for a single host
 //! model.
 //!
 //! ```yaml
-//! fitness_model: !SingleHost
+//! host_model: !SingleHost
 //!   distribution: !Neutral
 //!   utility: !Linear
 //! ```

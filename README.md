@@ -58,7 +58,6 @@ parameters:
  - mutation_rate: 1e-6
    recombination_rate: 0
    host_population_size: 10000
-   infection_fraction: 1.0
    basic_reproductive_number: 100.0
    max_population: 10000
    dilution: 0.02

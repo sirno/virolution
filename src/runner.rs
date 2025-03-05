@@ -224,7 +224,7 @@ impl Runner {
     ) -> Result<(AttributeSetDefinition<S>, HostSpecs<S>)> {
         let default_params = &settings.parameters[0];
         Ok(default_params
-            .fitness_model
+            .host_model
             .make_definitions(default_params, sequence, path))
     }
 

@@ -45,7 +45,6 @@
 //!  - mutation_rate: 1e-6
 //!    recombination_rate: 0
 //!    host_population_size: 10000
-//!    infection_fraction: 1.0
 //!    basic_reproductive_number: 100.0
 //!    max_population: 10000
 //!    dilution: 0.02
@@ -54,7 +53,7 @@
 //!      - [1.0, 0.0, 1.0, 1.0]
 //!      - [1.0, 1.0, 0.0, 1.0]
 //!      - [1.0, 1.0, 1.0, 0.0]
-//!    fitness_model: !SingleHost
+//!    host_model: !SingleHost
 //!      distribution: !Exponential
 //!        weights:
 //!          beneficial: 0.29
