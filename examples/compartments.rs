@@ -3,7 +3,7 @@ extern crate virolution;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use virolution::config::{FitnessModelField, HostFitness, Parameters, Schedule};
+use virolution::config::{HostModel, HostFitness, Parameters, Schedule};
 use virolution::core::fitness::UtilityFunction;
 use virolution::core::haplotype::*;
 use virolution::core::population::{Population, Store};
@@ -50,7 +50,7 @@ fn main() {
         basic_reproductive_number: 100.,
         max_population: 1_000_000,
         dilution: 0.02,
-        fitness_model: FitnessModelField::SingleHost(host_fitness),
+        fitness_model: HostModel::SingleHost(host_fitness),
     };
 
     let (mut attribute_definition, host_specs) =

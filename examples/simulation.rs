@@ -2,7 +2,7 @@ extern crate virolution;
 
 use std::fs;
 use std::sync::Arc;
-use virolution::config::{FitnessModelField, HostFitness, Parameters};
+use virolution::config::{HostModel, HostFitness, Parameters};
 use virolution::core::attributes::AttributeSetDefinition;
 use virolution::core::fitness::UtilityFunction;
 use virolution::core::haplotype::*;
@@ -67,7 +67,7 @@ fn main() {
         basic_reproductive_number: 100.,
         max_population: 1_000_000,
         dilution: 0.02,
-        fitness_model: FitnessModelField::SingleHost(HostFitness::new(Some(fitness_model), None)),
+        fitness_model: HostModel::SingleHost(HostFitness::new(Some(fitness_model), None)),
     };
     simulation_settings
         .write_to_file("parameters_example.yaml")

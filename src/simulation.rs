@@ -351,13 +351,17 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
         let mut rng = rand::rng();
         self.host_map_buffer.build(|ref mut infectant| {
             let host_candidate = host_sampler.sample(&mut rng);
-            **infectant = self.host_specs.try_get_spec_from_index(host_candidate).map(|spec| {
-                if spec.host.infect(&self.wildtype, &mut rng) {
-                    Some(host_candidate)
-                } else {
-                    None
-                }
-            }).flatten();
+            **infectant = self
+                .host_specs
+                .try_get_spec_from_index(host_candidate)
+                .map(|spec| {
+                    if spec.host.infect(&self.wildtype, &mut rng) {
+                        Some(host_candidate)
+                    } else {
+                        None
+                    }
+                })
+                .flatten();
         });
     }
 
@@ -512,7 +516,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{FitnessModelField, HostFitness};
+    use crate::config::{HostModel, HostFitness};
     use crate::core::fitness::utility::UtilityFunction;
     use crate::core::haplotype::Wildtype;
     use crate::encoding::Nucleotide as Nt;
@@ -558,7 +562,7 @@ mod tests {
         basic_reproductive_number: 100.,
         max_population: POPULATION_SIZE,
         dilution: 1.,
-        fitness_model: FitnessModelField::SingleHost(FITNESS_MODEL),
+        fitness_model: HostModel::SingleHost(FITNESS_MODEL),
     };
 
     fn setup_test_simulation() -> BasicSimulation<Nt> {

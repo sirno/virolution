@@ -16,12 +16,11 @@ pub struct Parameters {
     pub mutation_rate: f64,
     pub recombination_rate: f64,
     pub host_population_size: usize,
-    pub infection_fraction: f64,
     pub basic_reproductive_number: f64,
     pub max_population: usize,
     pub dilution: f64,
     pub substitution_matrix: [[f64; 4]; 4],
-    pub fitness_model: FitnessModelField,
+    pub host_model: HostModel,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -78,12 +77,12 @@ impl HostFitness {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum FitnessModelField {
+pub enum HostModel {
     SingleHost(HostFitness),
     MultiHost(Vec<FitnessModelFraction>),
 }
 
-impl FitnessModelField {
+impl HostModel {
     pub fn make_definitions<S: Symbol>(
         &self,
         parameters: &Parameters,
@@ -91,13 +90,13 @@ impl FitnessModelField {
         path: Option<&Path>,
     ) -> (AttributeSetDefinition<S>, HostSpecs<S>) {
         match self {
-            FitnessModelField::SingleHost(host_fitness) => {
+            HostModel::SingleHost(host_fitness) => {
                 let (attributes, host) =
                     host_fitness.make_definitions(parameters, sequence, path, 0);
                 let host_spec = HostSpec::new(0..parameters.host_population_size, Box::new(host));
                 (attributes, HostSpecs::from_vec(vec![host_spec]))
             }
-            FitnessModelField::MultiHost(models) => {
+            HostModel::MultiHost(models) => {
                 let mut attributes = AttributeSetDefinition::new();
                 let mut hosts = HostSpecs::new();
                 for (i, host_fraction) in models.iter().enumerate() {
@@ -121,7 +120,7 @@ impl FitnessModelField {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct FitnessModelFraction {
     pub fraction: f64,
-    pub fitness_model: HostFitness,
+    pub host_fitness: HostFitness,
 }
 
 #[derive(Debug)]
@@ -183,7 +182,7 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: FitnessModelField::SingleHost(HostFitness::new(
+            fitness_model: HostModel::SingleHost(HostFitness::new(
                 Some(FitnessModel::new(
                     FitnessDistribution::Neutral,
                     UtilityFunction::Linear,
@@ -213,7 +212,7 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: FitnessModelField::SingleHost(HostFitness::new(
+            fitness_model: HostModel::SingleHost(HostFitness::new(
                 Some(FitnessModel::new(
                     FitnessDistribution::Exponential(ExponentialParameters {
                         weights: MutationCategoryWeights {
@@ -253,7 +252,7 @@ mod tests {
             basic_reproductive_number: 100.,
             max_population: 100,
             dilution: 0.17,
-            fitness_model: FitnessModelField::SingleHost(HostFitness::new(
+            fitness_model: HostModel::SingleHost(HostFitness::new(
                 Some(FitnessModel::new(
                     FitnessDistribution::Neutral,
                     UtilityFunction::Linear,

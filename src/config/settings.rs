@@ -51,7 +51,7 @@ impl Settings {
 mod tests {
     use super::*;
 
-    use crate::config::parameters::{FitnessModelField, HostFitness};
+    use crate::config::parameters::{HostModel, HostFitness};
     use crate::config::schedule::ScheduleRecord;
     use crate::init::FitnessModel;
 
@@ -67,7 +67,7 @@ mod tests {
                 max_population: 1000,
                 dilution: 0.1,
                 substitution_matrix: [[0.0; 4]; 4],
-                fitness_model: FitnessModelField::SingleHost(HostFitness::new(
+                fitness_model: HostModel::SingleHost(HostFitness::new(
                     Some(FitnessModel::new(
                         crate::init::fitness::FitnessDistribution::Neutral,
                         crate::core::fitness::utility::UtilityFunction::Linear,

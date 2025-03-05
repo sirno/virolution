@@ -67,7 +67,7 @@ parameters:
      - [1.0, 0.0, 1.0, 1.0]
      - [1.0, 1.0, 0.0, 1.0]
      - [1.0, 1.0, 1.0, 0.0]
-   fitness_model: !SingleHost
+   host_fitness: !SingleHost
      reproductive:
        distribution: !Exponential
          weights:

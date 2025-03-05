@@ -46,7 +46,7 @@
 //! All available options can be found by looking at the type definition of the
 //! field. For example, one can find the available options for the
 //! `fitness_model` field by following the type definition to the corresponding
-//! enum: [`FitnessModelField`]. The available options can then be defined in
+//! enum: [`HostModel`]. The available options can then be defined in
 //! YAML by using the corresponding tag, e.g., `!SingleHost` for a single host
 //! model.
 //!
@@ -81,6 +81,6 @@ mod parameters;
 mod schedule;
 mod settings;
 
-pub use parameters::{FitnessModelField, HostFitness, Parameters};
+pub use parameters::{HostModel, HostFitness, Parameters};
 pub use schedule::Schedule;
 pub use settings::Settings;
