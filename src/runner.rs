@@ -27,7 +27,7 @@ use crate::readwrite::{HaplotypeIO, PopulationIO};
 use crate::references::{HaplotypeRef, HaplotypeRefTrait};
 use crate::simulation::{BasicSimulation, SimulationTrait};
 #[cfg(not(feature = "parallel"))]
-use crate::stats::population::{PopulationDistance, PopulationFrequencies};
+use crate::stats::population::{PopulationDistance, PopulationFrequencies, PopulationStatistics};
 
 pub struct Runner {
     args: Args,
@@ -642,6 +642,17 @@ impl Runner {
                                 .map(|sim| sim.get_population().frequencies())
                                 .collect();
                             log::info!("frequencies={frequencies:?}");
+                        }
+                        "average-fitness" => {
+                            self.simulations.iter().enumerate().for_each(|(idx, sim)| {
+                                log::info!("compartment={idx}");
+                                sim.get_host_specs().iter().for_each(|host| {
+                                    host.host.get_attributes().iter().for_each(|attr| {
+                                        let mean_fitness = sim.get_population().mean(attr);
+                                        log::info!("mean({attr})={mean_fitness}");
+                                    });
+                                });
+                            });
                         }
                         "distance" => {
                             let distances: Vec<f64> = self

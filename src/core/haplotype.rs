@@ -466,7 +466,7 @@ impl<S: Symbol> Haplotype<S> {
         self.get_attributes().get(id)
     }
 
-    pub fn get_attribute_or_compute(&self, id: &'static str) -> Result<AttributeValue> {
+    pub fn get_or_compute_attribute(&self, id: &'static str) -> Result<AttributeValue> {
         self.get_attributes().get_or_compute(id)
     }
 

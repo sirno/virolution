@@ -39,6 +39,9 @@ pub trait Host<S: Symbol>: std::fmt::Debug + Send + Sync + 'static {
         rng: &mut ThreadRng,
     );
 
+    /// Get the attributes that are associated with the host.
+    fn get_attributes(&self) -> Vec<&'static str>;
+
     /// Clone the host.
     fn clone_box(&self) -> Box<dyn Host<S>>;
 }

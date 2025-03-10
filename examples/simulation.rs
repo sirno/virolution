@@ -2,7 +2,7 @@ extern crate virolution;
 
 use std::fs;
 use std::sync::Arc;
-use virolution::config::{HostModel, HostFitness, Parameters};
+use virolution::config::{HostFitness, HostModel, Parameters};
 use virolution::core::attributes::AttributeSetDefinition;
 use virolution::core::fitness::UtilityFunction;
 use virolution::core::haplotype::*;
@@ -46,11 +46,11 @@ fn main() {
     let ht4 = Haplotype::create_recombinant(&ht, &ht3, 0, 2);
 
     println!("---fitnesses---");
-    println!("wt: {}", wt.get_attribute_or_compute("fitness").unwrap());
-    println!("ht: {}", ht.get_attribute_or_compute("fitness").unwrap());
-    println!("ht2: {}", ht2.get_attribute_or_compute("fitness").unwrap());
-    println!("ht3: {}", ht3.get_attribute_or_compute("fitness").unwrap());
-    println!("ht4: {}", ht4.get_attribute_or_compute("fitness").unwrap());
+    println!("wt: {}", wt.get_or_compute_attribute("fitness").unwrap());
+    println!("ht: {}", ht.get_or_compute_attribute("fitness").unwrap());
+    println!("ht2: {}", ht2.get_or_compute_attribute("fitness").unwrap());
+    println!("ht3: {}", ht3.get_or_compute_attribute("fitness").unwrap());
+    println!("ht4: {}", ht4.get_or_compute_attribute("fitness").unwrap());
 
     let population: Population<Store<Nt>> = population![wt.clone(), 10];
     let simulation_settings = Parameters {

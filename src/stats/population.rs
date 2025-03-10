@@ -40,6 +40,22 @@ impl<M: HaplotypeStore> PopulationFrequencies for Population<M> {
     }
 }
 
+/// Trait extension to compute attribute statistics of a population
+pub trait PopulationStatistics {
+    fn mean(&self, name: &'static str) -> f64;
+}
+
+impl<M: HaplotypeStore> PopulationStatistics for Population<M> {
+    /// Compute the mean of a given attribute in a population.
+    fn mean(&self, name: &'static str) -> f64 {
+        let mut sum = 0.0;
+        for haplotype in self.iter() {
+            sum += f64::try_from(haplotype.get_or_compute_attribute(name).unwrap()).unwrap();
+        }
+        sum / self.len() as f64
+    }
+}
+
 /// Trait extension to compute distances between to Populations
 pub trait PopulationDistance {
     fn distance(&self, other: &Self) -> f64;

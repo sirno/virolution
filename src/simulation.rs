@@ -56,7 +56,7 @@ impl<S: Symbol> Host<S> for BasicHost {
     fn infect(&self, haplotype: &HaplotypeRef<S>, rng: &mut ThreadRng) -> bool {
         let infectivity = match self.infection_fitness_provider {
             Some(provider) => {
-                let fitness = haplotype.get_attribute_or_compute(provider).unwrap();
+                let fitness = haplotype.get_or_compute_attribute(provider).unwrap();
                 fitness.try_into().unwrap()
             }
             None => 1.,
@@ -134,7 +134,7 @@ impl<S: Symbol> Host<S> for BasicHost {
         for (infectant, offspring_field) in haplotypes.iter().zip(offspring_float_view.iter_mut()) {
             *offspring_field = match self.replicative_fitness_provider {
                 Some(provider) => infectant
-                    .get_attribute_or_compute(provider)
+                    .get_or_compute_attribute(provider)
                     .unwrap()
                     .try_into()
                     .unwrap(),
@@ -151,6 +151,17 @@ impl<S: Symbol> Host<S> for BasicHost {
                 offspring[i] = dist.sample(rng) as usize;
             }
         }
+    }
+
+    fn get_attributes(&self) -> Vec<&'static str> {
+        let mut attributes = Vec::new();
+        if let Some(attr) = self.infection_fitness_provider {
+            attributes.push(attr);
+        }
+        if let Some(attr) = self.replicative_fitness_provider {
+            attributes.push(attr);
+        }
+        attributes
     }
 
     fn clone_box(&self) -> Box<dyn Host<S>> {
@@ -172,6 +183,8 @@ pub trait Simulation<S: Symbol> {
 
     fn get_population(&self) -> &Population<Store<S>>;
     fn set_population(&mut self, population: Population<Store<S>>);
+
+    fn get_host_specs(&self) -> &HostSpecs<S>;
 
     fn infect(&mut self);
     fn mutate_infectants(&mut self);
@@ -329,6 +342,10 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
 
         // update host map buffer
         self.host_map_buffer.limit_infectants(self.population.len());
+    }
+
+    fn get_host_specs(&self) -> &HostSpecs<S> {
+        &self.host_specs
     }
 
     /// Set the parameters for the simulation

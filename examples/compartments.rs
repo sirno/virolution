@@ -3,7 +3,7 @@ extern crate virolution;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use virolution::config::{HostModel, HostFitness, Parameters, Schedule};
+use virolution::config::{HostFitness, HostModel, Parameters, Schedule};
 use virolution::core::fitness::UtilityFunction;
 use virolution::core::haplotype::*;
 use virolution::core::population::{Population, Store};

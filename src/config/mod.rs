@@ -80,6 +80,6 @@ mod parameters;
 mod schedule;
 mod settings;
 
-pub use parameters::{HostModel, HostFitness, Parameters};
+pub use parameters::{HostFitness, HostModel, Parameters};
 pub use schedule::Schedule;
 pub use settings::Settings;
