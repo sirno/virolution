@@ -73,9 +73,7 @@ impl Runner {
 
         let wildtype = Haplotype::load_wildtype(sequence, &attribute_definitions);
 
-        dbg!(&wildtype);
-
-        // perform sanity checks
+       // perform sanity checks
         if !settings
             .schedule
             .check_transfer_table_sizes(args.n_compartments)
