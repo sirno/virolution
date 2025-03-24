@@ -73,7 +73,7 @@ impl Runner {
 
         let wildtype = Haplotype::load_wildtype(sequence, &attribute_definitions);
 
-       // perform sanity checks
+        // perform sanity checks
         if !settings
             .schedule
             .check_transfer_table_sizes(args.n_compartments)
@@ -334,7 +334,7 @@ impl Runner {
 
         for generation in 0..=self.args.generations {
             // logging
-            log::debug!("Generate logging message for generation {generation}...");
+            log::debug!("Running generation {generation}...");
             let population_sizes: Vec<usize> = self
                 .simulations
                 .iter()

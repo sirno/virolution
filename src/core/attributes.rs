@@ -76,7 +76,7 @@ pub trait AttributeProvider<S: Symbol>: Sync + Send + std::fmt::Debug {
 ///
 /// The attribute set definition contains the providers that compute the attributes of the set.
 /// It can be used to register new providers and to create an attribute set.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AttributeSetDefinition<S: Symbol> {
     providers: HashMap<&'static str, Arc<dyn AttributeProvider<S> + Send + Sync>>,
     eager: Vec<&'static str>,
@@ -193,6 +193,30 @@ impl<S: Symbol> AttributeSet<S> {
     }
 
     /// Get or compute the value of an attribute.
+    pub fn get_or_compute_raw(&self, id: &'static str) -> Result<AttributeValue> {
+        let provider = self.definition.providers.get(&id).ok_or_else(|| {
+            VirolutionError::ImplementationError(format!("No provider found for attribute {}", id))
+        })?;
+
+        // First, try to read the value
+        {
+            let values = self.values.read().unwrap();
+            if let Some(value) = values.get(&id) {
+                return Ok(value.clone());
+            }
+        }
+
+        // Compute the attribute using the provider
+        let value = provider.compute(&self.haplotype.upgrade());
+
+        // Write the computed value
+        let mut values = self.values.write().unwrap();
+        values.insert(id, value.clone());
+
+        Ok(value)
+    }
+
+    /// Get or compute the value of an attribute.
     pub fn get_or_compute(&self, id: &'static str) -> Result<AttributeValue> {
         let provider = self.definition.providers.get(&id).ok_or_else(|| {
             VirolutionError::ImplementationError(format!("No provider found for attribute {}", id))
@@ -207,20 +231,13 @@ impl<S: Symbol> AttributeSet<S> {
         }
 
         // Compute the attribute using the provider
-        if let Some(provider) = self.definition.providers.get(&id) {
-            let value = provider.compute(&self.haplotype.upgrade());
+        let value = provider.compute(&self.haplotype.upgrade());
 
-            // Write the computed value
-            let mut values = self.values.write().unwrap();
-            values.insert(id, value.clone());
+        // Write the computed value
+        let mut values = self.values.write().unwrap();
+        values.insert(id, value.clone());
 
-            Ok(provider.map(value))
-        } else {
-            // If there is no provider, return None
-            Err(VirolutionError::ImplementationError(
-                "No provider found for attribute".to_string(),
-            ))
-        }
+        Ok(provider.map(value))
     }
 
     /// Get the value of an already computed attribute.
@@ -260,7 +277,9 @@ impl<S: Symbol> Clone for AttributeSet<S> {
 impl<S: Symbol> std::fmt::Debug for AttributeSet<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let values = self.values.read().unwrap();
+        let haplotype = self.haplotype.upgrade();
         f.debug_struct("AttributeSet")
+            .field("haplotype", &haplotype)
             .field("values", &values)
             .finish()
     }

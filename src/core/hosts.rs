@@ -60,12 +60,13 @@ impl<S: Symbol> HostSpecs<S> {
     }
 
     pub fn try_get_spec_from_index(&self, index: usize) -> Option<&HostSpec<S>> {
-        for spec in self.0.iter() {
-            if spec.range.contains(&index) {
-                return Some(spec);
-            }
-        }
-        None
+        self.0.iter().find(|&spec| spec.range.contains(&index))
+    }
+}
+
+impl<S: Symbol> Default for HostSpecs<S> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -111,6 +112,19 @@ pub struct HostMapBuffer {
     hosts: Vec<usize>,
 }
 
+impl std::fmt::Debug for HostMapBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let n_infections = self.infections.iter().filter(|x| x.is_some()).count();
+        let infectivity = n_infections as f64 / self.n_infectants as f64;
+        f.debug_struct("HostMapBuffer")
+            .field("n_hosts", &self.n_hosts)
+            .field("n_infectants", &self.n_infectants)
+            .field("n_infections", &n_infections)
+            .field("infectivity", &infectivity)
+            .finish()
+    }
+}
+
 /// A map from host index to infectant indices.
 ///
 /// The map is constructed from a list of infections between infectant and host indices. It uses
@@ -149,11 +163,11 @@ impl HostMapBuffer {
         }
     }
 
-    pub fn build<F: FnMut(&mut Option<usize>)>(&mut self, builder: F) {
+    pub fn build<F: FnMut((usize, &mut Option<usize>))>(&mut self, builder: F) {
         let infection_slice = &mut self.infections[0..self.n_infectants];
 
         // set new infections
-        infection_slice.iter_mut().for_each(builder);
+        infection_slice.iter_mut().enumerate().for_each(builder);
 
         // reset offsets
         self.offsets[0..=self.n_hosts].fill(0);

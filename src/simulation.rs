@@ -366,20 +366,20 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
         let host_sampler = Uniform::new(0, self.parameters.host_population_size)
             .expect("Invalid host population size");
         let mut rng = rand::rng();
-        self.host_map_buffer.build(|ref mut infectant| {
-            let host_candidate = host_sampler.sample(&mut rng);
-            **infectant = self
-                .host_specs
-                .try_get_spec_from_index(host_candidate)
-                .map(|spec| {
-                    if spec.host.infect(&self.wildtype, &mut rng) {
-                        Some(host_candidate)
-                    } else {
-                        None
-                    }
-                })
-                .flatten();
-        });
+        self.host_map_buffer
+            .build(|(infectant, ref mut infection)| {
+                let host_candidate = host_sampler.sample(&mut rng);
+                **infection = self
+                    .host_specs
+                    .try_get_spec_from_index(host_candidate)
+                    .and_then(|spec| {
+                        if spec.host.infect(&self.population.get(&infectant), &mut rng) {
+                            Some(host_candidate)
+                        } else {
+                            None
+                        }
+                    })
+            });
     }
 
     #[cfg(feature = "parallel")]

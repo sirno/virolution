@@ -216,8 +216,8 @@ impl<S: Symbol> FitnessProvider<S> {
                     haplotype
                         .try_get_ancestor()
                         .expect("Could not find ancestor during fitness update...")
-                        .get_or_compute_attribute(self.name)
-                        .unwrap(),
+                        .get_or_compute_attribute_raw(self.name)
+                        .unwrap()
                 )
                 .unwrap();
                 let update = self.update_fitness(haplotype);

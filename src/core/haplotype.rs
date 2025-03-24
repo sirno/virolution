@@ -287,8 +287,19 @@ impl<S: Symbol> Haplotype<S> {
         recombinant
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn is_wildtype(&self) -> bool {
+        matches!(self, Haplotype::Wildtype(_))
+    }
+
+    #[allow(dead_code)]
     pub(crate) fn is_mutant(&self) -> bool {
         matches!(self, Haplotype::Mutant(_))
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn is_recombinant(&self) -> bool {
+        matches!(self, Haplotype::Recombinant(_))
     }
 
     /// Unwraps the haplotype into a mutant.
@@ -464,6 +475,10 @@ impl<S: Symbol> Haplotype<S> {
 
     pub fn get_attribute(&self, id: &str) -> Option<AttributeValue> {
         self.get_attributes().get(id)
+    }
+
+    pub fn get_or_compute_attribute_raw(&self, id: &'static str) -> Result<AttributeValue> {
+        self.get_attributes().get_or_compute_raw(id)
     }
 
     pub fn get_or_compute_attribute(&self, id: &'static str) -> Result<AttributeValue> {
