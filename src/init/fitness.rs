@@ -180,7 +180,9 @@ impl LognormalParameters {
 
 impl FileParameters {
     pub fn load_table(&self) -> Vec<f64> {
-        let reader = NpyFile::new(std::fs::File::open(&self.path).unwrap()).unwrap();
+        let reader = NpyFile::new(std::fs::File::open(&self.path).unwrap_or_else(
+            |_e| panic!("Could not open file: {}", self.path),
+        )).unwrap();
         reader
             .data::<f64>()
             .unwrap()
