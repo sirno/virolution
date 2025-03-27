@@ -37,8 +37,15 @@
 //!
 //! ## Basic Usage as a Binary
 //!
-//! After installation, you can run the binary with a sequence file and a configuration file. A
-//! configuration file may look like this:
+//! To find all available options and their default values, you can run:
+//!
+//! ```shell
+//! virolution --help
+//! ```
+//!
+//! The simulation can be run with a sequence file and a configuration file. A configuration file
+//! provides the parameters for the simulation environment and the schedule for any events during
+//! the simulation. It may look like this:
 //!
 //! ```yaml
 //! parameters:
@@ -87,7 +94,13 @@
 //! the current generation number and an event will be executed whenever the expression evaluates
 //! to 0.
 //!
-//! There are more events that can be configured in the schedule.
+//! There are more parameters and events that can be configured in the schedule. For more
+//! information on the configuration, see the
+//! [documentation](https://docs.rs/virolution/latest/virolution/config/index.html).
+//!
+//! When the simulation is complete (reached its maximum generation), the final population will be
+//! stored in a file called `final.<i>.csv`, where `<i>` is the compartment number. The file will
+//! contain all haplotypes and their respective counts.
 //!
 //! ## Basic Usage as a Library
 //!
