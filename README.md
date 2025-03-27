@@ -3,6 +3,7 @@
 [![Crates.io Version](https://img.shields.io/crates/v/virolution?style=for-the-badge)](https://crates.io/crates/virolution)
 [![docs.rs](https://img.shields.io/docsrs/virolution?style=for-the-badge)](https://docs.rs/virolution)
 [![GitHub Branch](https://img.shields.io/github/check-runs/sirno/virolution/main?style=for-the-badge)](https://github.com/sirno/virolution/actions)
+<!-- cargo-rdme start -->
 
 ## Virolution - Agent-Based Simulation of Viral Evolution
 
@@ -66,18 +67,17 @@ parameters:
      - [1.0, 0.0, 1.0, 1.0]
      - [1.0, 1.0, 0.0, 1.0]
      - [1.0, 1.0, 1.0, 0.0]
-   host_fitness: !SingleHost
-     reproductive:
-       distribution: !Exponential
-         weights:
-           beneficial: 0.29
-           deleterious: 0.51
-           lethal: 0.2
-           neutral: 0.0
-         lambda_beneficial: 0.03
-         lambda_deleterious: 0.21
-       utility: !Algebraic
-         upper: 1.5
+   host_model: !SingleHost
+     distribution: !Exponential
+       weights:
+         beneficial: 0.29
+         deleterious: 0.51
+         lethal: 0.2
+         neutral: 0.0
+       lambda_beneficial: 0.03
+       lambda_deleterious: 0.21
+     utility: !Algebraic
+       upper: 1.5
 schedule:
  - generation: "{} % 1"
    event: transmission
@@ -101,8 +101,9 @@ between two compartments. The sample event will occur every 200 generations and 
 the current generation number and an event will be executed whenever the expression evaluates
 to 0.
 
-There are more parameters and events that can be configured in the schedule. For more information
-on the configuration, see the [documentation](https://docs.rs/virolution/latest/virolution/config/index.html).
+There are more parameters and events that can be configured in the schedule. For more
+information on the configuration, see the
+[documentation](https://docs.rs/virolution/latest/virolution/config/index.html).
 
 When the simulation is complete (reached its maximum generation), the final population will be
 stored in a file called `final.<i>.csv`, where `<i>` is the compartment number. The file will
@@ -120,8 +121,9 @@ and recombinants can be derived:
 use std::sync::Arc;
 
 use virolution::core::*;
-use virolution::core::fitness::init::*;
-use virolution::core::fitness::utility::*;
+use virolution::init::fitness::*;
+use virolution::core::fitness::UtilityFunction;
+use virolution::providers::FitnessProvider;
 use virolution::encoding::Nucleotide as Nt;
 
 let sequence = vec![Nt::A; 4];
@@ -146,3 +148,4 @@ assert_eq!(mutant2.get_sequence(), vec![Nt::A, Nt::G, Nt::C, Nt::A]);
 assert_eq!(recombinant.get_sequence(), vec![Nt::A, Nt::A, Nt::C, Nt::A]);
 ```
 
+<!-- cargo-rdme end -->
