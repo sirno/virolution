@@ -368,17 +368,20 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
         let mut rng = rand::rng();
         self.host_map_buffer
             .build(|(infectant, ref mut infection)| {
-                let host_candidate = host_sampler.sample(&mut rng);
-                **infection = self
-                    .host_specs
-                    .try_get_spec_from_index(host_candidate)
-                    .and_then(|spec| {
-                        if spec.host.infect(&self.population.get(&infectant), &mut rng) {
-                            Some(host_candidate)
-                        } else {
-                            None
-                        }
-                    })
+                for _ in 0..self.parameters.n_hits {
+                    let host_candidate = host_sampler.sample(&mut rng);
+                    if self
+                        .host_specs
+                        .try_get_spec_from_index(host_candidate)
+                        .map_or(false, |spec| {
+                            spec.host.infect(&self.population.get(&infectant), &mut rng)
+                        })
+                    {
+                        **infection = Some(host_candidate);
+                        return;
+                    }
+                }
+                **infection = None;
             });
     }
 
