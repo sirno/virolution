@@ -13,14 +13,41 @@ use crate::simulation::BasicHost;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Parameters {
+    /// The mutation rate represents the probability of a mutation occurring in a virus at each
+    /// time step.
     pub mutation_rate: f64,
+
+    /// The recombination rate represents the probability of recombination occurring between two
+    /// viruses in the population.
     pub recombination_rate: f64,
+
+    /// The size of the host population in the simulation.
     pub host_population_size: usize,
+
+    /// The basic reproductive number represents the average burst size of a virus in the population.
     pub basic_reproductive_number: f64,
+
+    /// The maximum population size for number of viruses in the simulation.
     pub max_population: usize,
+
+    /// The dilution factor represents the fraction of the population that is diluted at each
+    /// time step.
     pub dilution: f64,
+
+    /// The substitution matrix is a 4x4 matrix representing the probabilities of nucleotide
+    /// substitutions.
     pub substitution_matrix: [[f64; 4]; 4],
+
+    /// The host model defines host population structure and fitness characteristics.
     pub host_model: HostModel,
+
+    /// The number of times a virus can hit hosts before it fails to infect.
+    #[serde(default = "default_n_hits")]
+    pub n_hits: usize,
+}
+
+fn default_n_hits() -> usize {
+    1
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -188,6 +215,7 @@ mod tests {
                 )),
                 None,
             )),
+            n_hits: 1,
         };
         settings.write(&mut buffer).unwrap();
         let read_settings = Parameters::read(&mut buffer.as_slice()).unwrap();
@@ -226,6 +254,7 @@ mod tests {
                 )),
                 None,
             )),
+            n_hits: 1,
         };
         settings.write(&mut buffer).unwrap();
         let read_settings = Parameters::read(&mut buffer.as_slice()).unwrap();
@@ -256,6 +285,7 @@ mod tests {
                 )),
                 None,
             )),
+            n_hits: 1,
         };
         settings.write_to_file(path).unwrap();
         let read_settings = Parameters::read_from_file(path).unwrap();

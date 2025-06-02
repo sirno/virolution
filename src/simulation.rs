@@ -579,6 +579,7 @@ mod tests {
         max_population: POPULATION_SIZE,
         dilution: 1.,
         host_model: HostModel::SingleHost(FITNESS_MODEL),
+        n_hits: 1,
     };
 
     fn setup_test_simulation() -> BasicSimulation<Nt> {

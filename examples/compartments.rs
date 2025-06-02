@@ -50,6 +50,7 @@ fn main() {
         max_population: 1_000_000,
         dilution: 0.02,
         host_model: HostModel::SingleHost(host_fitness),
+        n_hits: 1,
     };
 
     let (mut attribute_definition, host_specs) =

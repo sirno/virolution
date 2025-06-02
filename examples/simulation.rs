@@ -67,6 +67,7 @@ fn main() {
         max_population: 1_000_000,
         dilution: 0.02,
         host_model: HostModel::SingleHost(HostFitness::new(Some(fitness_model), None)),
+        n_hits: 1,
     };
     simulation_settings
         .write_to_file("parameters_example.yaml")

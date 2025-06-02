@@ -73,6 +73,7 @@ mod tests {
                     )),
                     None,
                 )),
+                n_hits: 1,
             }],
             schedule: Schedule::from_vec(vec![
                 ScheduleRecord::new("0", "transmission", "migration_fwd"),
