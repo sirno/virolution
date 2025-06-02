@@ -368,6 +368,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
         let mut rng = rand::rng();
         self.host_map_buffer
             .build(|(infectant, ref mut infection)| {
+                // try to infect a host `n_hits` times
                 for _ in 0..self.parameters.n_hits {
                     let host_candidate = host_sampler.sample(&mut rng);
                     if self
