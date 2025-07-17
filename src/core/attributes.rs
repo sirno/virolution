@@ -195,7 +195,7 @@ impl<S: Symbol> AttributeSet<S> {
     /// Get or compute the value of an attribute.
     pub fn get_or_compute_raw(&self, id: &'static str) -> Result<AttributeValue> {
         let provider = self.definition.providers.get(&id).ok_or_else(|| {
-            VirolutionError::ImplementationError(format!("No provider found for attribute {}", id))
+            VirolutionError::ImplementationError(format!("No provider found for attribute {id}"))
         })?;
 
         // First, try to read the value
@@ -219,7 +219,7 @@ impl<S: Symbol> AttributeSet<S> {
     /// Get or compute the value of an attribute.
     pub fn get_or_compute(&self, id: &'static str) -> Result<AttributeValue> {
         let provider = self.definition.providers.get(&id).ok_or_else(|| {
-            VirolutionError::ImplementationError(format!("No provider found for attribute {}", id))
+            VirolutionError::ImplementationError(format!("No provider found for attribute {id}"))
         })?;
 
         // First, try to read the value
@@ -247,7 +247,7 @@ impl<S: Symbol> AttributeSet<S> {
     pub fn get(&self, id: &str) -> Option<AttributeValue> {
         // Get the provider and return None if it doesn't exist.
         let provider = match self.definition.providers.get(id).ok_or_else(|| {
-            VirolutionError::ImplementationError(format!("No provider found for attribute {}", id))
+            VirolutionError::ImplementationError(format!("No provider found for attribute {id}"))
         }) {
             Ok(provider) => provider,
             Err(_) => return None,

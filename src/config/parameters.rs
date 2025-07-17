@@ -76,7 +76,7 @@ impl HostFitness {
         let reproductive_fitness_name = self.reproductive.as_ref().map(|model| {
             let mut model = model.clone();
             let name: &'static str =
-                Box::leak(format!("reproductive_fitness_{}", host_id).into_boxed_str());
+                Box::leak(format!("reproductive_fitness_{host_id}").into_boxed_str());
             model.prepend_path(path.to_str().unwrap());
             attributes.register(Arc::new(
                 FitnessProvider::from_model(name, sequence, &model).unwrap(),
@@ -86,7 +86,7 @@ impl HostFitness {
         let infective_fitness_name = self.infective.as_ref().map(|model| {
             let mut model = model.clone();
             let name: &'static str =
-                Box::leak(format!("infective_fitness_{}", host_id).into_boxed_str());
+                Box::leak(format!("infective_fitness_{host_id}").into_boxed_str());
             model.prepend_path(path.to_str().unwrap());
             attributes.register(Arc::new(
                 FitnessProvider::from_model(name, sequence, &model).unwrap(),

@@ -38,7 +38,7 @@ impl Symbol for Nucleotide {
             0x54 | 0x74 | 0x31 | 0x01 => Nucleotide::T,
             0x43 | 0x63 | 0x32 | 0x02 => Nucleotide::C,
             0x47 | 0x67 | 0x33 | 0x03 => Nucleotide::G,
-            _ => panic!("Invalid nucleotide symbol: {}", s),
+            _ => panic!("Invalid nucleotide symbol: {s}"),
         }
     }
 

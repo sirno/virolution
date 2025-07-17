@@ -64,7 +64,7 @@ impl<S: Symbol> FitnessFunction<S> for NonEpistatic<S> {
     }
 
     fn write(&self, path: &Path, name: &'static str) -> Result<(), VirolutionError> {
-        let table_name = format!("{}_table.npy", name);
+        let table_name = format!("{name}_table.npy");
         let mut table_file = io::BufWriter::new(fs::File::create(path.join(table_name)).unwrap());
         self.table.write(&mut table_file)?;
         Ok(())
@@ -102,8 +102,8 @@ impl<S: Symbol> FitnessFunction<S> for SimpleEpistatic<S> {
     }
 
     fn write(&self, path: &Path, name: &'static str) -> Result<(), VirolutionError> {
-        let table_name = format!("{}_table.npy", name);
-        let epistasis_name = format!("{}_epistasis_table.npy", name);
+        let table_name = format!("{name}_table.npy");
+        let epistasis_name = format!("{name}_epistasis_table.npy");
 
         let table_file = fs::File::create(path.join(table_name)).unwrap();
         let epistasis_path = fs::File::create(path.join(epistasis_name)).unwrap();

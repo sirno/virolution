@@ -18,22 +18,22 @@ impl fmt::Display for VirolutionError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             VirolutionError::ImplementationError(message) => {
-                write!(f, "ImplementationError: {}", message)
+                write!(f, "ImplementationError: {message}")
             }
             VirolutionError::InitializationError(message) => {
-                write!(f, "InitializationError: {}", message)
+                write!(f, "InitializationError: {message}")
             }
             VirolutionError::ValueError(message) => {
-                write!(f, "ValueError: {}", message)
+                write!(f, "ValueError: {message}")
             }
             VirolutionError::VariantMissmatch(message) => {
-                write!(f, "VariantMissmatch: {}", message)
+                write!(f, "VariantMissmatch: {message}")
             }
             VirolutionError::ReadError(message) => {
-                write!(f, "ReadError: {}", message)
+                write!(f, "ReadError: {message}")
             }
             VirolutionError::WriteError(message) => {
-                write!(f, "WriteError: {}", message)
+                write!(f, "WriteError: {message}")
             }
         }
     }

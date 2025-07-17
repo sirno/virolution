@@ -30,7 +30,7 @@ impl FitnessModel {
     /// This is used to make sure that paths can be defined relative to the configuration files
     /// location.
     pub(crate) fn prepend_path(&mut self, path: &str) {
-        if path == "" {
+        if path.is_empty() {
             return;
         }
         match &mut self.distribution {
