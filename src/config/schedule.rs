@@ -142,7 +142,7 @@ impl<'de> Deserialize<'de> for Schedule {
         D: Deserializer<'de>,
     {
         let table: Vec<ScheduleRecord> = Vec::<ScheduleRecord>::deserialize(deserializer)?;
-        Self::from_vec(table).map_err(|e| serde::de::Error::custom(format!("{:?}", e)))
+        Self::from_vec(table).map_err(|e| serde::de::Error::custom(format!("{e:?}")))
     }
 }
 
@@ -210,10 +210,11 @@ impl Schedule {
     pub fn get_settings(&self, generation: usize) -> Option<Parameters> {
         self.get_event_value("settings", generation)
             .and_then(|settings_path| {
+                #[allow(clippy::bind_instead_of_map)]
                 Parameters::read_from_file(settings_path)
                     .or_else(|err| {
-                        eprintln!("Error reading settings file: {:?}", err);
-                        log::error!("Error reading settings file: {:?}", err);
+                        eprintln!("Error reading settings file `{settings_path}`: {err:?}");
+                        log::error!("Error reading settings file `{settings_path}`: {err:?}");
                         Err(err)
                     })
                     .ok()

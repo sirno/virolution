@@ -10,6 +10,7 @@ use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
+use ndarray::Array2;
 
 use crate::args::Args;
 use crate::config::{Parameters, Settings};
@@ -42,7 +43,7 @@ impl Runner {
         // create output directory
         if let Some(outdir) = args.outdir.as_ref() {
             fs::create_dir_all(outdir)
-                .map_err(|err| VirolutionError::InitializationError(format!("{:?}", err)))?;
+                .map_err(|err| VirolutionError::InitializationError(format!("{err:?}")))?;
         }
 
         // setup logger and rayon when in parallel mode
@@ -63,8 +64,7 @@ impl Runner {
 
         let providers = attribute_definitions
             .providers()
-            .iter()
-            .map(|(_range, provider)| provider)
+            .values()
             .collect::<Vec<_>>();
         Self::write_fitness_tables(providers, args.outdir.as_ref().map(Path::new));
 
@@ -136,7 +136,7 @@ impl Runner {
         for (compartment_id, compartment) in self.simulations.iter().enumerate() {
             log::info!("Storing sequences for compartment {}...", compartment_id);
             let mut sequence_file = csv::WriterBuilder::new()
-                .from_path(sequence_path.join(format!("final.{}.csv", compartment_id)))
+                .from_path(sequence_path.join(format!("final.{compartment_id}.csv")))
                 .expect("Unable to create final sequence file.");
 
             sequence_file
@@ -639,7 +639,10 @@ impl Runner {
                                 .iter()
                                 .map(|sim| sim.get_population().frequencies())
                                 .collect();
-                            log::info!("frequencies={frequencies:?}");
+                            for (idx, freq) in frequencies.into_iter().enumerate() {
+                                let freq_array = Array2::from_shape_vec((freq.len() / 4, 4), freq);
+                                log::info!("({idx:?})frequencies={freq_array:.3?}");
+                            };
                         }
                         "average-fitness" => {
                             self.simulations.iter().enumerate().for_each(|(idx, sim)| {

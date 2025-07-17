@@ -374,7 +374,7 @@ impl<S: Symbol> Simulation<S> for BasicSimulation<S> {
                     if self
                         .host_specs
                         .try_get_spec_from_index(host_candidate)
-                        .map_or(false, |spec| {
+                        .is_some_and(|spec| {
                             spec.host.infect(&self.population.get(&infectant), &mut rng)
                         })
                     {

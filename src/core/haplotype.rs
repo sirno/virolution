@@ -506,7 +506,7 @@ impl<S: Symbol> Haplotype<S> {
 
     pub fn get_tree(&self) -> String {
         let tree = self.get_subtree(self.get_reference().get_weak());
-        format!("{};", tree)
+        format!("{tree};")
     }
 
     pub fn get_subtree(&self, ancestor: HaplotypeWeak<S>) -> String {
@@ -1057,7 +1057,7 @@ mod tests {
         generation_provider.increment();
         let ht = wt.create_descendant(vec![0], vec![Nt::G]);
         let ht_id = ht.get_block_id();
-        assert_eq!(wt.get_tree(), format!("('{}':1)wt;", ht_id));
+        assert_eq!(wt.get_tree(), format!("('{ht_id}':1)wt;"));
 
         generation_provider.increment();
         let rc = Haplotype::create_recombinant(&wt, &ht, 1, 2);
