@@ -2,6 +2,8 @@
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 #[cfg(not(feature = "parallel"))]
+use ndarray::Array2;
+#[cfg(not(feature = "parallel"))]
 use rand::prelude::*;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
@@ -10,8 +12,6 @@ use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
-#[cfg(not(feature = "parallel"))]
-use ndarray::Array2;
 
 use crate::args::Args;
 use crate::config::{Parameters, Settings};
@@ -643,7 +643,7 @@ impl Runner {
                             for (idx, freq) in frequencies.into_iter().enumerate() {
                                 let freq_array = Array2::from_shape_vec((freq.len() / 4, 4), freq);
                                 log::info!("({idx:?})frequencies={freq_array:.3?}");
-                            };
+                            }
                         }
                         "average-fitness" => {
                             self.simulations.iter().enumerate().for_each(|(idx, sim)| {

@@ -6,8 +6,8 @@
 //! without having to keep the entire history in memory of unobserved elements.
 //!
 
-use crate::core::population::HaplotypeStore;
 use crate::core::Population;
+use crate::core::population::HaplotypeStore;
 use std::fmt;
 
 #[derive(Debug)]

@@ -297,7 +297,7 @@ impl<M: HaplotypeStore> Population<M> {
     }
 
     /// Get an iterator over the `Population`.
-    pub fn iter(&self) -> PopulationIterator<M> {
+    pub fn iter(&self) -> PopulationIterator<'_, M> {
         PopulationIterator {
             population: self,
             index: 0,

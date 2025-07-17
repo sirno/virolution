@@ -4,11 +4,11 @@
 //! simulation.
 
 use npyz::NpyFile;
-use rand_distr::{weighted::WeightedIndex, Distribution, Exp};
+use rand_distr::{Distribution, Exp, weighted::WeightedIndex};
 use serde::{Deserialize, Serialize};
 
-use crate::core::fitness::epistasis::EpiEntry;
 use crate::core::fitness::UtilityFunction;
+use crate::core::fitness::epistasis::EpiEntry;
 use crate::encoding::Symbol;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

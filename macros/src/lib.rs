@@ -7,7 +7,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, ItemFn};
+use syn::{ItemFn, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn require_deferred_drop(_attr: TokenStream, item: TokenStream) -> TokenStream {

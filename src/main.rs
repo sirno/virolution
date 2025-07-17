@@ -143,11 +143,13 @@ mod tests {
         assert!(
             std::path::Path::new(&format!("{}/reproductive_fitness_0_table.npy", tmp.dir)).exists()
         );
-        assert!(std::path::Path::new(&format!(
-            "{}/reproductive_fitness_0_epistasis_table.npy",
-            tmp.dir
-        ))
-        .exists());
+        assert!(
+            std::path::Path::new(&format!(
+                "{}/reproductive_fitness_0_epistasis_table.npy",
+                tmp.dir
+            ))
+            .exists()
+        );
         assert!(std::path::Path::new(&format!("{}/virolution.log", tmp.dir)).exists());
     }
 }

@@ -4,8 +4,8 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::core::hosts::{HostSpec, HostSpecs};
 use crate::core::AttributeSetDefinition;
+use crate::core::hosts::{HostSpec, HostSpecs};
 use crate::encoding::Symbol;
 use crate::init::FitnessModel;
 use crate::providers::FitnessProvider;

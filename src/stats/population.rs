@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
-use crate::core::population::HaplotypeStore;
 use crate::core::Population;
+use crate::core::population::HaplotypeStore;
 use crate::encoding::Symbol;
 use crate::references::HaplotypeWeakTrait;
 

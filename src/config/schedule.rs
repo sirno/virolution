@@ -1,4 +1,4 @@
-use evalexpr::{context_map, DefaultNumericTypes, Value};
+use evalexpr::{DefaultNumericTypes, Value, context_map};
 use phf::phf_map;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

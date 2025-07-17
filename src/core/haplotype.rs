@@ -26,8 +26,8 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::fmt;
 use std::mem::ManuallyDrop;
-use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicIsize, Ordering};
 
 use crate::encoding::Symbol;
 use crate::errors::Result;
@@ -35,9 +35,9 @@ use crate::references::DescendantsCell;
 use crate::references::{HaplotypeRef, HaplotypeRefTrait, HaplotypeWeak, HaplotypeWeakTrait};
 use virolution_macros::require_deferred_drop;
 
+use super::AttributeSetDefinition;
 use super::attributes::{AttributeSet, AttributeValue};
 use super::cache::{CachedValue, VirolutionCache};
-use super::AttributeSetDefinition;
 
 // #[derive(Clone, Debug, Deref)]
 // pub type Symbol = Option<u8>;
@@ -112,7 +112,7 @@ impl<T> DeferenceCell<T> {
         }
     }
 
-    fn lock(&self) -> ReentrantMutexGuard<Cell<u8>> {
+    fn lock(&self) -> ReentrantMutexGuard<'_, Cell<u8>> {
         self.lock.lock()
     }
 
@@ -636,23 +636,25 @@ impl<S: Symbol> Mutant<S> {
         let new_ptr = tmp_ref.as_ptr() as *mut Mutant<S>;
 
         // synchronize swapping and deference with other threads
-        let _guard = (*old_ptr)._defer_drop.lock();
-        let _other_guard = (*new_ptr)._defer_drop.lock();
+        unsafe {
+            let _guard = (*old_ptr)._defer_drop.lock();
+            let _other_guard = (*new_ptr)._defer_drop.lock();
 
-        // replace the old reference with the new one inside the haplotype ref
-        // this swaps the reference count of the old reference for the new one
-        std::ptr::swap(old_ptr, new_ptr);
+            // replace the old reference with the new one inside the haplotype ref
+            // this swaps the reference count of the old reference for the new one
+            std::ptr::swap(old_ptr, new_ptr);
 
-        // mark the old reference as dirty
-        (*old_ptr)._defer_drop.set_dirty();
+            // mark the old reference as dirty
+            (*old_ptr)._defer_drop.set_dirty();
 
-        // check if anyone has requested a deferred drop
-        if (*old_ptr)._defer_drop.get_requests() > 0 {
-            eprintln!("Leaking reference to haplotype.");
-            let dangled_ref = ManuallyDrop::new(tmp_ref);
-            (*old_ptr)._defer_drop.leak.set(Some(dangled_ref));
-            #[cfg(all(feature = "parallel", test))]
-            N_LEAKED.fetch_add(1, Ordering::Relaxed);
+            // check if anyone has requested a deferred drop
+            if (*old_ptr)._defer_drop.get_requests() > 0 {
+                eprintln!("Leaking reference to haplotype.");
+                let dangled_ref = ManuallyDrop::new(tmp_ref);
+                (*old_ptr)._defer_drop.leak.set(Some(dangled_ref));
+                #[cfg(all(feature = "parallel", test))]
+                N_LEAKED.fetch_add(1, Ordering::Relaxed);
+            }
         }
     }
 
@@ -789,14 +791,14 @@ impl<S: Symbol> Mutant<S> {
     /// Check if a drop has been deferred and if any other thread has requested deferred drop.
     /// If no other thread has requested deferred drop, the drop will be executed.
     fn inquire_deferred_drop(&self) {
-        if self._defer_drop.inquire_deferred_drop() {
-            if let Some(mut dangling_ptr) = self._defer_drop.leak.take() {
-                #[cfg(all(feature = "parallel", test))]
-                N_DROPPED.fetch_add(1, Ordering::Relaxed);
-                eprintln!("Dropping reference to haplotype.");
-                unsafe {
-                    ManuallyDrop::drop(&mut dangling_ptr);
-                }
+        if self._defer_drop.inquire_deferred_drop()
+            && let Some(mut dangling_ptr) = self._defer_drop.leak.take()
+        {
+            #[cfg(all(feature = "parallel", test))]
+            N_DROPPED.fetch_add(1, Ordering::Relaxed);
+            eprintln!("Dropping reference to haplotype.");
+            unsafe {
+                ManuallyDrop::drop(&mut dangling_ptr);
             }
         }
     }
@@ -843,8 +845,8 @@ impl<S: Symbol> Recombinant<S> {
         self.wildtype.upgrade().unwrap().get_length()
     }
 
-    fn get_mutations_cache(
-    ) -> &'static ::cached::once_cell::sync::Lazy<VirolutionCache<HashMap<usize, u8>>> {
+    fn get_mutations_cache()
+    -> &'static ::cached::once_cell::sync::Lazy<VirolutionCache<HashMap<usize, u8>>> {
         // at this point, we cannot use generics in statics, so we encode the data for now until
         // later or const generics become available
         static MUTATIONS_CACHE: ::cached::once_cell::sync::Lazy<
