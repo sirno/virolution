@@ -74,10 +74,16 @@
         apps = {
           benchmark = {
             type = "app";
+            meta = {
+              description = "Run benchmarks for virolution";
+            };
             program = "${self.packages.${system}.default-benchmark}/bin/bench.sh";
           };
           parallel-benchmark = {
             type = "app";
+            meta = {
+              description = "Run parallel benchmarks for virolution";
+            };
             program = "${self.packages.${system}.parallel-benchmark}/bin/bench.sh parallel";
           };
         };

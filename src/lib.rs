@@ -141,7 +141,6 @@
 //! assert_eq!(recombinant.get_sequence(), vec![Nt::A, Nt::A, Nt::C, Nt::A]);
 //! ```
 //!
-#![feature(let_chains)]
 #![feature(test)]
 
 #[doc(hidden)]

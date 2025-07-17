@@ -10,6 +10,7 @@ use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
+#[cfg(not(feature = "parallel"))]
 use ndarray::Array2;
 
 use crate::args::Args;
