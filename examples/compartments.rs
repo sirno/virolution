@@ -77,8 +77,8 @@ fn main() {
         })
         .collect();
 
-    for gen in 1..=50 {
-        println!("generation={}", gen);
+    for generation in 1..=50 {
+        println!("generation={generation}");
         let offsprings: Vec<Vec<usize>> = compartment_simulations
             .iter_mut()
             .map(|simulation| {
@@ -88,7 +88,7 @@ fn main() {
             })
             .collect();
 
-        let transfers = plan.get_transfer_matrix(gen);
+        let transfers = plan.get_transfer_matrix(generation);
 
         let populations: Vec<Population<Store<Nt>>> = (0..n_compartments)
             .map(|target| {
